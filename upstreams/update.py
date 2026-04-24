@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+
+import shutil
+import subprocess
+import tempfile
+import tomllib
+from pathlib import Path
+
+
+CONFIG_FILE = "projects.toml"
+CHANGELOG_DIR = Path("./changelogs")
+
+
+def run(cmd, cwd=None, stdout=None):
+    print("+", " ".join(cmd))
+    subprocess.run(
+        cmd,
+        cwd=cwd,
+        stdout=stdout,
+        stderr=subprocess.STDOUT if stdout else None,
+        check=True,
+        text=True,
+    )
+
+
+def clean_dir(path: Path):
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def copy_without_git(src: Path, dst: Path):
+    clean_dir(dst)
+
+    for item in src.iterdir():
+        if item.name == ".git":
+            continue
+
+        target = dst / item.name
+
+        if item.is_dir():
+            shutil.copytree(item, target, ignore=shutil.ignore_patterns(".git"))
+        else:
+            shutil.copy2(item, target)
+
+
+def process_project(project: dict):
+    name = project["name"]
+    dst_path = Path(project["path"])
+    url = project["url"]
+    branch = project["branch"]
+    start_commit = project["start_commit"]
+
+    print(f"\n=== {name} ===")
+
+    with tempfile.TemporaryDirectory(prefix="upstream_") as tmp:
+        repo_path = Path(tmp) / "repo"
+
+        run([
+            "git",
+            "clone",
+            "--branch", branch,
+            "--single-branch",
+            url,
+            str(repo_path),
+        ])
+
+        CHANGELOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = CHANGELOG_DIR / f"{name}.log"
+
+        # Важно:
+        # start_commit^..HEAD включает сам start_commit.
+        # start_commit..HEAD НЕ включает сам start_commit.
+        log_range = f"{start_commit}^..HEAD"
+
+        with log_file.open("w", encoding="utf-8") as f:
+            run([
+                "git",
+                "log",
+                "--reverse",
+                "--date=iso",
+                "--stat",
+                "-p",
+                log_range,
+            ], cwd=repo_path, stdout=f)
+
+        git_dir = repo_path / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir)
+
+        copy_without_git(repo_path, dst_path)
+
+        print(f"Saved source: {dst_path}")
+        print(f"Saved changelog: {log_file}")
+
+
+def main():
+    with open(CONFIG_FILE, "rb") as f:
+        config = tomllib.load(f)
+
+    for project in config["projects"]:
+        process_project(project)
+
+
+if __name__ == "__main__":
+    main()

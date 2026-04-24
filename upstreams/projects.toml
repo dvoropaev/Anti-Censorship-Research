@@ -1,0 +1,20 @@
+[[projects]]
+name = "Xray-core"
+path = "./Xray"
+url = "https://github.com/XTLS/Xray-core.git"
+branch = "main"
+start_commit = "5d94a62a83073bc4aa378fb7e2198e15878e90da"
+
+[[projects]]
+name = "TrustTunnel"
+path = "./TrustTunnel/TrustTunnel"
+url = "https://github.com/TrustTunnel/TrustTunnel"
+branch = "master"
+start_commit = "6b18c5d7f180cc2a34cc6e3894cc72d52cc02077"
+
+[[projects]]
+name = "TrustTunnelClient"
+path = "./TrustTunnel/TrustTunnelClient"
+url = "https://github.com/TrustTunnel/TrustTunnelClient"
+branch = "master"
+start_commit = "33e14f7"
