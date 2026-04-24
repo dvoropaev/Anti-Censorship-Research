@@ -1,0 +1,17 @@
+cmake-build-*/
+build/
+.idea/
+.vscode/
+.DS_Store
+CmakeUserPresets.json
+pyvenv.cfg
+.clangd/
+/.cache/
+
+# Conan and conan-cmake create some files in-tree by design
+conan.lock
+conanbuildinfo.*
+conaninfo.txt
+graph_info.json
+conan/
+cmake/conan_provider.cmake

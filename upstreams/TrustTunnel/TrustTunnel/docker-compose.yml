@@ -1,0 +1,29 @@
+services:
+  trusttunnel-endpoint:
+    build:
+      context: .
+      target: trusttunnel-endpoint
+    image: trusttunnel-endpoint:local
+    container_name: trusttunnel-endpoint
+    restart: unless-stopped
+    ports:
+      - "443:8443/tcp"
+      - "443:8443/udp"
+      # Required for Let's Encrypt HTTP-01 challenge (TT_CERT_TYPE=letsencrypt).
+      # Remove this port if you do not issue/renew LE certificates in-container.
+      - "80:80/tcp"
+    environment:
+      # Override if endpoint listens on a non-default container port.
+      - TT_HEALTHCHECK_PORT=8443
+    healthcheck:
+      test: ["CMD-SHELL", "ss -ltn | grep -q ':${TT_HEALTHCHECK_PORT:-8443} '"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    volumes:
+      - trusttunnel_endpoint_data:/trusttunnel_endpoint
+
+volumes:
+  trusttunnel_endpoint_data:
+    driver: local

@@ -1,0 +1,10 @@
+---
+  !include 'increment-version.yaml'
+---
+  !include 'run-tests.yaml'
+---
+  !include 'deploy.yaml'
+---
+  !include 'deploy-docker.yaml'
+---
+  !include 'lint.yaml'
