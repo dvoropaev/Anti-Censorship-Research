@@ -18,3 +18,10 @@ path = "./TrustTunnel/TrustTunnelClient"
 url = "https://github.com/TrustTunnel/TrustTunnelClient"
 branch = "master"
 start_commit = "33e14f7"
+
+[[projects]]
+name = "telemt"
+path = "./telegram/telemt"
+url = "https://github.com/telemt/telemt.git"
+branch = "main"
+start_commit = "c47495d"
