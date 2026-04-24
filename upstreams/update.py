@@ -61,9 +61,19 @@ def process_project(project: dict):
             "clone",
             "--branch", branch,
             "--single-branch",
+            "--recurse-submodules",
             url,
             str(repo_path),
         ])
+
+        # Если в репозитории есть сабмодули, подтягиваем их рекурсивно.
+        run([
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+        ], cwd=repo_path)
 
         CHANGELOG_DIR.mkdir(parents=True, exist_ok=True)
         log_file = CHANGELOG_DIR / f"{name}.log"
