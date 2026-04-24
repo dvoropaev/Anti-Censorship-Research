@@ -1,0 +1,3722 @@
+commit b4650360d6a05c2842d2c7157fb8cb864bba637a
+Author: RPRX <63339210+RPRX@users.noreply.github.com>
+Date:   Fri Apr 17 23:04:05 2026 +0000
+
+    v26.4.17
+    
+    Announcement of NFTs by Project X: https://github.com/XTLS/Xray-core/discussions/3633
+    Project X NFT: https://opensea.io/assets/ethereum/0x5ee362866001613093361eb8569d59c4141b76d1/1
+    
+    VLESS Post-Quantum Encryption: https://github.com/XTLS/Xray-core/pull/5067
+    VLESS NFT: https://opensea.io/collection/vless
+    
+    XHTTP: Beyond REALITY: https://github.com/XTLS/Xray-core/discussions/4113
+    REALITY NFT: https://opensea.io/assets/ethereum/0x5ee362866001613093361eb8569d59c4141b76d1/2
+
+diff --git a/core/core.go b/core/core.go
+index ccd1437d..2ba9b9cb 100644
+--- a/core/core.go
++++ b/core/core.go
+@@ -20,7 +20,7 @@ import (
+ var (
+ 	Version_x byte = 26
+ 	Version_y byte = 4
+-	Version_z byte = 15
++	Version_z byte = 17
+ )
+ 
+ var (
+
+commit d52f15060bffa8508a660817781ce7c911f16ef6
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   Sat Apr 18 06:56:27 2026 +0800
+
+    Direct/Freedom outbound: Block UDP responses that are come from `ipsBlocked` as well (#5952)
+    
+    https://github.com/XTLS/Xray-core/pull/5947#issuecomment-4258980670
+    
+    https://github.com/XTLS/Xray-core/pull/5952#issuecomment-4259324234
+    
+    ---------
+    
+    Co-authored-by: RPRX <63339210+RPRX@users.noreply.github.com>
+
+diff --git a/proxy/freedom/freedom.go b/proxy/freedom/freedom.go
+index 008f700f..bc05d04a 100644
+--- a/proxy/freedom/freedom.go
++++ b/proxy/freedom/freedom.go
+@@ -290,7 +290,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
+ 		if destination.Network == net.Network_TCP {
+ 			reader = buf.NewReader(conn)
+ 		} else {
+-			reader = NewPacketReader(conn, UDPOverride, destination)
++			reader = NewPacketReader(conn, UDPOverride, destination, blockedIPMatcher)
+ 		}
+ 		if err := buf.Copy(reader, output, buf.UpdateActivity(timer)); err != nil {
+ 			return errors.New("failed to process response").Base(err)
+@@ -309,7 +309,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
+ 	return nil
+ }
+ 
+-func NewPacketReader(conn net.Conn, UDPOverride net.Destination, DialDest net.Destination) buf.Reader {
++func NewPacketReader(conn net.Conn, UDPOverride net.Destination, DialDest net.Destination, blockedIPMatcher geodata.IPMatcher) buf.Reader {
+ 	iConn := conn
+ 	statConn, ok := iConn.(*stat.CounterConnection)
+ 	if ok {
+@@ -328,6 +328,7 @@ func NewPacketReader(conn net.Conn, UDPOverride net.Destination, DialDest net.De
+ 		return &PacketReader{
+ 			PacketConnWrapper: c,
+ 			Counter:           counter,
++			BlockedIPMatcher:  blockedIPMatcher,
+ 			IsOverridden:      isOverridden,
+ 			InitUnchangedAddr: DialDest.Address,
+ 			InitChangedAddr:   net.DestinationFromAddr(conn.RemoteAddr()).Address,
+@@ -339,6 +340,7 @@ func NewPacketReader(conn net.Conn, UDPOverride net.Destination, DialDest net.De
+ type PacketReader struct {
+ 	*internet.PacketConnWrapper
+ 	stats.Counter
++	BlockedIPMatcher  geodata.IPMatcher
+ 	IsOverridden      bool
+ 	InitUnchangedAddr net.Address
+ 	InitChangedAddr   net.Address
+@@ -346,30 +348,38 @@ type PacketReader struct {
+ 
+ func (r *PacketReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
+ 	b := buf.New()
+-	b.Resize(0, buf.Size)
+-	n, d, err := r.PacketConnWrapper.ReadFrom(b.Bytes())
+-	if err != nil {
+-		b.Release()
+-		return nil, err
+-	}
+-	b.Resize(0, int32(n))
+-	// if udp dest addr is changed, we are unable to get the correct src addr
+-	// so we don't attach src info to udp packet, break cone behavior, assuming the dial dest is the expected scr addr
+-	if !r.IsOverridden {
+-		address := net.IPAddress(d.(*net.UDPAddr).IP)
+-		if r.InitChangedAddr == address {
+-			address = r.InitUnchangedAddr
++	for {
++		b.Resize(0, buf.Size)
++		n, d, err := r.PacketConnWrapper.ReadFrom(b.Bytes())
++		if err != nil {
++			b.Release()
++			return nil, err
+ 		}
+-		b.UDP = &net.Destination{
+-			Address: address,
+-			Port:    net.Port(d.(*net.UDPAddr).Port),
+-			Network: net.Network_UDP,
++		b.Resize(0, int32(n))
++
++		udpAddr := d.(*net.UDPAddr)
++		sourceAddr := net.IPAddress(udpAddr.IP)
++		if isBlockedAddress(r.BlockedIPMatcher, sourceAddr) {
++			continue
+ 		}
++
++		// if udp dest addr is changed, we are unable to get the correct src addr
++		// so we don't attach src info to udp packet, break cone behavior, assuming the dial dest is the expected scr addr
++		if !r.IsOverridden {
++			if r.InitChangedAddr == sourceAddr {
++				sourceAddr = r.InitUnchangedAddr
++			}
++			b.UDP = &net.Destination{
++				Address: sourceAddr,
++				Port:    net.Port(udpAddr.Port),
++				Network: net.Network_UDP,
++			}
++		}
++		if r.Counter != nil {
++			r.Counter.Add(int64(n))
++		}
++		return buf.MultiBuffer{b}, nil
+ 	}
+-	if r.Counter != nil {
+-		r.Counter.Add(int64(n))
+-	}
+-	return buf.MultiBuffer{b}, nil
+ }
+ 
+ // DialDest means the dial target used in the dialer when creating conn
+@@ -468,10 +478,8 @@ func (w *PacketWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
+ 				}
+ 			}
+ 			if isBlockedAddress(w.BlockedIPMatcher, b.UDP.Address) {
+-				blockedAddr := b.UDP.Address
+ 				b.Release()
+-				buf.ReleaseMulti(mb)
+-				return errors.New("blocked target IP: ", blockedAddr).AtDebug()
++				continue
+ 			}
+ 			destAddr := b.UDP.RawNetAddr()
+ 			if destAddr == nil {
+
+commit 31ab22c33d8c84c7b028cf6d229b4b34e0e8beb4
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   Sat Apr 18 06:13:35 2026 +0800
+
+    Geodata: Support reversed CIDR rules in IP rules (#5951)
+    
+    https://github.com/XTLS/Xray-core/pull/5947#issuecomment-4258063215
+    
+    https://github.com/XTLS/Xray-core/pull/5951#issuecomment-4260093653
+
+diff --git a/app/dns/dns_test.go b/app/dns/dns_test.go
+index c065056e..067ff445 100644
+--- a/app/dns/dns_test.go
++++ b/app/dns/dns_test.go
+@@ -548,15 +548,8 @@ func TestIPMatch(t *testing.T) {
+ 							Port: uint32(port),
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										// inner ip, will not match
+-										Ip:     []byte{192, 168, 11, 1},
+-										Prefix: 32,
+-									},
+-								},
+-							},
++							// inner ip, will not match
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{192, 168, 11, 1}, Prefix: 32}}}},
+ 						},
+ 					},
+ 					// second dns, match ip
+@@ -571,22 +564,8 @@ func TestIPMatch(t *testing.T) {
+ 							Port: uint32(port),
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 8, 8},
+-										Prefix: 32,
+-									},
+-								},
+-							},
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 8, 4},
+-										Prefix: 32,
+-									},
+-								},
+-							},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 8, 8}, Prefix: 32}}}},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 8, 4}, Prefix: 32}}}},
+ 						},
+ 					},
+ 				},
+@@ -676,9 +655,9 @@ func TestLocalDomain(t *testing.T) {
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+ 							// Will match localhost, localhost-a and localhost-b,
+-							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDR{Ip: []byte{127, 0, 0, 2}, Prefix: 32}}},
+-							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDR{Ip: []byte{127, 0, 0, 3}, Prefix: 32}}},
+-							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDR{Ip: []byte{127, 0, 0, 4}, Prefix: 32}}},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{127, 0, 0, 2}, Prefix: 32}}}},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{127, 0, 0, 3}, Prefix: 32}}}},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{127, 0, 0, 4}, Prefix: 32}}}},
+ 						},
+ 					},
+ 					{
+@@ -901,22 +880,8 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+ 							// Will only match 8.8.8.8 and 8.8.4.4
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 8, 8},
+-										Prefix: 32,
+-									},
+-								},
+-							},
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 4, 4},
+-										Prefix: 32,
+-									},
+-								},
+-							},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 8, 8}, Prefix: 32}}}},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 4, 4}, Prefix: 32}}}},
+ 						},
+ 					},
+ 					{
+@@ -936,14 +901,7 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+ 							// Will match 8.8.8.8 and 8.8.8.7, etc
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 8, 7},
+-										Prefix: 24,
+-									},
+-								},
+-							},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 8, 7}, Prefix: 24}}}},
+ 						},
+ 					},
+ 					{
+@@ -963,14 +921,7 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+ 							// Will only match 8.8.7.7 (api.google.com)
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 7, 7},
+-										Prefix: 32,
+-									},
+-								},
+-							},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 7, 7}, Prefix: 32}}}},
+ 						},
+ 					},
+ 					{
+@@ -990,14 +941,7 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
+ 						},
+ 						ExpectedIp: []*geodata.IPRule{
+ 							// Will only match 8.8.7.8 (v2.api.google.com)
+-							{
+-								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{8, 8, 7, 8},
+-										Prefix: 32,
+-									},
+-								},
+-							},
++							{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{8, 8, 7, 8}, Prefix: 32}}}},
+ 						},
+ 					},
+ 				},
+diff --git a/app/router/command/command_test.go b/app/router/command/command_test.go
+index e6706df8..adfe07dc 100644
+--- a/app/router/command/command_test.go
++++ b/app/router/command/command_test.go
+@@ -308,7 +308,7 @@ func TestServiceTestRoute(t *testing.T) {
+ 				TargetTag: &router.RoutingRule_Tag{Tag: "out"},
+ 			},
+ 			{
+-				SourceIp:  []*geodata.IPRule{{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDR{Ip: []byte{127, 0, 0, 0}, Prefix: 8}}}},
++				SourceIp:  []*geodata.IPRule{{Value: &geodata.IPRule_Custom{Custom: &geodata.CIDRRule{Cidr: &geodata.CIDR{Ip: []byte{127, 0, 0, 0}, Prefix: 8}}}}},
+ 				TargetTag: &router.RoutingRule_Tag{Tag: "out"},
+ 			},
+ 			{
+diff --git a/app/router/condition_test.go b/app/router/condition_test.go
+index 9e57aa91..1b94bb8e 100644
+--- a/app/router/condition_test.go
++++ b/app/router/condition_test.go
+@@ -92,25 +92,22 @@ func TestRoutingRule(t *testing.T) {
+ 				Ip: []*geodata.IPRule{
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     []byte{8, 8, 8, 8},
+-								Prefix: 32,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: []byte{8, 8, 8, 8}, Prefix: 32},
+ 							},
+ 						},
+ 					},
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     []byte{8, 8, 8, 8},
+-								Prefix: 32,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: []byte{8, 8, 8, 8}, Prefix: 32},
+ 							},
+ 						},
+ 					},
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     net.ParseAddress("2001:0db8:85a3:0000:0000:8a2e:0370:7334").IP(),
+-								Prefix: 128,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: net.ParseAddress("2001:0db8:85a3:0000:0000:8a2e:0370:7334").IP(), Prefix: 128},
+ 							},
+ 						},
+ 					},
+@@ -140,9 +137,8 @@ func TestRoutingRule(t *testing.T) {
+ 				SourceIp: []*geodata.IPRule{
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     []byte{192, 168, 0, 0},
+-								Prefix: 16,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: []byte{192, 168, 0, 0}, Prefix: 16},
+ 							},
+ 						},
+ 					},
+diff --git a/app/router/router_test.go b/app/router/router_test.go
+index f038937f..323e9a62 100644
+--- a/app/router/router_test.go
++++ b/app/router/router_test.go
+@@ -159,9 +159,8 @@ func TestIPOnDemand(t *testing.T) {
+ 				Ip: []*geodata.IPRule{
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     []byte{192, 168, 0, 0},
+-								Prefix: 16,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: []byte{192, 168, 0, 0}, Prefix: 16},
+ 							},
+ 						},
+ 					},
+@@ -204,9 +203,8 @@ func TestIPIfNonMatchDomain(t *testing.T) {
+ 				Ip: []*geodata.IPRule{
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     []byte{192, 168, 0, 0},
+-								Prefix: 16,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: []byte{192, 168, 0, 0}, Prefix: 16},
+ 							},
+ 						},
+ 					},
+@@ -249,9 +247,8 @@ func TestIPIfNonMatchIP(t *testing.T) {
+ 				Ip: []*geodata.IPRule{
+ 					{
+ 						Value: &geodata.IPRule_Custom{
+-							Custom: &geodata.CIDR{
+-								Ip:     []byte{127, 0, 0, 0},
+-								Prefix: 8,
++							Custom: &geodata.CIDRRule{
++								Cidr: &geodata.CIDR{Ip: []byte{127, 0, 0, 0}, Prefix: 8},
+ 							},
+ 						},
+ 					},
+diff --git a/common/geodata/geodat.pb.go b/common/geodata/geodat.pb.go
+index b5cc2797..369839c5 100644
+--- a/common/geodata/geodat.pb.go
++++ b/common/geodata/geodat.pb.go
+@@ -433,6 +433,58 @@ func (x *CIDR) GetPrefix() uint32 {
+ 	return 0
+ }
+ 
++type CIDRRule struct {
++	state         protoimpl.MessageState `protogen:"open.v1"`
++	Cidr          *CIDR                  `protobuf:"bytes,1,opt,name=cidr,proto3" json:"cidr,omitempty"`
++	ReverseMatch  bool                   `protobuf:"varint,2,opt,name=reverse_match,json=reverseMatch,proto3" json:"reverse_match,omitempty"`
++	unknownFields protoimpl.UnknownFields
++	sizeCache     protoimpl.SizeCache
++}
++
++func (x *CIDRRule) Reset() {
++	*x = CIDRRule{}
++	mi := &file_common_geodata_geodat_proto_msgTypes[6]
++	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++	ms.StoreMessageInfo(mi)
++}
++
++func (x *CIDRRule) String() string {
++	return protoimpl.X.MessageStringOf(x)
++}
++
++func (*CIDRRule) ProtoMessage() {}
++
++func (x *CIDRRule) ProtoReflect() protoreflect.Message {
++	mi := &file_common_geodata_geodat_proto_msgTypes[6]
++	if x != nil {
++		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++		if ms.LoadMessageInfo() == nil {
++			ms.StoreMessageInfo(mi)
++		}
++		return ms
++	}
++	return mi.MessageOf(x)
++}
++
++// Deprecated: Use CIDRRule.ProtoReflect.Descriptor instead.
++func (*CIDRRule) Descriptor() ([]byte, []int) {
++	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{6}
++}
++
++func (x *CIDRRule) GetCidr() *CIDR {
++	if x != nil {
++		return x.Cidr
++	}
++	return nil
++}
++
++func (x *CIDRRule) GetReverseMatch() bool {
++	if x != nil {
++		return x.ReverseMatch
++	}
++	return false
++}
++
+ type GeoIP struct {
+ 	state         protoimpl.MessageState `protogen:"open.v1"`
+ 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+@@ -444,7 +496,7 @@ type GeoIP struct {
+ 
+ func (x *GeoIP) Reset() {
+ 	*x = GeoIP{}
+-	mi := &file_common_geodata_geodat_proto_msgTypes[6]
++	mi := &file_common_geodata_geodat_proto_msgTypes[7]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+@@ -456,7 +508,7 @@ func (x *GeoIP) String() string {
+ func (*GeoIP) ProtoMessage() {}
+ 
+ func (x *GeoIP) ProtoReflect() protoreflect.Message {
+-	mi := &file_common_geodata_geodat_proto_msgTypes[6]
++	mi := &file_common_geodata_geodat_proto_msgTypes[7]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 		if ms.LoadMessageInfo() == nil {
+@@ -469,7 +521,7 @@ func (x *GeoIP) ProtoReflect() protoreflect.Message {
+ 
+ // Deprecated: Use GeoIP.ProtoReflect.Descriptor instead.
+ func (*GeoIP) Descriptor() ([]byte, []int) {
+-	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{6}
++	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{7}
+ }
+ 
+ func (x *GeoIP) GetCode() string {
+@@ -502,7 +554,7 @@ type GeoIPList struct {
+ 
+ func (x *GeoIPList) Reset() {
+ 	*x = GeoIPList{}
+-	mi := &file_common_geodata_geodat_proto_msgTypes[7]
++	mi := &file_common_geodata_geodat_proto_msgTypes[8]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+@@ -514,7 +566,7 @@ func (x *GeoIPList) String() string {
+ func (*GeoIPList) ProtoMessage() {}
+ 
+ func (x *GeoIPList) ProtoReflect() protoreflect.Message {
+-	mi := &file_common_geodata_geodat_proto_msgTypes[7]
++	mi := &file_common_geodata_geodat_proto_msgTypes[8]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 		if ms.LoadMessageInfo() == nil {
+@@ -527,7 +579,7 @@ func (x *GeoIPList) ProtoReflect() protoreflect.Message {
+ 
+ // Deprecated: Use GeoIPList.ProtoReflect.Descriptor instead.
+ func (*GeoIPList) Descriptor() ([]byte, []int) {
+-	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{7}
++	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{8}
+ }
+ 
+ func (x *GeoIPList) GetEntry() []*GeoIP {
+@@ -548,7 +600,7 @@ type GeoIPRule struct {
+ 
+ func (x *GeoIPRule) Reset() {
+ 	*x = GeoIPRule{}
+-	mi := &file_common_geodata_geodat_proto_msgTypes[8]
++	mi := &file_common_geodata_geodat_proto_msgTypes[9]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+@@ -560,7 +612,7 @@ func (x *GeoIPRule) String() string {
+ func (*GeoIPRule) ProtoMessage() {}
+ 
+ func (x *GeoIPRule) ProtoReflect() protoreflect.Message {
+-	mi := &file_common_geodata_geodat_proto_msgTypes[8]
++	mi := &file_common_geodata_geodat_proto_msgTypes[9]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 		if ms.LoadMessageInfo() == nil {
+@@ -573,7 +625,7 @@ func (x *GeoIPRule) ProtoReflect() protoreflect.Message {
+ 
+ // Deprecated: Use GeoIPRule.ProtoReflect.Descriptor instead.
+ func (*GeoIPRule) Descriptor() ([]byte, []int) {
+-	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{8}
++	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{9}
+ }
+ 
+ func (x *GeoIPRule) GetFile() string {
+@@ -610,7 +662,7 @@ type IPRule struct {
+ 
+ func (x *IPRule) Reset() {
+ 	*x = IPRule{}
+-	mi := &file_common_geodata_geodat_proto_msgTypes[9]
++	mi := &file_common_geodata_geodat_proto_msgTypes[10]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+@@ -622,7 +674,7 @@ func (x *IPRule) String() string {
+ func (*IPRule) ProtoMessage() {}
+ 
+ func (x *IPRule) ProtoReflect() protoreflect.Message {
+-	mi := &file_common_geodata_geodat_proto_msgTypes[9]
++	mi := &file_common_geodata_geodat_proto_msgTypes[10]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 		if ms.LoadMessageInfo() == nil {
+@@ -635,7 +687,7 @@ func (x *IPRule) ProtoReflect() protoreflect.Message {
+ 
+ // Deprecated: Use IPRule.ProtoReflect.Descriptor instead.
+ func (*IPRule) Descriptor() ([]byte, []int) {
+-	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{9}
++	return file_common_geodata_geodat_proto_rawDescGZIP(), []int{10}
+ }
+ 
+ func (x *IPRule) GetValue() isIPRule_Value {
+@@ -654,7 +706,7 @@ func (x *IPRule) GetGeoip() *GeoIPRule {
+ 	return nil
+ }
+ 
+-func (x *IPRule) GetCustom() *CIDR {
++func (x *IPRule) GetCustom() *CIDRRule {
+ 	if x != nil {
+ 		if x, ok := x.Value.(*IPRule_Custom); ok {
+ 			return x.Custom
+@@ -672,7 +724,7 @@ type IPRule_Geoip struct {
+ }
+ 
+ type IPRule_Custom struct {
+-	Custom *CIDR `protobuf:"bytes,2,opt,name=custom,proto3,oneof"`
++	Custom *CIDRRule `protobuf:"bytes,2,opt,name=custom,proto3,oneof"`
+ }
+ 
+ func (*IPRule_Geoip) isIPRule_Value() {}
+@@ -693,7 +745,7 @@ type Domain_Attribute struct {
+ 
+ func (x *Domain_Attribute) Reset() {
+ 	*x = Domain_Attribute{}
+-	mi := &file_common_geodata_geodat_proto_msgTypes[10]
++	mi := &file_common_geodata_geodat_proto_msgTypes[11]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+@@ -705,7 +757,7 @@ func (x *Domain_Attribute) String() string {
+ func (*Domain_Attribute) ProtoMessage() {}
+ 
+ func (x *Domain_Attribute) ProtoReflect() protoreflect.Message {
+-	mi := &file_common_geodata_geodat_proto_msgTypes[10]
++	mi := &file_common_geodata_geodat_proto_msgTypes[11]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 		if ms.LoadMessageInfo() == nil {
+@@ -807,7 +859,10 @@ const file_common_geodata_geodat_proto_rawDesc = "" +
+ 	"\x05value\".\n" +
+ 	"\x04CIDR\x12\x0e\n" +
+ 	"\x02ip\x18\x01 \x01(\fR\x02ip\x12\x16\n" +
+-	"\x06prefix\x18\x02 \x01(\rR\x06prefix\"o\n" +
++	"\x06prefix\x18\x02 \x01(\rR\x06prefix\"^\n" +
++	"\bCIDRRule\x12-\n" +
++	"\x04cidr\x18\x01 \x01(\v2\x19.xray.common.geodata.CIDRR\x04cidr\x12#\n" +
++	"\rreverse_match\x18\x02 \x01(\bR\freverseMatch\"o\n" +
+ 	"\x05GeoIP\x12\x12\n" +
+ 	"\x04code\x18\x01 \x01(\tR\x04code\x12-\n" +
+ 	"\x04cidr\x18\x02 \x03(\v2\x19.xray.common.geodata.CIDRR\x04cidr\x12#\n" +
+@@ -817,10 +872,10 @@ const file_common_geodata_geodat_proto_rawDesc = "" +
+ 	"\tGeoIPRule\x12\x12\n" +
+ 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x12\n" +
+ 	"\x04code\x18\x02 \x01(\tR\x04code\x12#\n" +
+-	"\rreverse_match\x18\x03 \x01(\bR\freverseMatch\"~\n" +
++	"\rreverse_match\x18\x03 \x01(\bR\freverseMatch\"\x82\x01\n" +
+ 	"\x06IPRule\x126\n" +
+-	"\x05geoip\x18\x01 \x01(\v2\x1e.xray.common.geodata.GeoIPRuleH\x00R\x05geoip\x123\n" +
+-	"\x06custom\x18\x02 \x01(\v2\x19.xray.common.geodata.CIDRH\x00R\x06customB\a\n" +
++	"\x05geoip\x18\x01 \x01(\v2\x1e.xray.common.geodata.GeoIPRuleH\x00R\x05geoip\x127\n" +
++	"\x06custom\x18\x02 \x01(\v2\x1d.xray.common.geodata.CIDRRuleH\x00R\x06customB\a\n" +
+ 	"\x05valueB[\n" +
+ 	"\x17com.xray.common.geodataP\x01Z(github.com/xtls/xray-core/common/geodata\xaa\x02\x13Xray.Common.Geodatab\x06proto3"
+ 
+@@ -837,7 +892,7 @@ func file_common_geodata_geodat_proto_rawDescGZIP() []byte {
+ }
+ 
+ var file_common_geodata_geodat_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+-var file_common_geodata_geodat_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
++var file_common_geodata_geodat_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+ var file_common_geodata_geodat_proto_goTypes = []any{
+ 	(Domain_Type)(0),         // 0: xray.common.geodata.Domain.Type
+ 	(*Domain)(nil),           // 1: xray.common.geodata.Domain
+@@ -846,28 +901,30 @@ var file_common_geodata_geodat_proto_goTypes = []any{
+ 	(*GeoSiteRule)(nil),      // 4: xray.common.geodata.GeoSiteRule
+ 	(*DomainRule)(nil),       // 5: xray.common.geodata.DomainRule
+ 	(*CIDR)(nil),             // 6: xray.common.geodata.CIDR
+-	(*GeoIP)(nil),            // 7: xray.common.geodata.GeoIP
+-	(*GeoIPList)(nil),        // 8: xray.common.geodata.GeoIPList
+-	(*GeoIPRule)(nil),        // 9: xray.common.geodata.GeoIPRule
+-	(*IPRule)(nil),           // 10: xray.common.geodata.IPRule
+-	(*Domain_Attribute)(nil), // 11: xray.common.geodata.Domain.Attribute
++	(*CIDRRule)(nil),         // 7: xray.common.geodata.CIDRRule
++	(*GeoIP)(nil),            // 8: xray.common.geodata.GeoIP
++	(*GeoIPList)(nil),        // 9: xray.common.geodata.GeoIPList
++	(*GeoIPRule)(nil),        // 10: xray.common.geodata.GeoIPRule
++	(*IPRule)(nil),           // 11: xray.common.geodata.IPRule
++	(*Domain_Attribute)(nil), // 12: xray.common.geodata.Domain.Attribute
+ }
+ var file_common_geodata_geodat_proto_depIdxs = []int32{
+ 	0,  // 0: xray.common.geodata.Domain.type:type_name -> xray.common.geodata.Domain.Type
+-	11, // 1: xray.common.geodata.Domain.attribute:type_name -> xray.common.geodata.Domain.Attribute
++	12, // 1: xray.common.geodata.Domain.attribute:type_name -> xray.common.geodata.Domain.Attribute
+ 	1,  // 2: xray.common.geodata.GeoSite.domain:type_name -> xray.common.geodata.Domain
+ 	2,  // 3: xray.common.geodata.GeoSiteList.entry:type_name -> xray.common.geodata.GeoSite
+ 	4,  // 4: xray.common.geodata.DomainRule.geosite:type_name -> xray.common.geodata.GeoSiteRule
+ 	1,  // 5: xray.common.geodata.DomainRule.custom:type_name -> xray.common.geodata.Domain
+-	6,  // 6: xray.common.geodata.GeoIP.cidr:type_name -> xray.common.geodata.CIDR
+-	7,  // 7: xray.common.geodata.GeoIPList.entry:type_name -> xray.common.geodata.GeoIP
+-	9,  // 8: xray.common.geodata.IPRule.geoip:type_name -> xray.common.geodata.GeoIPRule
+-	6,  // 9: xray.common.geodata.IPRule.custom:type_name -> xray.common.geodata.CIDR
+-	10, // [10:10] is the sub-list for method output_type
+-	10, // [10:10] is the sub-list for method input_type
+-	10, // [10:10] is the sub-list for extension type_name
+-	10, // [10:10] is the sub-list for extension extendee
+-	0,  // [0:10] is the sub-list for field type_name
++	6,  // 6: xray.common.geodata.CIDRRule.cidr:type_name -> xray.common.geodata.CIDR
++	6,  // 7: xray.common.geodata.GeoIP.cidr:type_name -> xray.common.geodata.CIDR
++	8,  // 8: xray.common.geodata.GeoIPList.entry:type_name -> xray.common.geodata.GeoIP
++	10, // 9: xray.common.geodata.IPRule.geoip:type_name -> xray.common.geodata.GeoIPRule
++	7,  // 10: xray.common.geodata.IPRule.custom:type_name -> xray.common.geodata.CIDRRule
++	11, // [11:11] is the sub-list for method output_type
++	11, // [11:11] is the sub-list for method input_type
++	11, // [11:11] is the sub-list for extension type_name
++	11, // [11:11] is the sub-list for extension extendee
++	0,  // [0:11] is the sub-list for field type_name
+ }
+ 
+ func init() { file_common_geodata_geodat_proto_init() }
+@@ -879,11 +936,11 @@ func file_common_geodata_geodat_proto_init() {
+ 		(*DomainRule_Geosite)(nil),
+ 		(*DomainRule_Custom)(nil),
+ 	}
+-	file_common_geodata_geodat_proto_msgTypes[9].OneofWrappers = []any{
++	file_common_geodata_geodat_proto_msgTypes[10].OneofWrappers = []any{
+ 		(*IPRule_Geoip)(nil),
+ 		(*IPRule_Custom)(nil),
+ 	}
+-	file_common_geodata_geodat_proto_msgTypes[10].OneofWrappers = []any{
++	file_common_geodata_geodat_proto_msgTypes[11].OneofWrappers = []any{
+ 		(*Domain_Attribute_BoolValue)(nil),
+ 		(*Domain_Attribute_IntValue)(nil),
+ 	}
+@@ -893,7 +950,7 @@ func file_common_geodata_geodat_proto_init() {
+ 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+ 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_geodata_geodat_proto_rawDesc), len(file_common_geodata_geodat_proto_rawDesc)),
+ 			NumEnums:      1,
+-			NumMessages:   11,
++			NumMessages:   12,
+ 			NumExtensions: 0,
+ 			NumServices:   0,
+ 		},
+diff --git a/common/geodata/geodat.proto b/common/geodata/geodat.proto
+index 1828b917..be91853e 100644
+--- a/common/geodata/geodat.proto
++++ b/common/geodata/geodat.proto
+@@ -66,6 +66,11 @@ message CIDR {
+   uint32 prefix = 2;
+ }
+ 
++message CIDRRule {
++  CIDR cidr = 1;
++  bool reverse_match = 2;
++}
++
+ message GeoIP {
+   string code = 1;
+   repeated CIDR cidr = 2;
+@@ -85,6 +90,6 @@ message GeoIPRule {
+ message IPRule {
+   oneof value {
+     GeoIPRule geoip = 1;
+-    CIDR custom = 2;
++    CIDRRule custom = 2;
+   }
+ }
+diff --git a/common/geodata/ip_matcher.go b/common/geodata/ip_matcher.go
+index 565b38ea..315ce040 100644
+--- a/common/geodata/ip_matcher.go
++++ b/common/geodata/ip_matcher.go
+@@ -940,45 +940,58 @@ func (f *IPSetFactory) createFrom(yield func(func(*CIDR)) error) (*IPSet, error)
+ 
+ func buildOptimizedIPMatcher(f *IPSetFactory, rules []*IPRule) (IPMatcher, error) {
+ 	n := len(rules)
+-	custom := make([]*CIDR, 0, n)
+-	pos := make([]*GeoIPRule, 0, n)
+-	neg := make([]*GeoIPRule, 0, n)
++	posCustom := make([]*CIDR, 0, n)
++	negCustom := make([]*CIDR, 0, n)
++	posGeoip := make([]*GeoIPRule, 0, n)
++	negGeoip := make([]*GeoIPRule, 0, n)
+ 
+ 	for _, r := range rules {
+ 		switch v := r.Value.(type) {
+ 		case *IPRule_Custom:
+-			custom = append(custom, v.Custom)
++			if !v.Custom.ReverseMatch {
++				posCustom = append(posCustom, v.Custom.Cidr)
++			} else {
++				negCustom = append(negCustom, v.Custom.Cidr)
++			}
+ 		case *IPRule_Geoip:
+ 			if !v.Geoip.ReverseMatch {
+-				pos = append(pos, v.Geoip)
++				posGeoip = append(posGeoip, v.Geoip)
+ 			} else {
+-				neg = append(neg, v.Geoip)
++				negGeoip = append(negGeoip, v.Geoip)
+ 			}
+ 		default:
+ 			panic("unknown ip rule type")
+ 		}
+ 	}
+ 
+-	subs := make([]*HeuristicIPMatcher, 0, 3)
++	subs := make([]*HeuristicIPMatcher, 0, 4)
+ 
+-	if len(custom) > 0 {
+-		ipset, err := f.CreateFromCIDRs(custom)
++	if len(posCustom) > 0 {
++		ipset, err := f.CreateFromCIDRs(posCustom)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+ 		subs = append(subs, &HeuristicIPMatcher{ipset: ipset, reverse: false})
+ 	}
+ 
+-	if len(pos) > 0 {
+-		ipset, err := f.GetOrCreateFromGeoIPRules(pos)
++	if len(negCustom) > 0 {
++		ipset, err := f.CreateFromCIDRs(negCustom)
++		if err != nil {
++			return nil, err
++		}
++		subs = append(subs, &HeuristicIPMatcher{ipset: ipset, reverse: true})
++	}
++
++	if len(posGeoip) > 0 {
++		ipset, err := f.GetOrCreateFromGeoIPRules(posGeoip)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+ 		subs = append(subs, &HeuristicIPMatcher{ipset: ipset, reverse: false})
+ 	}
+ 
+-	if len(neg) > 0 {
+-		ipset, err := f.GetOrCreateFromGeoIPRules(neg)
++	if len(negGeoip) > 0 {
++		ipset, err := f.GetOrCreateFromGeoIPRules(negGeoip)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+diff --git a/common/geodata/ip_matcher_test.go b/common/geodata/ip_matcher_test.go
+index ac627506..d1dc2de2 100644
+--- a/common/geodata/ip_matcher_test.go
++++ b/common/geodata/ip_matcher_test.go
+@@ -189,6 +189,34 @@ func TestIPReverseMatcher2(t *testing.T) {
+ 	}
+ }
+ 
++func TestIPCustomReverseMatcher(t *testing.T) {
++	matcher := buildIPMatcher("!8.8.8.8/32")
++
++	testCases := []struct {
++		Input  string
++		Output bool
++	}{
++		{
++			Input:  "8.8.8.8",
++			Output: false,
++		},
++		{
++			Input:  "1.1.1.1",
++			Output: true,
++		},
++		{
++			Input:  "2001:cdba::3257:9652",
++			Output: false,
++		},
++	}
++
++	for _, test := range testCases {
++		if v := matcher.Match(xnet.ParseAddress(test.Input).IP()); v != test.Output {
++			t.Error("unexpected output: ", v, " for test case ", test)
++		}
++	}
++}
++
+ func TestIPMatcherAnyMatchAndMatches(t *testing.T) {
+ 	matcher := buildIPMatcher(
+ 		"8.8.8.8/32",
+diff --git a/common/geodata/rule_parser.go b/common/geodata/rule_parser.go
+index 1184f553..c05fed31 100644
+--- a/common/geodata/rule_parser.go
++++ b/common/geodata/rule_parser.go
+@@ -17,6 +17,8 @@ func ParseIPRules(rules []string) ([]*IPRule, error) {
+ 	var ipRules []*IPRule
+ 
+ 	for i, r := range rules {
++		r, reverse := cutReversePrefix(r)
++
+ 		if strings.HasPrefix(r, "geoip:") {
+ 			r = "ext:" + DefaultGeoIPDat + ":" + r[len("geoip:"):]
+ 		}
+@@ -32,9 +34,9 @@ func ParseIPRules(rules []string) ([]*IPRule, error) {
+ 		var rule isIPRule_Value
+ 		var err error
+ 		if prefix > 0 {
+-			rule, err = parseGeoIPRule(r[prefix:])
++			rule, err = parseGeoIPRule(r[prefix:], reverse)
+ 		} else {
+-			rule, err = parseCustomIPRule(r)
++			rule, err = parseCustomIPRule(r, reverse)
+ 		}
+ 		if err != nil {
+ 			return nil, errors.New("illegal ip rule: ", rules[i]).Base(err)
+@@ -45,7 +47,16 @@ func ParseIPRules(rules []string) ([]*IPRule, error) {
+ 	return ipRules, nil
+ }
+ 
+-func parseGeoIPRule(rule string) (*IPRule_Geoip, error) {
++func cutReversePrefix(s string) (string, bool) {
++	reverse := false
++	for strings.HasPrefix(s, "!") {
++		s = s[1:]
++		reverse = !reverse
++	}
++	return s, reverse
++}
++
++func parseGeoIPRule(rule string, reverse bool) (*IPRule_Geoip, error) {
+ 	file, code, ok := strings.Cut(rule, ":")
+ 	if !ok {
+ 		return nil, errors.New("syntax error")
+@@ -55,11 +66,8 @@ func parseGeoIPRule(rule string) (*IPRule_Geoip, error) {
+ 		return nil, errors.New("empty file")
+ 	}
+ 
+-	reverse := false
+-	if strings.HasPrefix(code, "!") {
+-		code = code[1:]
+-		reverse = true
+-	}
++	code, codeReverse := cutReversePrefix(code)
++	reverse = reverse != codeReverse
+ 	if code == "" {
+ 		return nil, errors.New("empty code")
+ 	}
+@@ -78,13 +86,16 @@ func parseGeoIPRule(rule string) (*IPRule_Geoip, error) {
+ 	}, nil
+ }
+ 
+-func parseCustomIPRule(rule string) (*IPRule_Custom, error) {
++func parseCustomIPRule(rule string, reverse bool) (*IPRule_Custom, error) {
+ 	cidr, err := parseCIDR(rule)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 	return &IPRule_Custom{
+-		Custom: cidr,
++		Custom: &CIDRRule{
++			Cidr:         cidr,
++			ReverseMatch: reverse,
++		},
+ 	}, nil
+ }
+ 
+diff --git a/common/geodata/rule_parser_test.go b/common/geodata/rule_parser_test.go
+index 87dbaaab..7aaf44c5 100644
+--- a/common/geodata/rule_parser_test.go
++++ b/common/geodata/rule_parser_test.go
+@@ -13,12 +13,20 @@ func TestParseIPRules(t *testing.T) {
+ 	rules := []string{
+ 		"geoip:us",
+ 		"geoip:cn",
++		"!geoip:cn",
++		"!!geoip:cn",
+ 		"geoip:!cn",
++		"geoip:!!cn",
++		"!geoip:!cn",
+ 		"ext:geoip.dat:!cn",
++		"ext:geoip.dat:!!cn",
+ 		"ext:geoip.dat:ca",
+ 		"ext-ip:geoip.dat:!cn",
+ 		"ext-ip:geoip.dat:!ca",
+ 		"192.168.0.0/24",
++		"!192.168.0.0/24",
++		"!!192.168.0.0/24",
++		"!!!192.168.0.0/24",
+ 		"192.168.0.1",
+ 		"fe80::/64",
+ 		"fe80::",
+@@ -30,6 +38,53 @@ func TestParseIPRules(t *testing.T) {
+ 	}
+ }
+ 
++func TestParseIPRuleReverse(t *testing.T) {
++	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
++
++	for _, tt := range []struct {
++		rule    string
++		reverse bool
++	}{
++		{rule: "!192.168.0.0/24", reverse: true},
++		{rule: "!!192.168.0.0/24", reverse: false},
++		{rule: "!!!192.168.0.0/24", reverse: true},
++		{rule: "!!!!192.168.0.0/24", reverse: false},
++		{rule: "geoip:cn", reverse: false},
++		{rule: "!geoip:cn", reverse: true},
++		{rule: "!!geoip:cn", reverse: false},
++		{rule: "geoip:!cn", reverse: true},
++		{rule: "geoip:!!cn", reverse: false},
++		{rule: "!geoip:!cn", reverse: false},
++		{rule: "!!geoip:!cn", reverse: true},
++		{rule: "!geoip:!!cn", reverse: true},
++		{rule: "ext:geoip.dat:!!!cn", reverse: true},
++	} {
++		t.Run(tt.rule, func(t *testing.T) {
++			rules, err := geodata.ParseIPRules([]string{tt.rule})
++			if err != nil {
++				t.Fatalf("Failed to parse ip rules, got %s", err)
++			}
++
++			if len(rules) != 1 {
++				t.Fatalf("Expected 1 rule, got %d", len(rules))
++			}
++
++			switch rule := rules[0]; {
++			case rule.GetGeoip() != nil:
++				if rule.GetGeoip().GetReverseMatch() != tt.reverse {
++					t.Fatalf("Expected geoip reverse match to be %t", tt.reverse)
++				}
++			case rule.GetCustom() != nil:
++				if rule.GetCustom().GetReverseMatch() != tt.reverse {
++					t.Fatalf("Expected custom reverse match to be %t", tt.reverse)
++				}
++			default:
++				t.Fatal("Expected ip rule")
++			}
++		})
++	}
++}
++
+ func TestParseDomainRules(t *testing.T) {
+ 	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
+ 
+diff --git a/infra/conf/router_test.go b/infra/conf/router_test.go
+index 26ebff1c..130cf4f7 100644
+--- a/infra/conf/router_test.go
++++ b/infra/conf/router_test.go
+@@ -135,17 +135,15 @@ func TestRouterConfig(t *testing.T) {
+ 						Ip: []*geodata.IPRule{
+ 							{
+ 								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{10, 0, 0, 0},
+-										Prefix: 8,
++									Custom: &geodata.CIDRRule{
++										Cidr: &geodata.CIDR{Ip: []byte{10, 0, 0, 0}, Prefix: 8},
+ 									},
+ 								},
+ 							},
+ 							{
+ 								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+-										Prefix: 128,
++									Custom: &geodata.CIDRRule{
++										Cidr: &geodata.CIDR{Ip: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, Prefix: 128},
+ 									},
+ 								},
+ 							},
+@@ -216,17 +214,15 @@ func TestRouterConfig(t *testing.T) {
+ 						Ip: []*geodata.IPRule{
+ 							{
+ 								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{10, 0, 0, 0},
+-										Prefix: 8,
++									Custom: &geodata.CIDRRule{
++										Cidr: &geodata.CIDR{Ip: []byte{10, 0, 0, 0}, Prefix: 8},
+ 									},
+ 								},
+ 							},
+ 							{
+ 								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+-										Prefix: 128,
++									Custom: &geodata.CIDRRule{
++										Cidr: &geodata.CIDR{Ip: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, Prefix: 128},
+ 									},
+ 								},
+ 							},
+diff --git a/infra/conf/xray_test.go b/infra/conf/xray_test.go
+index d415f937..d4ff7126 100644
+--- a/infra/conf/xray_test.go
++++ b/infra/conf/xray_test.go
+@@ -99,9 +99,8 @@ func TestXrayConfig(t *testing.T) {
+ 								Ip: []*geodata.IPRule{
+ 									{
+ 										Value: &geodata.IPRule_Custom{
+-											Custom: &geodata.CIDR{
+-												Ip:     []byte{10, 0, 0, 0},
+-												Prefix: 8,
++											Custom: &geodata.CIDRRule{
++												Cidr: &geodata.CIDR{Ip: []byte{10, 0, 0, 0}, Prefix: 8},
+ 											},
+ 										},
+ 									},
+@@ -216,8 +215,12 @@ func TestSniffingConfig_Build(t *testing.T) {
+ 		if rule == nil {
+ 			t.Fatalf("SniffingConfig.Build() produced a non-custom ip rule at index %d", i)
+ 		}
+-		if !reflect.DeepEqual(rule.Ip, tc.ip) || rule.Prefix != tc.prefix {
+-			t.Fatalf("SniffingConfig.Build() produced wrong ip rule at index %d: got (%v, %d), want (%v, %d)", i, rule.Ip, rule.Prefix, tc.ip, tc.prefix)
++		cidr := rule.GetCidr()
++		if cidr == nil {
++			t.Fatalf("SniffingConfig.Build() produced a custom ip rule without cidr at index %d", i)
++		}
++		if !reflect.DeepEqual(cidr.Ip, tc.ip) || cidr.Prefix != tc.prefix {
++			t.Fatalf("SniffingConfig.Build() produced wrong ip rule at index %d: got (%v, %d), want (%v, %d)", i, cidr.Ip, cidr.Prefix, tc.ip, tc.prefix)
+ 		}
+ 	}
+ }
+diff --git a/testing/scenarios/dns_test.go b/testing/scenarios/dns_test.go
+index 4f7fad5d..9be19a7d 100644
+--- a/testing/scenarios/dns_test.go
++++ b/testing/scenarios/dns_test.go
+@@ -47,9 +47,8 @@ func TestResolveIP(t *testing.T) {
+ 						Ip: []*geodata.IPRule{
+ 							{
+ 								Value: &geodata.IPRule_Custom{
+-									Custom: &geodata.CIDR{
+-										Ip:     []byte{127, 0, 0, 0},
+-										Prefix: 8,
++									Custom: &geodata.CIDRRule{
++										Cidr: &geodata.CIDR{Ip: []byte{127, 0, 0, 0}, Prefix: 8},
+ 									},
+ 								},
+ 							},
+
+commit d42c981f9cde3e70df485f0715528499b4b13be8
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   Sat Apr 18 06:07:58 2026 +0800
+
+    DomainMatcher: Fix Match() result slice aliasing race (#5959)
+    
+    Fixes https://github.com/XTLS/Xray-core/pull/5814
+
+diff --git a/app/dns/dns.go b/app/dns/dns.go
+index 2f272989..ec350e84 100644
+--- a/app/dns/dns.go
++++ b/app/dns/dns.go
+@@ -271,11 +271,11 @@ func (s *DNS) sortClients(domain string) []*Client {
+ 
+ 	// Priority domain matching
+ 	hasMatch := false
+-	MatchSlice := s.domainMatcher.Match(strings.ToLower(domain))
+-	sort.Slice(MatchSlice, func(i, j int) bool {
+-		return MatchSlice[i] < MatchSlice[j]
++	matchSlice := s.domainMatcher.Match(strings.ToLower(domain))
++	sort.Slice(matchSlice, func(i, j int) bool {
++		return matchSlice[i] < matchSlice[j]
+ 	})
+-	for _, match := range MatchSlice {
++	for _, match := range matchSlice {
+ 		info := s.matcherInfos[match]
+ 		client := s.clients[info.clientIdx]
+ 		domainRule := info.domainRule
+diff --git a/common/geodata/domain_matcher.go b/common/geodata/domain_matcher.go
+index a3490610..e5e854f9 100644
+--- a/common/geodata/domain_matcher.go
++++ b/common/geodata/domain_matcher.go
+@@ -11,7 +11,11 @@ import (
+ )
+ 
+ type DomainMatcher interface {
++	// Match returns the indices of all rules that match the input domain.
++	// The returned slice is owned by the caller and may be safely modified.
++	// Note: the slice may contain duplicates and the order is unspecified.
+ 	Match(input string) []uint32
++
+ 	MatchAny(input string) bool
+ }
+ 
+diff --git a/common/geodata/domain_matcher_test.go b/common/geodata/domain_matcher_test.go
+index 775b3371..0506df09 100644
+--- a/common/geodata/domain_matcher_test.go
++++ b/common/geodata/domain_matcher_test.go
+@@ -48,3 +48,25 @@ func TestCompactDomainMatcher_PreservesMixedRuleIndices(t *testing.T) {
+ 		t.Fatalf("Match() = %v, want %v", got, want)
+ 	}
+ }
++
++func TestMphDomainMatcher_MatchReturnsDetachedSlice(t *testing.T) {
++	matcher, err := (&MphDomainMatcherFactory{}).BuildMatcher([]*DomainRule{
++		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Full, Value: "example.com"}}},
++		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Domain, Value: "example.com"}}},
++	})
++	if err != nil {
++		t.Fatalf("BuildMatcher() failed: %v", err)
++	}
++
++	got := matcher.Match("example.com")
++	if !reflect.DeepEqual(got, []uint32{0, 1}) {
++		t.Fatalf("Match() = %v, want %v", got, []uint32{0, 1})
++	}
++
++	got[0] = 1
++
++	gotAgain := matcher.Match("example.com")
++	if !reflect.DeepEqual(gotAgain, []uint32{0, 1}) {
++		t.Fatalf("Match() after caller mutation = %v, want %v", gotAgain, []uint32{0, 1})
++	}
++}
+diff --git a/common/geodata/strmatcher/matchers.go b/common/geodata/strmatcher/matchers.go
+index 7e073764..fa288804 100644
+--- a/common/geodata/strmatcher/matchers.go
++++ b/common/geodata/strmatcher/matchers.go
+@@ -3,6 +3,7 @@ package strmatcher
+ import (
+ 	"errors"
+ 	"regexp"
++	"slices"
+ 	"strings"
+ 	"unicode/utf8"
+ 
+@@ -253,13 +254,12 @@ func AddMatcherToGroup(g MatcherGroup, matcher Matcher, value uint32) error {
+ }
+ 
+ // CompositeMatches flattens the matches slice to produce a single matched indices slice.
+-// It is designed to avoid new memory allocation as possible.
+ func CompositeMatches(matches [][]uint32) []uint32 {
+ 	switch len(matches) {
+ 	case 0:
+ 		return nil
+ 	case 1:
+-		return matches[0]
++		return slices.Clone(matches[0])
+ 	default:
+ 		result := make([]uint32, 0, 5)
+ 		for i := 0; i < len(matches); i++ {
+diff --git a/common/geodata/strmatcher/strmatcher.go b/common/geodata/strmatcher/strmatcher.go
+index e4187f63..2cc6f252 100644
+--- a/common/geodata/strmatcher/strmatcher.go
++++ b/common/geodata/strmatcher/strmatcher.go
+@@ -62,6 +62,7 @@ type IndexMatcher interface {
+ 	// Match returns the indices of all matchers that matches the input.
+ 	//   * Empty array is returned if no such matcher exists.
+ 	//   * The order of returned matchers should follow priority specification.
++	//   * The returned slice is owned by the caller and may be safely modified.
+ 	// Priority specification:
+ 	//   1. Priority between matcher types: full > domain > substr > regex.
+ 	//   2. Priority of same-priority matchers matching at same position: the early added takes precedence.
+@@ -89,6 +90,7 @@ type ValueMatcher interface {
+ 	//   * Empty array is returned if no such matcher exists.
+ 	//   * The order of returned values should follow priority specification.
+ 	//   * Same value may appear multiple times if multiple matched matchers were added with that value.
++	//   * The returned slice is owned by the caller and may be safely modified.
+ 	// Priority specification:
+ 	//   1. Priority between matcher types: full > domain > substr > regex.
+ 	//   2. Priority of same-priority matchers matching at same position: the early added takes precedence.
+
+commit cb1106c2fbaf37d1e410b1dd306e17b851efd113
+Author: Иван <82300276+fatyzzz@users.noreply.github.com>
+Date:   Sat Apr 18 05:01:54 2026 +0700
+
+    header-custom finalmask: Extend expression primitives for 1:1 handshakes (#5949)
+    
+    https://github.com/XTLS/Xray-core/pull/5945
+    https://github.com/XTLS/Xray-core/pull/5920
+
+diff --git a/transport/internet/finalmask/header/custom/evaluator.go b/transport/internet/finalmask/header/custom/evaluator.go
+index 46655700..728be543 100644
+--- a/transport/internet/finalmask/header/custom/evaluator.go
++++ b/transport/internet/finalmask/header/custom/evaluator.go
+@@ -9,8 +9,9 @@ import (
+ )
+ 
+ type evalValue struct {
+-	bytes []byte
+-	u64   *uint64
++	bytes   []byte
++	u64     *uint64
++	isBytes bool
+ }
+ 
+ type evalContext struct {
+@@ -175,7 +176,7 @@ func evaluateExpr(expr *Expr, ctx *evalContext) (evalValue, error) {
+ 			}
+ 			out = append(out, bytesValue...)
+ 		}
+-		return evalValue{bytes: out}, nil
++		return evalValue{bytes: out, isBytes: true}, nil
+ 	case "slice":
+ 		if len(expr.GetArgs()) != 3 {
+ 			return evalValue{}, errors.New("slice expects 3 args")
+@@ -208,50 +209,234 @@ func evaluateExpr(expr *Expr, ctx *evalContext) (evalValue, error) {
+ 		if end > uint64(len(sourceBytes)) {
+ 			return evalValue{}, errors.New("slice out of bounds")
+ 		}
+-		return evalValue{bytes: append([]byte(nil), sourceBytes[offsetU64:end]...)}, nil
++		return evalValue{bytes: append([]byte(nil), sourceBytes[offsetU64:end]...), isBytes: true}, nil
+ 	case "xor16":
+ 		return evaluateXor(expr.GetArgs(), 0xFFFF, 2, ctx)
+ 	case "xor32":
+ 		return evaluateXor(expr.GetArgs(), 0xFFFFFFFF, 4, ctx)
+ 	case "be16":
+-		if len(expr.GetArgs()) != 1 {
+-			return evalValue{}, errors.New("be16 expects 1 arg")
+-		}
+-		value, err := evaluateExprArg(expr.GetArgs()[0], ctx)
+-		if err != nil {
+-			return evalValue{}, err
+-		}
+-		u64Value, err := value.asU64()
+-		if err != nil {
+-			return evalValue{}, err
+-		}
++		return evaluatePack(expr.GetArgs(), "be16", 2, binary.BigEndian, ctx)
++	case "be32":
++		return evaluatePack(expr.GetArgs(), "be32", 4, binary.BigEndian, ctx)
++	case "le16":
++		return evaluatePack(expr.GetArgs(), "le16", 2, binary.LittleEndian, ctx)
++	case "le32":
++		return evaluatePack(expr.GetArgs(), "le32", 4, binary.LittleEndian, ctx)
++	case "le64":
++		return evaluatePack(expr.GetArgs(), "le64", 8, binary.LittleEndian, ctx)
++	case "pad":
++		return evaluatePad(expr.GetArgs(), ctx)
++	case "truncate":
++		return evaluateTruncate(expr.GetArgs(), ctx)
++	case "add":
++		return evaluateBinaryU64Op(expr.GetArgs(), "add", ctx, func(left, right uint64) (uint64, error) {
++			if left > ^uint64(0)-right {
++				return 0, errors.New("add overflow")
++			}
++			return left + right, nil
++		})
++	case "sub":
++		return evaluateBinaryU64Op(expr.GetArgs(), "sub", ctx, func(left, right uint64) (uint64, error) {
++			if left < right {
++				return 0, errors.New("sub underflow")
++			}
++			return left - right, nil
++		})
++	case "and":
++		return evaluateBinaryU64Op(expr.GetArgs(), "and", ctx, func(left, right uint64) (uint64, error) {
++			return left & right, nil
++		})
++	case "or":
++		return evaluateBinaryU64Op(expr.GetArgs(), "or", ctx, func(left, right uint64) (uint64, error) {
++			return left | right, nil
++		})
++	case "shl":
++		return evaluateShift(expr.GetArgs(), "shl", ctx, func(value uint64, shift uint) (uint64, error) {
++			if shift >= 64 {
++				return 0, errors.New("shift out of range")
++			}
++			if value > (^uint64(0) >> shift) {
++				return 0, errors.New("shl overflow")
++			}
++			return value << shift, nil
++		})
++	case "shr":
++		return evaluateShift(expr.GetArgs(), "shr", ctx, func(value uint64, shift uint) (uint64, error) {
++			if shift >= 64 {
++				return 0, errors.New("shift out of range")
++			}
++			return value >> shift, nil
++		})
++	default:
++		return evalValue{}, errors.New("unsupported expr op: ", expr.GetOp())
++	}
++}
++
++func evaluatePack(args []*ExprArg, name string, width int, order binary.ByteOrder, ctx *evalContext) (evalValue, error) {
++	if len(args) != 1 {
++		return evalValue{}, errors.New(name, " expects 1 arg")
++	}
++	value, err := evaluateExprArg(args[0], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	u64Value, err := value.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++
++	switch width {
++	case 2:
+ 		if u64Value > 0xFFFF {
+-			return evalValue{}, errors.New("be16 overflow")
++			return evalValue{}, errors.New(name, " overflow")
+ 		}
+ 		out := make([]byte, 2)
+-		binary.BigEndian.PutUint16(out, uint16(u64Value))
+-		return evalValue{bytes: out}, nil
+-	case "be32":
+-		if len(expr.GetArgs()) != 1 {
+-			return evalValue{}, errors.New("be32 expects 1 arg")
+-		}
+-		value, err := evaluateExprArg(expr.GetArgs()[0], ctx)
+-		if err != nil {
+-			return evalValue{}, err
+-		}
+-		u64Value, err := value.asU64()
+-		if err != nil {
+-			return evalValue{}, err
+-		}
++		order.PutUint16(out, uint16(u64Value))
++		return evalValue{bytes: out, isBytes: true}, nil
++	case 4:
+ 		if u64Value > 0xFFFFFFFF {
+-			return evalValue{}, errors.New("be32 overflow")
++			return evalValue{}, errors.New(name, " overflow")
+ 		}
+ 		out := make([]byte, 4)
+-		binary.BigEndian.PutUint32(out, uint32(u64Value))
+-		return evalValue{bytes: out}, nil
++		order.PutUint32(out, uint32(u64Value))
++		return evalValue{bytes: out, isBytes: true}, nil
++	case 8:
++		out := make([]byte, 8)
++		order.PutUint64(out, u64Value)
++		return evalValue{bytes: out, isBytes: true}, nil
+ 	default:
+-		return evalValue{}, errors.New("unsupported expr op: ", expr.GetOp())
++		return evalValue{}, errors.New("unsupported pack width")
++	}
++}
++
++func evaluatePad(args []*ExprArg, ctx *evalContext) (evalValue, error) {
++	if len(args) != 3 {
++		return evalValue{}, errors.New("pad expects 3 args")
++	}
++	source, err := evaluateExprArg(args[0], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	target, err := evaluateExprArg(args[1], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	fill, err := evaluateExprArg(args[2], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	sourceBytes, err := source.asBytes()
++	if err != nil {
++		return evalValue{}, err
++	}
++	targetU64, err := target.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++	fillBytes, err := fill.asBytes()
++	if err != nil {
++		return evalValue{}, err
+ 	}
++	if len(fillBytes) == 0 {
++		return evalValue{}, errors.New("pad fill must not be empty")
++	}
++	if targetU64 < uint64(len(sourceBytes)) {
++		return evalValue{}, errors.New("pad target shorter than source")
++	}
++
++	out := append([]byte(nil), sourceBytes...)
++	for uint64(len(out)) < targetU64 {
++		remaining := int(targetU64) - len(out)
++		if remaining >= len(fillBytes) {
++			out = append(out, fillBytes...)
++			continue
++		}
++		out = append(out, fillBytes[:remaining]...)
++	}
++	return evalValue{bytes: out, isBytes: true}, nil
++}
++
++func evaluateTruncate(args []*ExprArg, ctx *evalContext) (evalValue, error) {
++	if len(args) != 2 {
++		return evalValue{}, errors.New("truncate expects 2 args")
++	}
++	source, err := evaluateExprArg(args[0], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	length, err := evaluateExprArg(args[1], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	sourceBytes, err := source.asBytes()
++	if err != nil {
++		return evalValue{}, err
++	}
++	lengthU64, err := length.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++	if lengthU64 > uint64(len(sourceBytes)) {
++		return evalValue{}, errors.New("truncate out of bounds")
++	}
++	return evalValue{bytes: append([]byte(nil), sourceBytes[:lengthU64]...), isBytes: true}, nil
++}
++
++func evaluateBinaryU64Op(args []*ExprArg, name string, ctx *evalContext, op func(left, right uint64) (uint64, error)) (evalValue, error) {
++	if len(args) != 2 {
++		return evalValue{}, errors.New(name, " expects 2 args")
++	}
++	left, err := evaluateExprArg(args[0], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	right, err := evaluateExprArg(args[1], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	leftU64, err := left.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++	rightU64, err := right.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++	result, err := op(leftU64, rightU64)
++	if err != nil {
++		return evalValue{}, err
++	}
++	return evalValue{u64: &result}, nil
++}
++
++func evaluateShift(args []*ExprArg, name string, ctx *evalContext, op func(value uint64, shift uint) (uint64, error)) (evalValue, error) {
++	if len(args) != 2 {
++		return evalValue{}, errors.New(name, " expects 2 args")
++	}
++	value, err := evaluateExprArg(args[0], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	shift, err := evaluateExprArg(args[1], ctx)
++	if err != nil {
++		return evalValue{}, err
++	}
++	valueU64, err := value.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++	shiftU64, err := shift.asU64()
++	if err != nil {
++		return evalValue{}, err
++	}
++	if shiftU64 >= 64 {
++		return evalValue{}, errors.New("shift out of range")
++	}
++	result, err := op(valueU64, uint(shiftU64))
++	if err != nil {
++		return evalValue{}, err
++	}
++	return evalValue{u64: &result}, nil
+ }
+ 
+ func evaluateXor(args []*ExprArg, mask uint64, width int, ctx *evalContext) (evalValue, error) {
+@@ -309,6 +494,30 @@ func measureExpr(expr *Expr, sizeCtx map[string]int) (int, error) {
+ 		return 2, nil
+ 	case "be32":
+ 		return 4, nil
++	case "le16":
++		return 2, nil
++	case "le32":
++		return 4, nil
++	case "le64":
++		return 8, nil
++	case "pad":
++		if len(expr.GetArgs()) != 3 {
++			return 0, errors.New("pad expects 3 args")
++		}
++		lengthArg := expr.GetArgs()[1]
++		if value, ok := lengthArg.GetValue().(*ExprArg_U64); ok {
++			return int(value.U64), nil
++		}
++		return 0, errors.New("pad length must be u64")
++	case "truncate":
++		if len(expr.GetArgs()) != 2 {
++			return 0, errors.New("truncate expects 2 args")
++		}
++		lengthArg := expr.GetArgs()[1]
++		if value, ok := lengthArg.GetValue().(*ExprArg_U64); ok {
++			return int(value.U64), nil
++		}
++		return 0, errors.New("truncate length must be u64")
+ 	default:
+ 		return 0, errors.New("expr size is not bytes for op: ", expr.GetOp())
+ 	}
+@@ -317,7 +526,7 @@ func measureExpr(expr *Expr, sizeCtx map[string]int) (int, error) {
+ func evaluateExprArg(arg *ExprArg, ctx *evalContext) (evalValue, error) {
+ 	switch value := arg.GetValue().(type) {
+ 	case *ExprArg_Bytes:
+-		return evalValue{bytes: append([]byte(nil), value.Bytes...)}, nil
++		return evalValue{bytes: append([]byte(nil), value.Bytes...), isBytes: true}, nil
+ 	case *ExprArg_U64:
+ 		return evalValue{u64: &value.U64}, nil
+ 	case *ExprArg_Var:
+@@ -325,7 +534,7 @@ func evaluateExprArg(arg *ExprArg, ctx *evalContext) (evalValue, error) {
+ 		if !ok {
+ 			return evalValue{}, errors.New("unknown variable: ", value.Var)
+ 		}
+-		return evalValue{bytes: append([]byte(nil), saved...)}, nil
++		return evalValue{bytes: append([]byte(nil), saved...), isBytes: true}, nil
+ 	case *ExprArg_Metadata:
+ 		metadata, ok := ctx.metadata[value.Metadata]
+ 		if !ok {
+@@ -361,7 +570,7 @@ func measureExprArg(arg *ExprArg, sizeCtx map[string]int) (int, error) {
+ }
+ 
+ func (v evalValue) asBytes() ([]byte, error) {
+-	if v.bytes != nil {
++	if v.isBytes {
+ 		return append([]byte(nil), v.bytes...), nil
+ 	}
+ 	return nil, errors.New("expr value is not bytes")
+diff --git a/transport/internet/finalmask/header/custom/evaluator_test.go b/transport/internet/finalmask/header/custom/evaluator_test.go
+index 6bd34264..51a9d277 100644
+--- a/transport/internet/finalmask/header/custom/evaluator_test.go
++++ b/transport/internet/finalmask/header/custom/evaluator_test.go
+@@ -128,3 +128,364 @@ func TestEvaluatorRejectsInvalidArgType(t *testing.T) {
+ 		t.Fatal("expected evaluator error")
+ 	}
+ }
++
++func TestEvaluatorLittleEndianProducesExpectedBytes(t *testing.T) {
++	items := []*UDPItem{
++		{
++			Expr: &Expr{
++				Op: "concat",
++				Args: []*ExprArg{
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "le16",
++								Args: []*ExprArg{
++									{Value: &ExprArg_U64{U64: 0x1234}},
++								},
++							},
++						},
++					},
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "le32",
++								Args: []*ExprArg{
++									{Value: &ExprArg_U64{U64: 0xA1B2C3D4}},
++								},
++							},
++						},
++					},
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "le64",
++								Args: []*ExprArg{
++									{Value: &ExprArg_U64{U64: 0x0102030405060708}},
++								},
++							},
++						},
++					},
++				},
++			},
++		},
++	}
++
++	got, err := evaluateUDPItems(items)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	want := []byte{
++		0x34, 0x12,
++		0xD4, 0xC3, 0xB2, 0xA1,
++		0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
++	}
++	if !bytes.Equal(got, want) {
++		t.Fatalf("unexpected output: %x", got)
++	}
++}
++
++func TestEvaluatorPadAndTruncateShapeBytes(t *testing.T) {
++	items := []*UDPItem{
++		{
++			Expr: &Expr{
++				Op: "concat",
++				Args: []*ExprArg{
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "pad",
++								Args: []*ExprArg{
++									{Value: &ExprArg_Bytes{Bytes: []byte{0xAA, 0xBB}}},
++									{Value: &ExprArg_U64{U64: 5}},
++									{Value: &ExprArg_Bytes{Bytes: []byte{0xCC, 0xDD}}},
++								},
++							},
++						},
++					},
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "truncate",
++								Args: []*ExprArg{
++									{Value: &ExprArg_Bytes{Bytes: []byte{1, 2, 3, 4}}},
++									{Value: &ExprArg_U64{U64: 2}},
++								},
++							},
++						},
++					},
++				},
++			},
++		},
++	}
++
++	got, err := evaluateUDPItems(items)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	want := []byte{0xAA, 0xBB, 0xCC, 0xDD, 0xCC, 0x01, 0x02}
++	if !bytes.Equal(got, want) {
++		t.Fatalf("unexpected output: %x", got)
++	}
++}
++
++func TestMeasureUDPItemsSupportsPadAndTruncate(t *testing.T) {
++	items := []*UDPItem{
++		{
++			Expr: &Expr{
++				Op: "pad",
++				Args: []*ExprArg{
++					{Value: &ExprArg_Bytes{Bytes: []byte{0xAA}}},
++					{Value: &ExprArg_U64{U64: 4}},
++					{Value: &ExprArg_Bytes{Bytes: []byte{0x00}}},
++				},
++			},
++		},
++		{
++			Expr: &Expr{
++				Op: "truncate",
++				Args: []*ExprArg{
++					{Value: &ExprArg_Bytes{Bytes: []byte{1, 2, 3, 4}}},
++					{Value: &ExprArg_U64{U64: 3}},
++				},
++			},
++		},
++	}
++
++	got, err := measureUDPItems(items)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	if got != 7 {
++		t.Fatalf("unexpected size: %d", got)
++	}
++}
++
++func TestEvaluatorArithmeticAndBitwiseProduceExpectedBytes(t *testing.T) {
++	items := []*UDPItem{
++		{
++			Expr: &Expr{
++				Op: "concat",
++				Args: []*ExprArg{
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "be16",
++								Args: []*ExprArg{
++									{
++										Value: &ExprArg_Expr{
++											Expr: &Expr{
++												Op: "add",
++												Args: []*ExprArg{
++													{Value: &ExprArg_U64{U64: 1}},
++													{Value: &ExprArg_U64{U64: 2}},
++												},
++											},
++										},
++									},
++								},
++							},
++						},
++					},
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "be16",
++								Args: []*ExprArg{
++									{
++										Value: &ExprArg_Expr{
++											Expr: &Expr{
++												Op: "sub",
++												Args: []*ExprArg{
++													{Value: &ExprArg_U64{U64: 10}},
++													{Value: &ExprArg_U64{U64: 3}},
++												},
++											},
++										},
++									},
++								},
++							},
++						},
++					},
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "be16",
++								Args: []*ExprArg{
++									{
++										Value: &ExprArg_Expr{
++											Expr: &Expr{
++												Op: "and",
++												Args: []*ExprArg{
++													{Value: &ExprArg_U64{U64: 0xF0F0}},
++													{Value: &ExprArg_U64{U64: 0x0FF0}},
++												},
++											},
++										},
++									},
++								},
++							},
++						},
++					},
++					{
++						Value: &ExprArg_Expr{
++							Expr: &Expr{
++								Op: "be16",
++								Args: []*ExprArg{
++									{
++										Value: &ExprArg_Expr{
++											Expr: &Expr{
++												Op: "or",
++												Args: []*ExprArg{
++													{
++														Value: &ExprArg_Expr{
++															Expr: &Expr{
++																Op: "shl",
++																Args: []*ExprArg{
++																	{Value: &ExprArg_U64{U64: 1}},
++																	{Value: &ExprArg_U64{U64: 8}},
++																},
++															},
++														},
++													},
++													{
++														Value: &ExprArg_Expr{
++															Expr: &Expr{
++																Op: "shr",
++																Args: []*ExprArg{
++																	{Value: &ExprArg_U64{U64: 0x80}},
++																	{Value: &ExprArg_U64{U64: 7}},
++																},
++															},
++														},
++													},
++												},
++											},
++										},
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++		},
++	}
++
++	got, err := evaluateUDPItems(items)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	want := []byte{
++		0x00, 0x03,
++		0x00, 0x07,
++		0x00, 0xF0,
++		0x01, 0x01,
++	}
++	if !bytes.Equal(got, want) {
++		t.Fatalf("unexpected output: %x", got)
++	}
++}
++
++func TestEvaluatorRejectsInvalidShapingAndArithmetic(t *testing.T) {
++	tests := []struct {
++		name  string
++		items []*UDPItem
++		match string
++	}{
++		{
++			name: "pad with empty fill",
++			items: []*UDPItem{
++				{
++					Expr: &Expr{
++						Op: "pad",
++						Args: []*ExprArg{
++							{Value: &ExprArg_Bytes{Bytes: []byte{0xAA}}},
++							{Value: &ExprArg_U64{U64: 4}},
++							{Value: &ExprArg_Bytes{Bytes: []byte{}}},
++						},
++					},
++				},
++			},
++			match: "pad fill",
++		},
++		{
++			name: "truncate beyond source",
++			items: []*UDPItem{
++				{
++					Expr: &Expr{
++						Op: "truncate",
++						Args: []*ExprArg{
++							{Value: &ExprArg_Bytes{Bytes: []byte{1, 2}}},
++							{Value: &ExprArg_U64{U64: 3}},
++						},
++					},
++				},
++			},
++			match: "truncate",
++		},
++		{
++			name: "sub underflow",
++			items: []*UDPItem{
++				{
++					Expr: &Expr{
++						Op: "be16",
++						Args: []*ExprArg{
++							{
++								Value: &ExprArg_Expr{
++									Expr: &Expr{
++										Op: "sub",
++										Args: []*ExprArg{
++											{Value: &ExprArg_U64{U64: 1}},
++											{Value: &ExprArg_U64{U64: 2}},
++										},
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++			match: "underflow",
++		},
++		{
++			name: "shift too large",
++			items: []*UDPItem{
++				{
++					Expr: &Expr{
++						Op: "be16",
++						Args: []*ExprArg{
++							{
++								Value: &ExprArg_Expr{
++									Expr: &Expr{
++										Op: "shl",
++										Args: []*ExprArg{
++											{Value: &ExprArg_U64{U64: 1}},
++											{Value: &ExprArg_U64{U64: 64}},
++										},
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++			match: "shift",
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			_, err := evaluateUDPItems(tt.items)
++			if err == nil {
++				t.Fatal("expected evaluator error")
++			}
++			if !bytes.Contains([]byte(err.Error()), []byte(tt.match)) {
++				t.Fatalf("unexpected error: %v", err)
++			}
++		})
++	}
++}
+diff --git a/transport/internet/finalmask/header/custom/udp_runtime_test.go b/transport/internet/finalmask/header/custom/udp_runtime_test.go
+index c66d4c41..e0a091f4 100644
+--- a/transport/internet/finalmask/header/custom/udp_runtime_test.go
++++ b/transport/internet/finalmask/header/custom/udp_runtime_test.go
+@@ -1,6 +1,10 @@
+ package custom
+ 
+-import "testing"
++import (
++	"bytes"
++	"net"
++	"testing"
++)
+ 
+ func TestDSLUDPClientSizeTracksEvaluatedItems(t *testing.T) {
+ 	conn, err := NewConnClientUDP(&UDPConfig{
+@@ -81,3 +85,104 @@ func TestDSLUDPServerRejectsMalformedVarReference(t *testing.T) {
+ 		t.Fatal("expected packet mismatch")
+ 	}
+ }
++
++func TestDSLUDPClientWriteSupportsExtendedExprOps(t *testing.T) {
++	conn, err := NewConnClientUDP(&UDPConfig{
++		Client: []*UDPItem{
++			{
++				Expr: &Expr{
++					Op: "le16",
++					Args: []*ExprArg{
++						{
++							Value: &ExprArg_Expr{
++								Expr: &Expr{
++									Op: "add",
++									Args: []*ExprArg{
++										{Value: &ExprArg_U64{U64: 1}},
++										{Value: &ExprArg_U64{U64: 2}},
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++			{
++				Expr: &Expr{
++					Op: "pad",
++					Args: []*ExprArg{
++						{Value: &ExprArg_Bytes{Bytes: []byte{0xAA}}},
++						{Value: &ExprArg_U64{U64: 3}},
++						{Value: &ExprArg_Bytes{Bytes: []byte{0xBB}}},
++					},
++				},
++			},
++			{
++				Expr: &Expr{
++					Op: "truncate",
++					Args: []*ExprArg{
++						{Value: &ExprArg_Bytes{Bytes: []byte{1, 2, 3, 4}}},
++						{Value: &ExprArg_U64{U64: 2}},
++					},
++				},
++			},
++			{
++				Expr: &Expr{
++					Op: "be16",
++					Args: []*ExprArg{
++						{
++							Value: &ExprArg_Expr{
++								Expr: &Expr{
++									Op: "or",
++									Args: []*ExprArg{
++										{
++											Value: &ExprArg_Expr{
++												Expr: &Expr{
++													Op: "shl",
++													Args: []*ExprArg{
++														{Value: &ExprArg_U64{U64: 1}},
++														{Value: &ExprArg_U64{U64: 8}},
++													},
++												},
++											},
++										},
++										{
++											Value: &ExprArg_Expr{
++												Expr: &Expr{
++													Op: "shr",
++													Args: []*ExprArg{
++														{Value: &ExprArg_U64{U64: 0x80}},
++														{Value: &ExprArg_U64{U64: 7}},
++													},
++												},
++											},
++										},
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++		},
++	}, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	client := conn.(*udpCustomClientConn)
++	buf := make([]byte, client.Size())
++	if _, err := client.WriteTo(buf, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 53}); err != nil {
++		t.Fatal(err)
++	}
++
++	want := []byte{
++		0x03, 0x00,
++		0xAA, 0xBB, 0xBB,
++		0x01, 0x02,
++		0x01, 0x01,
++	}
++	if !bytes.Equal(buf, want) {
++		t.Fatalf("unexpected encoded header: %x", buf)
++	}
++}
+
+commit df4b97097c48378267da97236583b31d3935ac8c
+Author: 风扇滑翔翼 <Fangliding.fshxy@outlook.com>
+Date:   Sat Apr 18 05:41:10 2026 +0800
+
+    Loopback outbound: Avoid directly modifying potential shared ctx (#5960)
+    
+    Fixes https://github.com/XTLS/Xray-core/issues/5958
+
+diff --git a/proxy/loopback/loopback.go b/proxy/loopback/loopback.go
+index ab3360ae..2f54fe74 100644
+--- a/proxy/loopback/loopback.go
++++ b/proxy/loopback/loopback.go
+@@ -45,9 +45,11 @@ func (l *Loopback) Process(ctx context.Context, link *transport.Link, _ internet
+ 
+ 		ctx = session.ContextWithContent(ctx, content)
+ 
+-		inbound := session.InboundFromContext(ctx)
+-		if inbound == nil {
+-			inbound = &session.Inbound{}
++		inbound := &session.Inbound{}
++		originInbound := session.InboundFromContext(ctx)
++		if originInbound != nil {
++			// get a shallow copy to avoid modifying the inbound tag in upstream context
++			*inbound = *originInbound
+ 		}
+ 
+ 		inbound.Tag = l.config.InboundTag
+
+commit a9cec25b8deb791a7c06dade9c05fb201008e989
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   Fri Apr 17 21:33:38 2026 +0000
+
+    Bump github.com/pires/go-proxyproto from 0.11.0 to 0.12.0 (#5948)
+    
+    Bumps [github.com/pires/go-proxyproto](https://github.com/pires/go-proxyproto) from 0.11.0 to 0.12.0.
+    - [Release notes](https://github.com/pires/go-proxyproto/releases)
+    - [Commits](https://github.com/pires/go-proxyproto/compare/v0.11.0...v0.12.0)
+    
+    ---
+    updated-dependencies:
+    - dependency-name: github.com/pires/go-proxyproto
+      dependency-version: 0.12.0
+      dependency-type: direct:production
+      update-type: version-update:semver-minor
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+    Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+
+diff --git a/go.mod b/go.mod
+index 7ea49526..b079fba3 100644
+--- a/go.mod
++++ b/go.mod
+@@ -12,7 +12,7 @@ require (
+ 	github.com/klauspost/cpuid/v2 v2.3.0
+ 	github.com/miekg/dns v1.1.72
+ 	github.com/pelletier/go-toml v1.9.5
+-	github.com/pires/go-proxyproto v0.11.0
++	github.com/pires/go-proxyproto v0.12.0
+ 	github.com/refraction-networking/utls v1.8.3-0.20260301010127-aa6edf4b11af
+ 	github.com/sagernet/sing v0.5.1
+ 	github.com/sagernet/sing-shadowsocks v0.2.7
+diff --git a/go.sum b/go.sum
+index 4ae1f959..f448783c 100644
+--- a/go.sum
++++ b/go.sum
+@@ -45,8 +45,8 @@ github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3v
+ github.com/pelletier/go-toml v1.9.5/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
+ github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2 h1:JhzVVoYvbOACxoUmOs6V/G4D5nPVUW73rKvXxP4XUJc=
+ github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2/go.mod h1:iIss55rKnNBTvrwdmkUpLnDpZoAHvWaiq5+iMmen4AE=
+-github.com/pires/go-proxyproto v0.11.0 h1:gUQpS85X/VJMdUsYyEgyn59uLJvGqPhJV5YvG68wXH4=
+-github.com/pires/go-proxyproto v0.11.0/go.mod h1:ZKAAyp3cgy5Y5Mo4n9AlScrkCZwUy0g3Jf+slqQVcuU=
++github.com/pires/go-proxyproto v0.12.0 h1:TTCxD66dU898tahivkqc3hoceZp7P44FnorWyo9d5vM=
++github.com/pires/go-proxyproto v0.12.0/go.mod h1:qUvfqUMEoX7T8g0q7TQLDnhMjdTrxnG0hvpMn+7ePNI=
+ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
+ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+ github.com/quic-go/qpack v0.6.0 h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
+
+commit c5edc122b70ec56e24ea8038e727da6f823e34be
+Author: RPRX <63339210+RPRX@users.noreply.github.com>
+Date:   Wed Apr 15 23:56:34 2026 +0000
+
+    v26.4.15
+    
+    Announcement of NFTs by Project X: https://github.com/XTLS/Xray-core/discussions/3633
+    Project X NFT: https://opensea.io/assets/ethereum/0x5ee362866001613093361eb8569d59c4141b76d1/1
+    
+    VLESS Post-Quantum Encryption: https://github.com/XTLS/Xray-core/pull/5067
+    VLESS NFT: https://opensea.io/collection/vless
+    
+    XHTTP: Beyond REALITY: https://github.com/XTLS/Xray-core/discussions/4113
+    REALITY NFT: https://opensea.io/assets/ethereum/0x5ee362866001613093361eb8569d59c4141b76d1/2
+
+diff --git a/core/core.go b/core/core.go
+index 7d8c0cde..ccd1437d 100644
+--- a/core/core.go
++++ b/core/core.go
+@@ -20,7 +20,7 @@ import (
+ var (
+ 	Version_x byte = 26
+ 	Version_y byte = 4
+-	Version_z byte = 13
++	Version_z byte = 15
+ )
+ 
+ var (
+
+commit 9dd17d55fb28e01fac50817f2cfabdd009dcd166
+Author: RPRX <63339210+RPRX@users.noreply.github.com>
+Date:   Wed Apr 15 23:47:21 2026 +0000
+
+    XUDP GetGlobalID(): Remove `inbound.Name == "wireguard"` for now
+    
+    https://github.com/XTLS/Xray-core/pull/5947#issuecomment-4256423483
+
+diff --git a/common/xudp/xudp.go b/common/xudp/xudp.go
+index 9b4ffbba..afaa602d 100644
+--- a/common/xudp/xudp.go
++++ b/common/xudp/xudp.go
+@@ -53,7 +53,7 @@ func GetGlobalID(ctx context.Context) (globalID [8]byte) {
+ 		return
+ 	}
+ 	if inbound := session.InboundFromContext(ctx); inbound != nil && inbound.Source.Network == net.Network_UDP &&
+-		(inbound.Name == "dokodemo-door" || inbound.Name == "socks" || inbound.Name == "shadowsocks" || inbound.Name == "tun" || inbound.Name == "wireguard") {
++		(inbound.Name == "dokodemo-door" || inbound.Name == "socks" || inbound.Name == "shadowsocks" || inbound.Name == "tun") {
+ 		h := blake3.New(8, BaseKey)
+ 		h.Write([]byte(inbound.Source.String()))
+ 		copy(globalID[:], h.Sum(nil))
+
+commit 310b764811aa340d521465b1749db9fecb57f819
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   Thu Apr 16 07:41:11 2026 +0800
+
+    Direct/Freedom outbound: Add `ipsBlocked` (supports IP, CIDR, "geoip:", "ext:") and apply a default safe policy (#5947)
+    
+    https://github.com/XTLS/Xray-core/pull/5892#issuecomment-4254056911
+    
+    ---------
+    
+    Co-authored-by: 风扇滑翔翼 <Fangliding.fshxy@outlook.com>
+
+diff --git a/app/dns/dns_test.go b/app/dns/dns_test.go
+index d18c7686..c065056e 100644
+--- a/app/dns/dns_test.go
++++ b/app/dns/dns_test.go
+@@ -147,7 +147,9 @@ func TestUDPServerSubnet(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -207,7 +209,9 @@ func TestUDPServer(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -345,7 +349,9 @@ func TestPrioritizedDomain(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -414,7 +420,9 @@ func TestUDPServerIPv6(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -481,7 +489,9 @@ func TestStaticHostDomain(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -587,7 +597,9 @@ func TestIPMatch(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -704,7 +716,9 @@ func TestLocalDomain(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -994,7 +1008,9 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/core/functions_test.go b/core/functions_test.go
+index 5658de1c..a7d5cec6 100644
+--- a/core/functions_test.go
++++ b/core/functions_test.go
+@@ -52,7 +52,9 @@ func TestXrayDial(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -102,7 +104,9 @@ func TestXrayDialUDPConn(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -169,7 +173,9 @@ func TestXrayDialUDP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/infra/conf/freedom.go b/infra/conf/freedom.go
+index 82d2c9a8..b038e102 100644
+--- a/infra/conf/freedom.go
++++ b/infra/conf/freedom.go
+@@ -7,6 +7,7 @@ import (
+ 	"strings"
+ 
+ 	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/geodata"
+ 	v2net "github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/common/protocol"
+ 	"github.com/xtls/xray-core/proxy/freedom"
+@@ -15,14 +16,15 @@ import (
+ )
+ 
+ type FreedomConfig struct {
+-	TargetStrategy string    `json:"targetStrategy"`
+-	DomainStrategy string    `json:"domainStrategy"`
+-	Redirect       string    `json:"redirect"`
+-	UserLevel      uint32    `json:"userLevel"`
+-	Fragment       *Fragment `json:"fragment"`
+-	Noise          *Noise    `json:"noise"`
+-	Noises         []*Noise  `json:"noises"`
+-	ProxyProtocol  uint32    `json:"proxyProtocol"`
++	TargetStrategy string      `json:"targetStrategy"`
++	DomainStrategy string      `json:"domainStrategy"`
++	Redirect       string      `json:"redirect"`
++	UserLevel      uint32      `json:"userLevel"`
++	Fragment       *Fragment   `json:"fragment"`
++	Noise          *Noise      `json:"noise"`
++	Noises         []*Noise    `json:"noises"`
++	ProxyProtocol  uint32      `json:"proxyProtocol"`
++	IPsBlocked     *StringList `json:"ipsBlocked"`
+ }
+ 
+ type Fragment struct {
+@@ -162,6 +164,13 @@ func (c *FreedomConfig) Build() (proto.Message, error) {
+ 	if c.ProxyProtocol > 0 && c.ProxyProtocol <= 2 {
+ 		config.ProxyProtocol = c.ProxyProtocol
+ 	}
++	if c.IPsBlocked != nil {
++		rules, err := geodata.ParseIPRules(*c.IPsBlocked)
++		if err != nil {
++			return nil, err
++		}
++		config.IpsBlocked = &freedom.IPRules{Rules: rules}
++	}
+ 	return config, nil
+ }
+ 
+diff --git a/proxy/freedom/config.pb.go b/proxy/freedom/config.pb.go
+index f39abcf7..d53776d4 100644
+--- a/proxy/freedom/config.pb.go
++++ b/proxy/freedom/config.pb.go
+@@ -7,6 +7,7 @@
+ package freedom
+ 
+ import (
++	geodata "github.com/xtls/xray-core/common/geodata"
+ 	protocol "github.com/xtls/xray-core/common/protocol"
+ 	internet "github.com/xtls/xray-core/transport/internet"
+ 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+@@ -251,6 +252,50 @@ func (x *Noise) GetApplyTo() string {
+ 	return ""
+ }
+ 
++type IPRules struct {
++	state         protoimpl.MessageState `protogen:"open.v1"`
++	Rules         []*geodata.IPRule      `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
++	unknownFields protoimpl.UnknownFields
++	sizeCache     protoimpl.SizeCache
++}
++
++func (x *IPRules) Reset() {
++	*x = IPRules{}
++	mi := &file_proxy_freedom_config_proto_msgTypes[3]
++	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++	ms.StoreMessageInfo(mi)
++}
++
++func (x *IPRules) String() string {
++	return protoimpl.X.MessageStringOf(x)
++}
++
++func (*IPRules) ProtoMessage() {}
++
++func (x *IPRules) ProtoReflect() protoreflect.Message {
++	mi := &file_proxy_freedom_config_proto_msgTypes[3]
++	if x != nil {
++		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++		if ms.LoadMessageInfo() == nil {
++			ms.StoreMessageInfo(mi)
++		}
++		return ms
++	}
++	return mi.MessageOf(x)
++}
++
++// Deprecated: Use IPRules.ProtoReflect.Descriptor instead.
++func (*IPRules) Descriptor() ([]byte, []int) {
++	return file_proxy_freedom_config_proto_rawDescGZIP(), []int{3}
++}
++
++func (x *IPRules) GetRules() []*geodata.IPRule {
++	if x != nil {
++		return x.Rules
++	}
++	return nil
++}
++
+ type Config struct {
+ 	state               protoimpl.MessageState  `protogen:"open.v1"`
+ 	DomainStrategy      internet.DomainStrategy `protobuf:"varint,1,opt,name=domain_strategy,json=domainStrategy,proto3,enum=xray.transport.internet.DomainStrategy" json:"domain_strategy,omitempty"`
+@@ -259,13 +304,14 @@ type Config struct {
+ 	Fragment            *Fragment               `protobuf:"bytes,5,opt,name=fragment,proto3" json:"fragment,omitempty"`
+ 	ProxyProtocol       uint32                  `protobuf:"varint,6,opt,name=proxy_protocol,json=proxyProtocol,proto3" json:"proxy_protocol,omitempty"`
+ 	Noises              []*Noise                `protobuf:"bytes,7,rep,name=noises,proto3" json:"noises,omitempty"`
++	IpsBlocked          *IPRules                `protobuf:"bytes,8,opt,name=ips_blocked,json=ipsBlocked,proto3,oneof" json:"ips_blocked,omitempty"`
+ 	unknownFields       protoimpl.UnknownFields
+ 	sizeCache           protoimpl.SizeCache
+ }
+ 
+ func (x *Config) Reset() {
+ 	*x = Config{}
+-	mi := &file_proxy_freedom_config_proto_msgTypes[3]
++	mi := &file_proxy_freedom_config_proto_msgTypes[4]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+@@ -277,7 +323,7 @@ func (x *Config) String() string {
+ func (*Config) ProtoMessage() {}
+ 
+ func (x *Config) ProtoReflect() protoreflect.Message {
+-	mi := &file_proxy_freedom_config_proto_msgTypes[3]
++	mi := &file_proxy_freedom_config_proto_msgTypes[4]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 		if ms.LoadMessageInfo() == nil {
+@@ -290,7 +336,7 @@ func (x *Config) ProtoReflect() protoreflect.Message {
+ 
+ // Deprecated: Use Config.ProtoReflect.Descriptor instead.
+ func (*Config) Descriptor() ([]byte, []int) {
+-	return file_proxy_freedom_config_proto_rawDescGZIP(), []int{3}
++	return file_proxy_freedom_config_proto_rawDescGZIP(), []int{4}
+ }
+ 
+ func (x *Config) GetDomainStrategy() internet.DomainStrategy {
+@@ -335,11 +381,18 @@ func (x *Config) GetNoises() []*Noise {
+ 	return nil
+ }
+ 
++func (x *Config) GetIpsBlocked() *IPRules {
++	if x != nil {
++		return x.IpsBlocked
++	}
++	return nil
++}
++
+ var File_proxy_freedom_config_proto protoreflect.FileDescriptor
+ 
+ const file_proxy_freedom_config_proto_rawDesc = "" +
+ 	"\n" +
+-	"\x1aproxy/freedom/config.proto\x12\x12xray.proxy.freedom\x1a!common/protocol/server_spec.proto\x1a\x1ftransport/internet/config.proto\"S\n" +
++	"\x1aproxy/freedom/config.proto\x12\x12xray.proxy.freedom\x1a!common/protocol/server_spec.proto\x1a\x1ftransport/internet/config.proto\x1a\x1bcommon/geodata/geodat.proto\"S\n" +
+ 	"\x13DestinationOverride\x12<\n" +
+ 	"\x06server\x18\x01 \x01(\v2$.xray.common.protocol.ServerEndpointR\x06server\"\x98\x02\n" +
+ 	"\bFragment\x12!\n" +
+@@ -362,7 +415,9 @@ const file_proxy_freedom_config_proto_rawDesc = "" +
+ 	"\tdelay_min\x18\x03 \x01(\x04R\bdelayMin\x12\x1b\n" +
+ 	"\tdelay_max\x18\x04 \x01(\x04R\bdelayMax\x12\x16\n" +
+ 	"\x06packet\x18\x05 \x01(\fR\x06packet\x12\x19\n" +
+-	"\bapply_to\x18\x06 \x01(\tR\aapplyTo\"\xe9\x02\n" +
++	"\bapply_to\x18\x06 \x01(\tR\aapplyTo\"<\n" +
++	"\aIPRules\x121\n" +
++	"\x05rules\x18\x01 \x03(\v2\x1b.xray.common.geodata.IPRuleR\x05rules\"\xbc\x03\n" +
+ 	"\x06Config\x12P\n" +
+ 	"\x0fdomain_strategy\x18\x01 \x01(\x0e2'.xray.transport.internet.DomainStrategyR\x0edomainStrategy\x12Z\n" +
+ 	"\x14destination_override\x18\x03 \x01(\v2'.xray.proxy.freedom.DestinationOverrideR\x13destinationOverride\x12\x1d\n" +
+@@ -370,7 +425,10 @@ const file_proxy_freedom_config_proto_rawDesc = "" +
+ 	"user_level\x18\x04 \x01(\rR\tuserLevel\x128\n" +
+ 	"\bfragment\x18\x05 \x01(\v2\x1c.xray.proxy.freedom.FragmentR\bfragment\x12%\n" +
+ 	"\x0eproxy_protocol\x18\x06 \x01(\rR\rproxyProtocol\x121\n" +
+-	"\x06noises\x18\a \x03(\v2\x19.xray.proxy.freedom.NoiseR\x06noisesBX\n" +
++	"\x06noises\x18\a \x03(\v2\x19.xray.proxy.freedom.NoiseR\x06noises\x12A\n" +
++	"\vips_blocked\x18\b \x01(\v2\x1b.xray.proxy.freedom.IPRulesH\x00R\n" +
++	"ipsBlocked\x88\x01\x01B\x0e\n" +
++	"\f_ips_blockedBX\n" +
+ 	"\x16com.xray.proxy.freedomP\x01Z'github.com/xtls/xray-core/proxy/freedom\xaa\x02\x12Xray.Proxy.Freedomb\x06proto3"
+ 
+ var (
+@@ -385,26 +443,30 @@ func file_proxy_freedom_config_proto_rawDescGZIP() []byte {
+ 	return file_proxy_freedom_config_proto_rawDescData
+ }
+ 
+-var file_proxy_freedom_config_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
++var file_proxy_freedom_config_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+ var file_proxy_freedom_config_proto_goTypes = []any{
+ 	(*DestinationOverride)(nil),     // 0: xray.proxy.freedom.DestinationOverride
+ 	(*Fragment)(nil),                // 1: xray.proxy.freedom.Fragment
+ 	(*Noise)(nil),                   // 2: xray.proxy.freedom.Noise
+-	(*Config)(nil),                  // 3: xray.proxy.freedom.Config
+-	(*protocol.ServerEndpoint)(nil), // 4: xray.common.protocol.ServerEndpoint
+-	(internet.DomainStrategy)(0),    // 5: xray.transport.internet.DomainStrategy
++	(*IPRules)(nil),                 // 3: xray.proxy.freedom.IPRules
++	(*Config)(nil),                  // 4: xray.proxy.freedom.Config
++	(*protocol.ServerEndpoint)(nil), // 5: xray.common.protocol.ServerEndpoint
++	(*geodata.IPRule)(nil),          // 6: xray.common.geodata.IPRule
++	(internet.DomainStrategy)(0),    // 7: xray.transport.internet.DomainStrategy
+ }
+ var file_proxy_freedom_config_proto_depIdxs = []int32{
+-	4, // 0: xray.proxy.freedom.DestinationOverride.server:type_name -> xray.common.protocol.ServerEndpoint
+-	5, // 1: xray.proxy.freedom.Config.domain_strategy:type_name -> xray.transport.internet.DomainStrategy
+-	0, // 2: xray.proxy.freedom.Config.destination_override:type_name -> xray.proxy.freedom.DestinationOverride
+-	1, // 3: xray.proxy.freedom.Config.fragment:type_name -> xray.proxy.freedom.Fragment
+-	2, // 4: xray.proxy.freedom.Config.noises:type_name -> xray.proxy.freedom.Noise
+-	5, // [5:5] is the sub-list for method output_type
+-	5, // [5:5] is the sub-list for method input_type
+-	5, // [5:5] is the sub-list for extension type_name
+-	5, // [5:5] is the sub-list for extension extendee
+-	0, // [0:5] is the sub-list for field type_name
++	5, // 0: xray.proxy.freedom.DestinationOverride.server:type_name -> xray.common.protocol.ServerEndpoint
++	6, // 1: xray.proxy.freedom.IPRules.rules:type_name -> xray.common.geodata.IPRule
++	7, // 2: xray.proxy.freedom.Config.domain_strategy:type_name -> xray.transport.internet.DomainStrategy
++	0, // 3: xray.proxy.freedom.Config.destination_override:type_name -> xray.proxy.freedom.DestinationOverride
++	1, // 4: xray.proxy.freedom.Config.fragment:type_name -> xray.proxy.freedom.Fragment
++	2, // 5: xray.proxy.freedom.Config.noises:type_name -> xray.proxy.freedom.Noise
++	3, // 6: xray.proxy.freedom.Config.ips_blocked:type_name -> xray.proxy.freedom.IPRules
++	7, // [7:7] is the sub-list for method output_type
++	7, // [7:7] is the sub-list for method input_type
++	7, // [7:7] is the sub-list for extension type_name
++	7, // [7:7] is the sub-list for extension extendee
++	0, // [0:7] is the sub-list for field type_name
+ }
+ 
+ func init() { file_proxy_freedom_config_proto_init() }
+@@ -412,13 +474,14 @@ func file_proxy_freedom_config_proto_init() {
+ 	if File_proxy_freedom_config_proto != nil {
+ 		return
+ 	}
++	file_proxy_freedom_config_proto_msgTypes[4].OneofWrappers = []any{}
+ 	type x struct{}
+ 	out := protoimpl.TypeBuilder{
+ 		File: protoimpl.DescBuilder{
+ 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+ 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proxy_freedom_config_proto_rawDesc), len(file_proxy_freedom_config_proto_rawDesc)),
+ 			NumEnums:      0,
+-			NumMessages:   4,
++			NumMessages:   5,
+ 			NumExtensions: 0,
+ 			NumServices:   0,
+ 		},
+diff --git a/proxy/freedom/config.proto b/proxy/freedom/config.proto
+index fd0547d8..15575c80 100644
+--- a/proxy/freedom/config.proto
++++ b/proxy/freedom/config.proto
+@@ -8,6 +8,7 @@ option java_multiple_files = true;
+ 
+ import "common/protocol/server_spec.proto";
+ import "transport/internet/config.proto";
++import "common/geodata/geodat.proto";
+ 
+ message DestinationOverride {
+   xray.common.protocol.ServerEndpoint server = 1;
+@@ -32,6 +33,10 @@ message Noise {
+   string apply_to = 6;
+ }
+ 
++message IPRules {
++  repeated xray.common.geodata.IPRule rules = 1;
++}
++
+ message Config {
+   xray.transport.internet.DomainStrategy domain_strategy = 1;
+   DestinationOverride destination_override = 3;
+@@ -39,4 +44,5 @@ message Config {
+   Fragment fragment = 5;
+   uint32 proxy_protocol = 6;
+   repeated Noise noises = 7;
++  optional IPRules ips_blocked = 8;
+ }
+diff --git a/proxy/freedom/freedom.go b/proxy/freedom/freedom.go
+index d107e357..008f700f 100644
+--- a/proxy/freedom/freedom.go
++++ b/proxy/freedom/freedom.go
+@@ -4,6 +4,7 @@ import (
+ 	"context"
+ 	"crypto/rand"
+ 	"io"
++	"strings"
+ 	"time"
+ 
+ 	"github.com/pires/go-proxyproto"
+@@ -12,6 +13,7 @@ import (
+ 	"github.com/xtls/xray-core/common/crypto"
+ 	"github.com/xtls/xray-core/common/dice"
+ 	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/geodata"
+ 	"github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/common/platform"
+ 	"github.com/xtls/xray-core/common/retry"
+@@ -30,6 +32,32 @@ import (
+ 
+ var useSplice bool
+ 
++var defaultPrivateBlockIP = []string{
++	"0.0.0.0/8",
++	"10.0.0.0/8",
++	"100.64.0.0/10",
++	"127.0.0.0/8",
++	"169.254.0.0/16",
++	"172.16.0.0/12",
++	"192.0.0.0/24",
++	"192.0.2.0/24",
++	"192.88.99.0/24",
++	"192.168.0.0/16",
++	"198.18.0.0/15",
++	"198.51.100.0/24",
++	"203.0.113.0/24",
++	"224.0.0.0/3",
++	"::/127",
++	"fc00::/7",
++	"fe80::/10",
++	"ff00::/8",
++}
++
++var defaultPrivateBlockIPMatcher = func() geodata.IPMatcher {
++	rules := common.Must2(geodata.ParseIPRules(defaultPrivateBlockIP))
++	return common.Must2(geodata.IPReg.BuildIPMatcher(rules))
++}()
++
+ func init() {
+ 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
+ 		h := new(Handler)
+@@ -50,14 +78,22 @@ func init() {
+ 
+ // Handler handles Freedom connections.
+ type Handler struct {
+-	policyManager policy.Manager
+-	config        *Config
++	policyManager    policy.Manager
++	config           *Config
++	blockedIPMatcher geodata.IPMatcher
+ }
+ 
+ // Init initializes the Handler with necessary parameters.
+ func (h *Handler) Init(config *Config, pm policy.Manager) error {
+ 	h.config = config
+ 	h.policyManager = pm
++	if config.IpsBlocked != nil && len(config.IpsBlocked.Rules) > 0 {
++		m, err := geodata.IPReg.BuildIPMatcher(config.IpsBlocked.Rules)
++		if err != nil {
++			return errors.New("failed to build blocked ip matcher").Base(err)
++		}
++		h.blockedIPMatcher = m
++	}
+ 	return nil
+ }
+ 
+@@ -75,6 +111,32 @@ func isValidAddress(addr *net.IPOrDomain) bool {
+ 	return a != net.AnyIP && a != net.AnyIPv6
+ }
+ 
++func (h *Handler) getBlockedIPMatcher(ctx context.Context, inbound *session.Inbound) geodata.IPMatcher {
++	if h.blockedIPMatcher != nil {
++		return h.blockedIPMatcher
++	}
++	if h.config.IpsBlocked != nil && len(h.config.IpsBlocked.Rules) == 0 { // "ipsBlocked": []
++		return nil
++	}
++	if inbound == nil {
++		return nil
++	}
++	switch inbound.Name {
++	case "vmess", "trojan", "hysteria", "wireguard":
++		errors.LogInfo(ctx, "applying default private IP blocking policy for inbound ", inbound.Name)
++		return defaultPrivateBlockIPMatcher
++	}
++	if strings.HasPrefix(inbound.Name, "vless") || strings.HasPrefix(inbound.Name, "shadowsocks") {
++		errors.LogInfo(ctx, "applying default private IP blocking policy for inbound ", inbound.Name)
++		return defaultPrivateBlockIPMatcher
++	}
++	return nil
++}
++
++func isBlockedAddress(matcher geodata.IPMatcher, addr net.Address) bool {
++	return matcher != nil && addr != nil && addr.Family().IsIP() && matcher.Match(addr.IP())
++}
++
+ // Process implements proxy.Outbound.
+ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer internet.Dialer) error {
+ 	outbounds := session.OutboundsFromContext(ctx)
+@@ -85,6 +147,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
+ 	ob.Name = "freedom"
+ 	ob.CanSpliceCopy = 1
+ 	inbound := session.InboundFromContext(ctx)
++	blockedIPMatcher := h.getBlockedIPMatcher(ctx, inbound)
+ 
+ 	destination := ob.Target
+ 	origTargetAddr := ob.OriginalTarget.Address
+@@ -138,23 +201,26 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
+ 			return err
+ 		}
+ 
+-		if h.config.ProxyProtocol > 0 && h.config.ProxyProtocol <= 2 {
+-			version := byte(h.config.ProxyProtocol)
+-			srcAddr := inbound.Source.RawNetAddr()
+-			dstAddr := rawConn.RemoteAddr()
+-			header := proxyproto.HeaderProxyFromAddrs(version, srcAddr, dstAddr)
+-			if _, err = header.WriteTo(rawConn); err != nil {
+-				rawConn.Close()
+-				return err
+-			}
+-		}
+-
+ 		conn = rawConn
+ 		return nil
+ 	})
+ 	if err != nil {
+ 		return errors.New("failed to open connection to ", destination).Base(err)
+ 	}
++	if remoteAddr := net.DestinationFromAddr(conn.RemoteAddr()).Address; isBlockedAddress(blockedIPMatcher, remoteAddr) {
++		conn.Close()
++		return errors.New("blocked target IP: ", remoteAddr).AtInfo()
++	}
++	if h.config.ProxyProtocol > 0 && h.config.ProxyProtocol <= 2 {
++		version := byte(h.config.ProxyProtocol)
++		srcAddr := inbound.Source.RawNetAddr()
++		dstAddr := conn.RemoteAddr()
++		header := proxyproto.HeaderProxyFromAddrs(version, srcAddr, dstAddr)
++		if _, err = header.WriteTo(conn); err != nil {
++			conn.Close()
++			return errors.New("failed to set PROXY protocol v", version).Base(err)
++		}
++	}
+ 	defer conn.Close()
+ 	errors.LogInfo(ctx, "connection opened to ", destination, ", local endpoint ", conn.LocalAddr(), ", remote endpoint ", conn.RemoteAddr())
+ 
+@@ -189,7 +255,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
+ 				writer = buf.NewWriter(conn)
+ 			}
+ 		} else {
+-			writer = NewPacketWriter(conn, h, UDPOverride, destination)
++			writer = NewPacketWriter(conn, h, UDPOverride, destination, blockedIPMatcher)
+ 			if h.config.Noises != nil {
+ 				errors.LogDebug(ctx, "NOISE", h.config.Noises)
+ 				writer = &NoisePacketWriter{
+@@ -307,7 +373,7 @@ func (r *PacketReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
+ }
+ 
+ // DialDest means the dial target used in the dialer when creating conn
+-func NewPacketWriter(conn net.Conn, h *Handler, UDPOverride net.Destination, DialDest net.Destination) buf.Writer {
++func NewPacketWriter(conn net.Conn, h *Handler, UDPOverride net.Destination, DialDest net.Destination, blockedIPMatcher geodata.IPMatcher) buf.Writer {
+ 	iConn := conn
+ 	statConn, ok := iConn.(*stat.CounterConnection)
+ 	if ok {
+@@ -328,6 +394,7 @@ func NewPacketWriter(conn net.Conn, h *Handler, UDPOverride net.Destination, Dia
+ 			PacketConnWrapper: c,
+ 			Counter:           counter,
+ 			Handler:           h,
++			BlockedIPMatcher:  blockedIPMatcher,
+ 			UDPOverride:       UDPOverride,
+ 			ResolvedUDPAddr:   resolvedUDPAddr,
+ 			LocalAddr:         net.DestinationFromAddr(conn.LocalAddr()).Address,
+@@ -341,7 +408,8 @@ type PacketWriter struct {
+ 	*internet.PacketConnWrapper
+ 	stats.Counter
+ 	*Handler
+-	UDPOverride net.Destination
++	BlockedIPMatcher geodata.IPMatcher
++	UDPOverride      net.Destination
+ 
+ 	// Dest of udp packets might be a domain, we will resolve them to IP
+ 	// But resolver will return a random one if the domain has many IPs
+@@ -399,6 +467,12 @@ func (w *PacketWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
+ 					}
+ 				}
+ 			}
++			if isBlockedAddress(w.BlockedIPMatcher, b.UDP.Address) {
++				blockedAddr := b.UDP.Address
++				b.Release()
++				buf.ReleaseMulti(mb)
++				return errors.New("blocked target IP: ", blockedAddr).AtDebug()
++			}
+ 			destAddr := b.UDP.RawNetAddr()
+ 			if destAddr == nil {
+ 				b.Release()
+diff --git a/proxy/vless/outbound/outbound.go b/proxy/vless/outbound/outbound.go
+index 12fa7569..ac087c63 100644
+--- a/proxy/vless/outbound/outbound.go
++++ b/proxy/vless/outbound/outbound.go
+@@ -100,6 +100,7 @@ func New(ctx context.Context, config *Config) (*Handler, error) {
+ 	if a.Reverse != nil {
+ 		rvsCtx := session.ContextWithInbound(ctx, &session.Inbound{
+ 			Tag:  a.Reverse.Tag,
++			Name: "vless-reverse",
+ 			User: handler.server.User, // TODO: email
+ 		})
+ 		if sc := a.Reverse.Sniffing; sc != nil && sc.Enabled {
+diff --git a/testing/scenarios/command_test.go b/testing/scenarios/command_test.go
+index 7afe47d0..330c84cc 100644
+--- a/testing/scenarios/command_test.go
++++ b/testing/scenarios/command_test.go
+@@ -387,7 +387,9 @@ func TestCommanderAddRemoveUser(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -573,7 +575,9 @@ func TestCommanderStats(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/dokodemo_test.go b/testing/scenarios/dokodemo_test.go
+index 81234cd1..5ba14894 100644
+--- a/testing/scenarios/dokodemo_test.go
++++ b/testing/scenarios/dokodemo_test.go
+@@ -59,7 +59,9 @@ func TestDokodemoTCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -97,7 +99,7 @@ func TestDokodemoTCP(t *testing.T) {
+ 						Receiver: &protocol.ServerEndpoint{
+ 							Address: net.NewIPOrDomain(net.LocalHostIP),
+ 							Port:    uint32(serverPort),
+-							User:    &protocol.User{
++							User: &protocol.User{
+ 								Account: serial.ToTypedMessage(&vmess.Account{
+ 									Id: userID.String(),
+ 								}),
+@@ -157,7 +159,9 @@ func TestDokodemoUDP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -189,7 +193,7 @@ func TestDokodemoUDP(t *testing.T) {
+ 						Receiver: &protocol.ServerEndpoint{
+ 							Address: net.NewIPOrDomain(net.LocalHostIP),
+ 							Port:    uint32(serverPort),
+-							User:    &protocol.User{
++							User: &protocol.User{
+ 								Account: serial.ToTypedMessage(&vmess.Account{
+ 									Id: userID.String(),
+ 								}),
+diff --git a/testing/scenarios/feature_test.go b/testing/scenarios/feature_test.go
+index e668587e..6e20e621 100644
+--- a/testing/scenarios/feature_test.go
++++ b/testing/scenarios/feature_test.go
+@@ -61,7 +61,9 @@ func TestPassiveConnection(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -120,7 +122,9 @@ func TestProxy(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -147,7 +151,9 @@ func TestProxy(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -173,7 +179,7 @@ func TestProxy(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: serverUserID.String(),
+ 							}),
+@@ -192,7 +198,7 @@ func TestProxy(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(proxyPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: proxyUserID.String(),
+ 							}),
+@@ -245,7 +251,9 @@ func TestProxyOverKCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -272,7 +280,9 @@ func TestProxyOverKCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 				SenderSettings: serial.ToTypedMessage(&proxyman.SenderConfig{
+ 					StreamSettings: &internet.StreamConfig{
+ 						ProtocolName: "mkcp",
+@@ -303,7 +313,7 @@ func TestProxyOverKCP(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: serverUserID.String(),
+ 							}),
+@@ -325,7 +335,7 @@ func TestProxyOverKCP(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(proxyPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: proxyUserID.String(),
+ 							}),
+@@ -504,7 +514,9 @@ func TestUDPConnection(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -654,7 +666,9 @@ func TestDialXray(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/http_test.go b/testing/scenarios/http_test.go
+index b9b112ff..0fe06448 100644
+--- a/testing/scenarios/http_test.go
++++ b/testing/scenarios/http_test.go
+@@ -47,7 +47,9 @@ func TestHttpConformance(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -108,7 +110,9 @@ func TestHttpError(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -156,7 +160,9 @@ func TestHTTPConnectMethod(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -236,7 +242,9 @@ func TestHttpPost(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -306,7 +314,9 @@ func TestHttpBasicAuth(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/policy_test.go b/testing/scenarios/policy_test.go
+index c5d68a50..52b4e7dd 100644
+--- a/testing/scenarios/policy_test.go
++++ b/testing/scenarios/policy_test.go
+@@ -84,7 +84,9 @@ func TestVMessClosing(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -122,7 +124,7 @@ func TestVMessClosing(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: userID.String(),
+ 								SecuritySettings: &protocol.SecurityConfig{
+@@ -190,7 +192,9 @@ func TestZeroBuffer(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -222,7 +226,7 @@ func TestZeroBuffer(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: userID.String(),
+ 								SecuritySettings: &protocol.SecurityConfig{
+diff --git a/testing/scenarios/shadowsocks_2022_test.go b/testing/scenarios/shadowsocks_2022_test.go
+index 7282eff3..7e4e2b44 100644
+--- a/testing/scenarios/shadowsocks_2022_test.go
++++ b/testing/scenarios/shadowsocks_2022_test.go
+@@ -81,7 +81,9 @@ func testShadowsocks2022Tcp(t *testing.T, method string, password string) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -164,7 +166,9 @@ func testShadowsocks2022Udp(t *testing.T, method string, password string) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/shadowsocks_test.go b/testing/scenarios/shadowsocks_test.go
+index 2fdd6204..4c789dbc 100644
+--- a/testing/scenarios/shadowsocks_test.go
++++ b/testing/scenarios/shadowsocks_test.go
+@@ -52,7 +52,9 @@ func TestShadowsocksChaCha20Poly1305TCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -75,10 +77,10 @@ func TestShadowsocksChaCha20Poly1305TCP(t *testing.T) {
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+ 				ProxySettings: serial.ToTypedMessage(&shadowsocks.ClientConfig{
+-					Server:    &protocol.ServerEndpoint{
++					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: account,
+ 						},
+ 					},
+@@ -138,7 +140,9 @@ func TestShadowsocksAES256GCMTCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -170,7 +174,7 @@ func TestShadowsocksAES256GCMTCP(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: account,
+ 						},
+ 					},
+@@ -231,7 +235,9 @@ func TestShadowsocksAES128GCMUDP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -263,7 +269,7 @@ func TestShadowsocksAES128GCMUDP(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: account,
+ 						},
+ 					},
+@@ -323,7 +329,9 @@ func TestShadowsocksAES128GCMUDPMux(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -361,7 +369,7 @@ func TestShadowsocksAES128GCMUDPMux(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: account,
+ 						},
+ 					},
+@@ -416,7 +424,9 @@ func TestShadowsocksNone(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -442,7 +452,7 @@ func TestShadowsocksNone(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: account,
+ 						},
+ 					},
+diff --git a/testing/scenarios/socks_test.go b/testing/scenarios/socks_test.go
+index a139e5fe..2df1c7f6 100644
+--- a/testing/scenarios/socks_test.go
++++ b/testing/scenarios/socks_test.go
+@@ -50,7 +50,9 @@ func TestSocksBridgeTCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -76,7 +78,7 @@ func TestSocksBridgeTCP(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&socks.Account{
+ 								Username: "Test Account",
+ 								Password: "Test Password",
+@@ -125,7 +127,9 @@ func TestSocksWithHttpRequest(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -151,7 +155,7 @@ func TestSocksWithHttpRequest(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&http.Account{
+ 								Username: "Test Account",
+ 								Password: "Test Password",
+@@ -251,7 +255,7 @@ func TestSocksBridageUDP(t *testing.T) {
+ 					Server: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&socks.Account{
+ 								Username: "Test Account",
+ 								Password: "Test Password",
+@@ -424,7 +428,9 @@ func TestSocksConformanceMod(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/tls_test.go b/testing/scenarios/tls_test.go
+index 1a2f9661..d21afc02 100644
+--- a/testing/scenarios/tls_test.go
++++ b/testing/scenarios/tls_test.go
+@@ -68,7 +68,9 @@ func TestSimpleTLSConnection(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -179,7 +181,9 @@ func TestAutoIssuingCertificate(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -282,7 +286,9 @@ func TestTLSOverKCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -380,7 +386,9 @@ func TestTLSOverWebSocket(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -494,7 +502,9 @@ func TestGRPC(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -608,7 +618,9 @@ func TestGRPCMultiMode(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -715,7 +727,9 @@ func TestSimpleTLSConnectionPinned(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -812,7 +826,9 @@ func TestSimpleTLSConnectionPinnedWrongCert(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -908,7 +924,9 @@ func TestUTLSConnectionPinned(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -1006,7 +1024,9 @@ func TestUTLSConnectionPinnedWrongCert(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/transport_test.go b/testing/scenarios/transport_test.go
+index 80fd13db..0d4372dd 100644
+--- a/testing/scenarios/transport_test.go
++++ b/testing/scenarios/transport_test.go
+@@ -62,7 +62,9 @@ func TestHTTPConnectionHeader(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -88,7 +90,7 @@ func TestHTTPConnectionHeader(t *testing.T) {
+ 					Receiver: &protocol.ServerEndpoint{
+ 						Address: net.NewIPOrDomain(net.LocalHostIP),
+ 						Port:    uint32(serverPort),
+-						User:    &protocol.User{
++						User: &protocol.User{
+ 							Account: serial.ToTypedMessage(&vmess.Account{
+ 								Id: userID.String(),
+ 							}),
+diff --git a/testing/scenarios/vless_test.go b/testing/scenarios/vless_test.go
+index cdc75c59..1e781370 100644
+--- a/testing/scenarios/vless_test.go
++++ b/testing/scenarios/vless_test.go
+@@ -66,7 +66,9 @@ func TestVless(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -169,7 +171,9 @@ func TestVlessTls(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -290,7 +294,9 @@ func TestVlessXtlsVision(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -420,7 +426,9 @@ func TestVlessXtlsVisionReality(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -557,7 +565,9 @@ func TestVlessRealityFingerprints(t *testing.T) {
+ 			},
+ 			Outbound: []*core.OutboundHandlerConfig{
+ 				{
+-					ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++					ProxySettings: serial.ToTypedMessage(&freedom.Config{
++						IpsBlocked: &freedom.IPRules{},
++					}),
+ 				},
+ 			},
+ 		}
+diff --git a/testing/scenarios/vmess_test.go b/testing/scenarios/vmess_test.go
+index 64754f2b..d327060a 100644
+--- a/testing/scenarios/vmess_test.go
++++ b/testing/scenarios/vmess_test.go
+@@ -61,7 +61,9 @@ func TestVMessGCM(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -159,7 +161,9 @@ func TestVMessGCMReadv(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -260,7 +264,9 @@ func TestVMessGCMUDP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -355,7 +361,9 @@ func TestVMessChacha20(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -451,7 +459,9 @@ func TestVMessNone(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -549,7 +559,9 @@ func TestVMessKCP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -652,7 +664,9 @@ func TestVMessKCPLarge(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -756,7 +770,9 @@ func TestVMessGCMMux(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -867,7 +883,9 @@ func TestVMessGCMMuxUDP(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -988,7 +1006,9 @@ func TestVMessZero(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -1083,7 +1103,9 @@ func TestVMessGCMLengthAuth(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+@@ -1183,7 +1205,9 @@ func TestVMessGCMLengthAuthPlusNoTerminationSignal(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/testing/scenarios/wireguard_test.go b/testing/scenarios/wireguard_test.go
+index deaee114..ce5c82dc 100644
+--- a/testing/scenarios/wireguard_test.go
++++ b/testing/scenarios/wireguard_test.go
+@@ -62,7 +62,9 @@ func TestWireguard(t *testing.T) {
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+ 			{
+-				ProxySettings: serial.ToTypedMessage(&freedom.Config{}),
++				ProxySettings: serial.ToTypedMessage(&freedom.Config{
++					IpsBlocked: &freedom.IPRules{},
++				}),
+ 			},
+ 		},
+ 	}
+diff --git a/transport/internet/finalmask/sudoku/sudoku_test.go b/transport/internet/finalmask/sudoku/sudoku_test.go
+index 4713e4bc..7a689a56 100644
+--- a/transport/internet/finalmask/sudoku/sudoku_test.go
++++ b/transport/internet/finalmask/sudoku/sudoku_test.go
+@@ -278,7 +278,9 @@ func runVLESSRealityCase(t *testing.T, bin string, mode trafficMode, payloadSize
+ 			},
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+-			{ProxySettings: serial.ToTypedMessage(&freedom.Config{})},
++			{ProxySettings: serial.ToTypedMessage(&freedom.Config{
++				IpsBlocked: &freedom.IPRules{},
++			})},
+ 		},
+ 	})
+ 
+@@ -396,7 +398,9 @@ func runHysteria2Case(t *testing.T, bin string, mode trafficMode, payloadSize in
+ 			},
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+-			{ProxySettings: serial.ToTypedMessage(&freedom.Config{})},
++			{ProxySettings: serial.ToTypedMessage(&freedom.Config{
++				IpsBlocked: &freedom.IPRules{},
++			})},
+ 		},
+ 	})
+ 
+@@ -512,7 +516,9 @@ func runVLesseEncCase(t *testing.T, bin string, mode trafficMode, payloadSize in
+ 			},
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+-			{ProxySettings: serial.ToTypedMessage(&freedom.Config{})},
++			{ProxySettings: serial.ToTypedMessage(&freedom.Config{
++				IpsBlocked: &freedom.IPRules{},
++			})},
+ 		},
+ 	})
+ 
+@@ -610,7 +616,9 @@ func runVLESSXHTTPCase(t *testing.T, bin string, mode trafficMode, payloadSize i
+ 			},
+ 		},
+ 		Outbound: []*core.OutboundHandlerConfig{
+-			{ProxySettings: serial.ToTypedMessage(&freedom.Config{})},
++			{ProxySettings: serial.ToTypedMessage(&freedom.Config{
++				IpsBlocked: &freedom.IPRules{},
++			})},
+ 		},
+ 	})
+ 
