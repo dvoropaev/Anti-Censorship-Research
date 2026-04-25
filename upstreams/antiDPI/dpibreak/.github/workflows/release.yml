@@ -1,0 +1,202 @@
+# .github/workflows/release.yml
+name: Release (Linux tarball + Windows zip)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build tarball
+        run: make tarball
+
+      - name: Upload artifact (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: |
+            dist/*.tar.gz
+            dist/*.buildinfo
+            dist/*.sha256
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Download WinDivert-2.2.2 and unzip
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://reqrypt.org/download/WinDivert-2.2.2-A.zip" -OutFile WinDivert.zip
+          Expand-Archive -Path WinDivert.zip -DestinationPath .\
+          Remove-Item .\WinDivert.zip
+
+      - name: Run PowerShell build
+        shell: pwsh
+        run: ./build.ps1 zipball
+
+      - name: Upload artifact (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            dist/*.zip
+            dist/*.buildinfo
+            dist/*.sha256
+          if-no-files-found: error
+  publish-crates-io:
+    name: Publish to crates.io (Trusted Publishing)
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows]
+    environment: release
+
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Verify tag matches crate version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          crate_ver="$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[0].version')"
+
+          [ "$tag" = "$crate_ver" ] || {
+            echo "Tag version ($tag) != Cargo.toml version ($crate_ver)" >&2
+            exit 1
+          }
+          echo "OK: tag $tag matches crate $crate_ver"
+
+      - name: Authenticate to crates.io (Trusted Publishing)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        run: cargo publish --locked --no-verify || true
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-dist
+          path: upload
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-dist
+          path: upload
+
+      - name: Merge checksums
+        run: cat upload/*.sha256 > sha256sum.txt
+
+      - name: Format release note
+        run: |
+          cp RELEASE_NOTE.md auto_notes.md
+
+      - name: Format download link
+        run: |
+          {
+            echo "## Downloads"
+            for f in upload/*.{tar.gz,zip}; do
+              [ -e "$f" ] || continue
+              base=$(basename "$f")
+              echo "- [$base](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$base)"
+            done
+            echo
+          } >> auto_notes.md
+
+      - name: Format and append buildinfo
+        run: |
+          {
+            echo "<details>"
+            echo "<summary>Build Info</summary>"
+            echo
+            shopt -s nullglob
+            files=(upload/*.buildinfo)
+
+            for f in "${files[@]}"; do
+              echo ""
+              echo "### $(basename "$f")"
+              while IFS=: read -r key value; do
+                key=$(echo "$key" | xargs)
+                value=$(echo "$value" | xargs)
+                echo "- **$key**: $value"
+              done < "$f"
+            done
+            echo "</details>"
+          } >> auto_notes.md
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: auto_notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            upload/*.tar.gz
+            upload/*.zip
+            sha256sum.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-winget:
+    name: Submit winget manifest update
+    runs-on: windows-latest
+    needs: [release]
+    steps:
+      - name: Download wingetcreate
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            -Uri https://aka.ms/wingetcreate/latest `
+            -OutFile wingetcreate.exe
+
+      - name: Update manifest and submit PR
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/DPIBreak-$version-x86_64-pc-windows-msvc.zip"
+
+          ./wingetcreate.exe update Dilluti0n.DPIBreak `
+            --version $version `
+            --urls $url `
+            --submit `
+            --token $env:WINGET_TOKEN

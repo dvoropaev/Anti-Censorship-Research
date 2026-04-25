@@ -1,0 +1,28 @@
+@REM SPDX-FileCopyrightText: 2026 Dilluti0n <hskimse1@gmail.com>
+@REM SPDX-License-Identifier: GPL-3.0-or-later
+
+@echo Please run this script with administrator privileges.
+@echo Right click, select "Run as administrator".
+@echo.
+@echo Press any key if you are running this as administrator.
+@pause
+
+@rem Add --fake-autottl below (next to ARGS=) to use fake
+@set "ARGS=-d"
+@set "EXE=%~dp0dpibreak.exe"
+@set "SERVNAME=dpibreak"
+
+sc stop %SERVNAME%
+sc delete %SERVNAME%
+sc create %SERVNAME% binPath= "\"%EXE%\" %ARGS%" start= auto
+sc description %SERVNAME% "Fast and easy-to-use DPI circumvention tool in Rust."
+sc start %SERVNAME%
+@if %ERRORLEVEL% equ 0 (
+    @echo.
+    @echo Installation complete. %SERVNAME% is running and will start automatically on boot.
+    @echo To stop and uninstall the service, run service_remove.bat.
+) else (
+    @echo.
+    @echo Installation failed. Make sure to run this script as administrator.
+)
+@pause

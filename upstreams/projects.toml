@@ -4,7 +4,7 @@ path = "./Xray"
 url = "https://github.com/XTLS/Xray-core.git"
 branch = "main"
 start_commit = "5d94a62a83073bc4aa378fb7e2198e15878e90da"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "sing-box"
@@ -12,7 +12,7 @@ path = "./sing-box"
 url = "https://github.com/SagerNet/sing-box.git"
 branch = "stable"
 start_commit = "93b7328"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "hiddify-app"
@@ -20,7 +20,7 @@ path = "./hiddify/hiddify-app"
 url = "https://github.com/hiddify/hiddify-app.git"
 branch = "main"
 start_commit = "379a672254450733455458e8c3a4d40c63a9c98d"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "TrustTunnel"
@@ -28,7 +28,7 @@ path = "./TrustTunnel/TrustTunnel"
 url = "https://github.com/TrustTunnel/TrustTunnel"
 branch = "master"
 start_commit = "6b18c5d7f180cc2a34cc6e3894cc72d52cc02077"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "TrustTunnelClient"
@@ -36,7 +36,7 @@ path = "./TrustTunnel/TrustTunnelClient"
 url = "https://github.com/TrustTunnel/TrustTunnelClient"
 branch = "master"
 start_commit = "33e14f7"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "TrustTunnelFlutterClient"
@@ -44,7 +44,7 @@ path = "./TrustTunnel/TrustTunnelFlutterClient"
 url = "https://github.com/TrustTunnel/TrustTunnelFlutterClient.git"
 branch = "master"
 start_commit = "896e9e1"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "telemt"
@@ -52,7 +52,7 @@ path = "./telegram/telemt"
 url = "https://github.com/telemt/telemt.git"
 branch = "main"
 start_commit = "c47495d"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "MTProxy"
@@ -60,7 +60,7 @@ path = "./telegram/MTProxy"
 url = "https://github.com/TelegramMessenger/MTProxy.git"
 branch = "master"
 start_commit = "580909c"
-recurse_submodules = false
+recurse_submodules = true
 
 [[projects]]
 name = "dpibreak"
@@ -76,5 +76,5 @@ path = "./antiDPI/zapret"
 url = "https://github.com/bol-van/zapret.git"
 branch = "master"
 start_commit = "76764ad6b0ee7d3991c97e7b8c24d53189d25c28"
-recurse_submodules = false
+recurse_submodules = true
 

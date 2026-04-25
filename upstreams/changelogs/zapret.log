@@ -1,0 +1,2115 @@
+commit 76764ad6b0ee7d3991c97e7b8c24d53189d25c28
+Author: bol-van <none@none.none>
+Date:   2026-01-13 17:58:41 +0300
+
+    nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
+---
+ docs/changes.txt | 4 ++++
+ nfq/darkmagic.c  | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/docs/changes.txt b/docs/changes.txt
+index ba7515f..a12d065 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -591,3 +591,7 @@ blockcheck: fix tpws test regression
+ 
+ nfqws,tpws: memleak fix
+ mdig: --eagain, --eagain-delay
++
++73.8
++
++nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
+diff --git a/nfq/darkmagic.c b/nfq/darkmagic.c
+index b45b323..1acded4 100644
+--- a/nfq/darkmagic.c
++++ b/nfq/darkmagic.c
+@@ -192,7 +192,7 @@ static uint16_t tcpopt_len(bool sack, bool mss, uint32_t fooling, const uint32_t
+ 	if (sack) t+=2;
+ 	if (mss) t+=4;
+ 	if (fooling & FOOL_MD5SIG) t+=18;
+-	if ((fooling & FOOL_TS) || timestamps) t+=10;
++	if (timestamps) t+=10;
+ 	if (scale_factor!=SCALE_NONE) t+=3;
+ 	return (t+3)&~3;
+ }
+
+commit 6ac51a43004af0ece7056ac47aabd32c46ad9244
+Author: bol-van <none@none.none>
+Date:   2026-01-16 11:01:54 +0300
+
+    nfqws: fix wrong ipfrag help text
+---
+ docs/readme.en.md | 4 ++--
+ docs/readme.md    | 2 ++
+ nfq/nfqws.c       | 2 +-
+ 3 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/docs/readme.en.md b/docs/readme.en.md
+index 9c3d3bf..f8e4fd1 100644
+--- a/docs/readme.en.md
++++ b/docs/readme.en.md
+@@ -207,8 +207,8 @@ nfqws takes the following parameters:
+  --dpi-desync-fakedsplit-mod=mod[,mod]                     ; mods can be none,altorder=0|1|2|3 + 0|8|16
+  --dpi-desync-hostfakesplit-midhost=marker+N|marker-N      ; additionally split real hostname at specified marker. must be within host..endhost or won't be splitted.
+  --dpi-desync-hostfakesplit-mod=mod[,mod]                  ; can be none, host=<hostname>, altorder=0|1
+- --dpi-desync-ipfrag-pos-tcp=<8..9216>                     ; ip frag position starting from the transport header. multiple of 8, default 8.
+- --dpi-desync-ipfrag-pos-udp=<8..9216>                     ; ip frag position starting from the transport header. multiple of 8, default 32.
++ --dpi-desync-ipfrag-pos-tcp=<8..9216>                     ; ip frag position starting from the transport header. multiple of 8, default 32.
++ --dpi-desync-ipfrag-pos-udp=<8..9216>                     ; ip frag position starting from the transport header. multiple of 8, default 8.
+  --dpi-desync-ts-increment=<int|0xHEX>                     ; ts fooling TSval signed increment. default -600000
+  --dpi-desync-badseq-increment=<int|0xHEX>                 ; badseq fooling seq signed increment. default -10000
+  --dpi-desync-badack-increment=<int|0xHEX>                 ; badseq fooling ackseq signed increment. default -66000
+diff --git a/docs/readme.md b/docs/readme.md
+index 272b1eb..f48412b 100644
+--- a/docs/readme.md
++++ b/docs/readme.md
+@@ -237,6 +237,8 @@ dvtws, собираемый из тех же исходников (см. [док
+ --dpi-desync-fakedsplit-mod=mod[,mod]                     ; может быть none, altorder=0|1|2|3 + 0|8|16
+ --dpi-desync-hostfakesplit-midhost=marker+N|marker-N      ; маркер дополнительного разреза сегмента с оригинальным хостом. должен попадать в пределы хоста.
+ --dpi-desync-hostfakesplit-mod=mod[,mod]                  ; может быть none, host=<hostname>, altorder=0|1
++--dpi-desync-ipfrag-pos-tcp=<8..9216>                     ; позиция ip фрагментации tcp, начиная с транспортного заголовка. должно быть кратно 8, по умолчанию - 32.
++--dpi-desync-ipfrag-pos-udp=<8..9216>                     ; позиция ip фрагментации udp, начиная с транспортного заголовка. должно быть кратно 8, по умолчанию - 8.
+ --dpi-desync-ts-increment=<int|0xHEX>                     ; инкремент TSval для ts. по умолчанию -600000
+ --dpi-desync-badseq-increment=<int|0xHEX>                 ; инкремент sequence number для badseq. по умолчанию -10000
+ --dpi-desync-badack-increment=<int|0xHEX>                 ; инкремент ack sequence number для badseq. по умолчанию -66000
+diff --git a/nfq/nfqws.c b/nfq/nfqws.c
+index a24c148..8117be1 100644
+--- a/nfq/nfqws.c
++++ b/nfq/nfqws.c
+@@ -1883,8 +1883,8 @@ static void exithelp(void)
+ 		" --dpi-desync-fakedsplit-mod=mod[,mod]\t\t\t; mods can be none,altorder=0|1|2|3 + 0|8|16\n"
+ 		" --dpi-desync-hostfakesplit-midhost=marker+N|marker-N\t; additionally split real hostname at specified marker. must be within host..endhost or won't be splitted.\n"
+ 		" --dpi-desync-hostfakesplit-mod=mod[,mod]\t\t; mods can be none,host=<hostname>,altorder=0|1\n"
+-		" --dpi-desync-ipfrag-pos-tcp=<8..%u>\t\t\t; ip frag position starting from the transport header. multiple of 8, default %u.\n"
+ 		" --dpi-desync-ipfrag-pos-udp=<8..%u>\t\t\t; ip frag position starting from the transport header. multiple of 8, default %u.\n"
++		" --dpi-desync-ipfrag-pos-tcp=<8..%u>\t\t\t; ip frag position starting from the transport header. multiple of 8, default %u.\n"
+ 		" --dpi-desync-ts-increment=<int|0xHEX>\t\t\t; ts fooling TSval signed increment. default %d\n"
+ 		" --dpi-desync-badseq-increment=<int|0xHEX>\t\t; badseq fooling seq signed increment. default %d\n"
+ 		" --dpi-desync-badack-increment=<int|0xHEX>\t\t; badseq fooling ackseq signed increment. default %d\n"
+
+commit 6ca597c89ce30bdad31c298536016070a07aac2b
+Author: bol-van <none@none.none>
+Date:   2026-01-16 12:46:08 +0300
+
+    blockcheck: fix suspicious redirection with URI
+---
+ blockcheck.sh  | 39 ++++++++++++++++++++-------------------
+ common/base.sh |  4 ++++
+ 2 files changed, 24 insertions(+), 19 deletions(-)
+
+diff --git a/blockcheck.sh b/blockcheck.sh
+index ed0ed24..c2e9ff1 100755
+--- a/blockcheck.sh
++++ b/blockcheck.sh
+@@ -668,7 +668,7 @@ curl_with_dig()
+ 	# $2 - domain name
+ 	# $3 - port
+ 	# $4+ - curl params
+-	local dom=$2 port=$3
++	local dom="$2" port=$3
+ 	local sdom suri ip
+ 
+ 	split_by_separator "$dom" / sdom suri
+@@ -687,12 +687,12 @@ curl_probe()
+ 	# $3 - port
+ 	# $4 - subst ip
+ 	# $5+ - curl params
+-	local ipv=$1 dom=$2 port=$3 subst=$4
++	local ipv=$1 dom="$2" port=$3 subst=$4
+ 	shift; shift; shift; shift
+ 	if [ -n "$subst" ]; then
+-		curl_with_subst_ip $dom $port $subst "$@"
++		curl_with_subst_ip "$dom" $port $subst "$@"
+ 	else
+-		curl_with_dig $ipv $dom $port "$@"
++		curl_with_dig $ipv "$dom" $port "$@"
+ 	fi
+ }
+ curl_test_http()
+@@ -702,8 +702,8 @@ curl_test_http()
+ 	# $3 - subst ip
+ 	# $4 - "detail" - detail info
+ 
+-	local code loc hdrt="${HDRTEMP}_${!:-$$}.txt"
+-	curl_probe $1 $2 $HTTP_PORT "$3" -SsD "$hdrt" -A "$USER_AGENT" --max-time $CURL_MAX_TIME $CURL_OPT "http://$2" -o /dev/null 2>&1 || {
++	local code loc hdrt="${HDRTEMP}_${!:-$$}.txt" dom="$(tolower "$2")"
++	curl_probe $1 "$2" $HTTP_PORT "$3" -SsD "$hdrt" -A "$USER_AGENT" --max-time $CURL_MAX_TIME $CURL_OPT "http://$2" -o /dev/null 2>&1 || {
+ 		code=$?
+ 		rm -f "$hdrt"
+ 		return $code
+@@ -715,8 +715,9 @@ curl_test_http()
+ 		code=$(hdrfile_http_code "$hdrt")
+ 		[ "$code" = 301 -o "$code" = 302 -o "$code" = 307 -o "$code" = 308 ] && {
+ 			loc=$(hdrfile_location "$hdrt")
+-			echo "$loc" | grep -qE "^https?://.*$2(/|$)" ||
+-			echo "$loc" | grep -vqE '^https?://' || {
++			split_by_separator "$dom" / dom
++			tolower "$loc" | grep -qE "^https?://.*$dom(/|$)" ||
++			tolower "$loc" | grep -vqE '^https?://' || {
+ 				echo suspicious redirection $code to : $loc
+ 				rm -f "$hdrt"
+ 				return 254
+@@ -1079,7 +1080,7 @@ ws_curl_test()
+ 	# $2 - test function
+ 	# $3 - domain
+ 	# $4,$5,$6, ... - ws params
+-	local code ws_start=$1 testf=$2 dom=$3
++	local code ws_start=$1 testf=$2 dom="$3"
+ 
+ 	[ "$SIMULATE" = 1 ] && {
+ 		n=$(random 0 99)
+@@ -1095,7 +1096,7 @@ ws_curl_test()
+ 	shift
+ 	shift
+ 	$ws_start "$@"
+-	curl_test $testf $dom
++	curl_test $testf "$dom"
+ 	code=$?
+ 	ws_kill
+ 	return $code
+@@ -1108,7 +1109,7 @@ tpws_curl_test()
+ 	echo - $1 ipv$IPV $2 : tpws $3 $4 $5 $6 $7 $8 $9${TPWS_EXTRA:+ $TPWS_EXTRA}${TPWS_EXTRA_1:+ "$TPWS_EXTRA_1"}${TPWS_EXTRA_2:+ "$TPWS_EXTRA_2"}${TPWS_EXTRA_3:+ "$TPWS_EXTRA_3"}${TPWS_EXTRA_4:+ "$TPWS_EXTRA_4"}${TPWS_EXTRA_5:+ "$TPWS_EXTRA_5"}${TPWS_EXTRA_6:+ "$TPWS_EXTRA_6"}${TPWS_EXTRA_7:+ "$TPWS_EXTRA_7"}${TPWS_EXTRA_8:+ "$TPWS_EXTRA_8"}${TPWS_EXTRA_9:+ "$TPWS_EXTRA_9"}
+ 	local ALL_PROXY="socks5://127.0.0.1:$SOCKS_PORT"
+ 	ws_curl_test tpws_start "$@"${TPWS_EXTRA:+ $TPWS_EXTRA}${TPWS_EXTRA_1:+ "$TPWS_EXTRA_1"}${TPWS_EXTRA_2:+ "$TPWS_EXTRA_2"}${TPWS_EXTRA_3:+ "$TPWS_EXTRA_3"}${TPWS_EXTRA_4:+ "$TPWS_EXTRA_4"}${TPWS_EXTRA_5:+ "$TPWS_EXTRA_5"}${TPWS_EXTRA_6:+ "$TPWS_EXTRA_6"}${TPWS_EXTRA_7:+ "$TPWS_EXTRA_7"}${TPWS_EXTRA_8:+ "$TPWS_EXTRA_8"}${TPWS_EXTRA_9:+ "$TPWS_EXTRA_9"}
+-	local testf=$1 dom=$2 strategy code=$?
++	local testf=$1 dom="$2" strategy code=$?
+ 	[ "$code" = 0 ] && {
+ 		shift; shift;
+ 		strategy="$@"
+@@ -1122,11 +1123,11 @@ pktws_curl_test()
+ 	# $1 - test function
+ 	# $2 - domain
+ 	# $3,$4,$5, ... - nfqws/dvtws params
+-	local testf=$1 dom=$2 strategy code
++	local testf=$1 dom="$2" strategy code
+ 
+ 	shift; shift;
+ 	echo - $testf ipv$IPV $dom : $PKTWSD ${WF:+$WF }${PKTWS_EXTRA_PRE:+$PKTWS_EXTRA_PRE }${PKTWS_EXTRA_PRE_1:+"$PKTWS_EXTRA_PRE_1" }${PKTWS_EXTRA_PRE_2:+"$PKTWS_EXTRA_PRE_2" }${PKTWS_EXTRA_PRE_3:+"$PKTWS_EXTRA_PRE_3" }${PKTWS_EXTRA_PRE_4:+"$PKTWS_EXTRA_PRE_4" }${PKTWS_EXTRA_PRE_5:+"$PKTWS_EXTRA_PRE_5" }${PKTWS_EXTRA_PRE_6:+"$PKTWS_EXTRA_PRE_6" }${PKTWS_EXTRA_PRE_7:+"$PKTWS_EXTRA_PRE_7" }${PKTWS_EXTRA_PRE_8:+"$PKTWS_EXTRA_PRE_8" }${PKTWS_EXTRA_PRE_9:+"$PKTWS_EXTRA_PRE_9" }$@${PKTWS_EXTRA:+ $PKTWS_EXTRA}${PKTWS_EXTRA_1:+ "$PKTWS_EXTRA_1"}${PKTWS_EXTRA_2:+ "$PKTWS_EXTRA_2"}${PKTWS_EXTRA_3:+ "$PKTWS_EXTRA_3"}${PKTWS_EXTRA_4:+ "$PKTWS_EXTRA_4"}${PKTWS_EXTRA_5:+ "$PKTWS_EXTRA_5"}${PKTWS_EXTRA_6:+ "$PKTWS_EXTRA_6"}${PKTWS_EXTRA_7:+ "$PKTWS_EXTRA_7"}${PKTWS_EXTRA_8:+ "$PKTWS_EXTRA_8"}${PKTWS_EXTRA_9:+ "$PKTWS_EXTRA_9"}
+-	ws_curl_test pktws_start $testf $dom ${PKTWS_EXTRA_PRE:+$PKTWS_EXTRA_PRE }${PKTWS_EXTRA_PRE_1:+"$PKTWS_EXTRA_PRE_1" }${PKTWS_EXTRA_PRE_2:+"$PKTWS_EXTRA_PRE_2" }${PKTWS_EXTRA_PRE_3:+"$PKTWS_EXTRA_PRE_3" }${PKTWS_EXTRA_PRE_4:+"$PKTWS_EXTRA_PRE_4" }${PKTWS_EXTRA_PRE_5:+"$PKTWS_EXTRA_PRE_5" }${PKTWS_EXTRA_PRE_6:+"$PKTWS_EXTRA_PRE_6" }${PKTWS_EXTRA_PRE_7:+"$PKTWS_EXTRA_PRE_7" }${PKTWS_EXTRA_PRE_8:+"$PKTWS_EXTRA_PRE_8" }${PKTWS_EXTRA_PRE_9:+"$PKTWS_EXTRA_PRE_9" }"$@"${PKTWS_EXTRA:+ $PKTWS_EXTRA}${PKTWS_EXTRA_1:+ "$PKTWS_EXTRA_1"}${PKTWS_EXTRA_2:+ "$PKTWS_EXTRA_2"}${PKTWS_EXTRA_3:+ "$PKTWS_EXTRA_3"}${PKTWS_EXTRA_4:+ "$PKTWS_EXTRA_4"}${PKTWS_EXTRA_5:+ "$PKTWS_EXTRA_5"}${PKTWS_EXTRA_6:+ "$PKTWS_EXTRA_6"}${PKTWS_EXTRA_7:+ "$PKTWS_EXTRA_7"}${PKTWS_EXTRA_8:+ "$PKTWS_EXTRA_8"}${PKTWS_EXTRA_9:+ "$PKTWS_EXTRA_9"}
++	ws_curl_test pktws_start $testf "$dom" ${PKTWS_EXTRA_PRE:+$PKTWS_EXTRA_PRE }${PKTWS_EXTRA_PRE_1:+"$PKTWS_EXTRA_PRE_1" }${PKTWS_EXTRA_PRE_2:+"$PKTWS_EXTRA_PRE_2" }${PKTWS_EXTRA_PRE_3:+"$PKTWS_EXTRA_PRE_3" }${PKTWS_EXTRA_PRE_4:+"$PKTWS_EXTRA_PRE_4" }${PKTWS_EXTRA_PRE_5:+"$PKTWS_EXTRA_PRE_5" }${PKTWS_EXTRA_PRE_6:+"$PKTWS_EXTRA_PRE_6" }${PKTWS_EXTRA_PRE_7:+"$PKTWS_EXTRA_PRE_7" }${PKTWS_EXTRA_PRE_8:+"$PKTWS_EXTRA_PRE_8" }${PKTWS_EXTRA_PRE_9:+"$PKTWS_EXTRA_PRE_9" }"$@"${PKTWS_EXTRA:+ $PKTWS_EXTRA}${PKTWS_EXTRA_1:+ "$PKTWS_EXTRA_1"}${PKTWS_EXTRA_2:+ "$PKTWS_EXTRA_2"}${PKTWS_EXTRA_3:+ "$PKTWS_EXTRA_3"}${PKTWS_EXTRA_4:+ "$PKTWS_EXTRA_4"}${PKTWS_EXTRA_5:+ "$PKTWS_EXTRA_5"}${PKTWS_EXTRA_6:+ "$PKTWS_EXTRA_6"}${PKTWS_EXTRA_7:+ "$PKTWS_EXTRA_7"}${PKTWS_EXTRA_8:+ "$PKTWS_EXTRA_8"}${PKTWS_EXTRA_9:+ "$PKTWS_EXTRA_9"}
+ 
+ 	code=$?
+ 	[ "$code" = 0 ] && {
+@@ -1152,11 +1153,11 @@ xxxws_curl_test_update()
+ 	# $2 - test function
+ 	# $3 - domain
+ 	# $4,$5,$6, ... - nfqws/dvtws params
+-	local code xxxf=$1 testf=$2 dom=$3
++	local code xxxf=$1 testf=$2 dom="$3"
+ 	shift
+ 	shift
+ 	shift
+-	$xxxf $testf $dom "$@"
++	$xxxf $testf "$dom" "$@"
+ 	code=$?
+ 	[ $code = 0 ] && strategy="${strategy:-$@}"
+ 	return $code
+@@ -1317,13 +1318,13 @@ pktws_curl_test_update_vary()
+ 		[ "$fake" = "-" ] && continue
+ 		if [ -n "$splits" ]; then
+ 			for pos in $splits ; do
+-				pktws_curl_test_update $testf $domain --dpi-desync=$desync "$@" --dpi-desync-split-pos=$pos $fake && {
++				pktws_curl_test_update $testf "$domain" --dpi-desync=$desync "$@" --dpi-desync-split-pos=$pos $fake && {
+ 					[ "$SCANLEVEL" = force ] || return 0
+ 					ret=0
+ 				}
+ 			done
+ 		else
+-			pktws_curl_test_update $testf $domain --dpi-desync=$desync "$@" $fake && {
++			pktws_curl_test_update $testf "$domain" --dpi-desync=$desync "$@" $fake && {
+ 				[ "$SCANLEVEL" = force ] || return 0
+ 				ret=0
+ 			}
+@@ -1698,7 +1699,7 @@ check_dpi_ip_block()
+ 	# $1 - test function
+ 	# $2 - domain
+ 
+-	local blocked_dom=$2
++	local blocked_dom="$2"
+ 	local blocked_ip blocked_ips unblocked_ip
+ 
+ 	echo 
+@@ -2188,7 +2189,7 @@ check_dns_()
+ 	if find_working_public_dns ; then
+ 		echo comparing system resolver to public DNS : $PUBDNS
+ 		for dom in $DNSCHECK_DOM; do
+-			if check_dns_spoof $dom $PUBDNS ; then
++			if check_dns_spoof "$dom" $PUBDNS ; then
+ 				echo $dom : MISMATCH
+ 				echo -- system resolver :
+ 				cat "$DNSCHECK_DIG1"
+diff --git a/common/base.sh b/common/base.sh
+index ece185e..bba049f 100644
+--- a/common/base.sh
++++ b/common/base.sh
+@@ -109,6 +109,10 @@ split_by_separator()
+ 	[ -n "$3" ] && eval $3="\$before"
+ 	[ -n "$4" ] && eval $4="\$after"
+ }
++tolower()
++{
++	echo "$@" | tr 'A-Z' 'a-z'
++}
+ 
+ dir_is_not_empty()
+ {
+
+commit ec55c6f55196c7655ff2d34e9ad260dedf8c2ae3
+Author: bol-van <none@none.none>
+Date:   2026-01-16 12:53:55 +0300
+
+    install_easy: always write FWTYPE
+---
+ common/installer.sh | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/common/installer.sh b/common/installer.sh
+index 453a70a..574838f 100644
+--- a/common/installer.sh
++++ b/common/installer.sh
+@@ -827,7 +827,9 @@ select_fwtype()
+ 		echo WARNING ! if you need large lists it may be necessary to fall back to iptables+ipset firewall
+ 	}
+ 	echo select firewall type :
+-	ask_list FWTYPE "iptables nftables" "$FWTYPE" && write_config_var FWTYPE
++	ask_list FWTYPE "iptables nftables" "$FWTYPE"
++	# always write config var to prevent auto discovery every time
++	write_config_var FWTYPE
+ }
+ 
+ dry_run_tpws_()
+
+commit c849e55ef0f1c244206f5a05ff7b1ab41a3824ee
+Author: bol-van <none@none.none>
+Date:   2026-01-16 14:18:06 +0300
+
+    ask_list default value fix
+---
+ common/dialog.sh | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/common/dialog.sh b/common/dialog.sh
+index 44f78c4..ec1c9aa 100644
+--- a/common/dialog.sh
++++ b/common/dialog.sh
+@@ -36,11 +36,11 @@ ask_list()
+ 	# $3 - (optional) default value
+ 	local M_DEFAULT
+ 	eval M_DEFAULT="\$$1"
+-	local M_ALL=$M_DEFAULT
++	local M_DEFAULT_VAR="$M_DEFAULT"
+ 	local M="" m
+-	
++
+ 	[ -n "$3" ] && { find_str_in_list "$M_DEFAULT" "$2" || M_DEFAULT="$3" ;}
+-	
++
+ 	n=1
+ 	for m in $2; do
+ 		echo $n : $m
+@@ -52,6 +52,6 @@ ask_list()
+ 	[ -z "$M" ] && M="$M_DEFAULT"
+ 	echo selected : $M
+ 	eval $1="\"$M\""
+-	
+-	[ "$M" != "$M_DEFAULT" ]
++
++	[ "$M" != "$M_DEFAULT_VAR" ]
+ }
+
+commit 119e243b3664d6a512ed8b6ab61dcba00987105c
+Author: bol-van <none@none.none>
+Date:   2026-01-20 09:36:50 +0300
+
+    blockcheck: fix missing quic fake escape
+---
+ blockcheck.sh    | 2 +-
+ docs/changes.txt | 5 +++++
+ nfq/darkmagic.c  | 1 +
+ 3 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/blockcheck.sh b/blockcheck.sh
+index c2e9ff1..e7025e3 100755
+--- a/blockcheck.sh
++++ b/blockcheck.sh
+@@ -1573,7 +1573,7 @@ pktws_check_domain_http3_bypass_()
+ 
+ 	for fake in '' "--dpi-desync-fake-quic=$ZAPRET_BASE/files/fake/quic_initial_www_google_com.bin"; do
+ 		for rep in '' 2 5 10 20; do
+-			pktws_curl_test_update $1 $2 --dpi-desync=fake ${fake:+$fake }${rep:+--dpi-desync-repeats=$rep} && [ "$SCANLEVEL" != force ] && {
++			pktws_curl_test_update $1 $2 --dpi-desync=fake ${fake:+"$fake" }${rep:+--dpi-desync-repeats=$rep} && [ "$SCANLEVEL" != force ] && {
+ 				[ "$SCANLEVEL" = quick ] && return
+ 				break
+ 			}
+diff --git a/docs/changes.txt b/docs/changes.txt
+index a12d065..d1d54e7 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -595,3 +595,8 @@ mdig: --eagain, --eagain-delay
+ 73.8
+ 
+ nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
++
++73.9
++
++blockcheck: fix detection of http redirection if domain/URI specified
++install_easy: fix writing of ask_list variables
+diff --git a/nfq/darkmagic.c b/nfq/darkmagic.c
+index 1acded4..35db0f1 100644
+--- a/nfq/darkmagic.c
++++ b/nfq/darkmagic.c
+@@ -928,6 +928,7 @@ void proto_skip_ipv6(uint8_t **data, size_t *len, uint8_t *proto_type, uint8_t *
+ 	if (proto_type) *proto_type = 0; // put error in advance
+ 
+ 	HeaderType = (*data)[6]; // NextHeader field
++	if (proto_type) *proto_type = HeaderType;
+ 	if (last_header_type) *last_header_type = (*data)+6;
+ 	*data += 40; *len -= 40; // skip ipv6 base header
+ 	while (*len > 0) // need at least one byte for NextHeader field
+
+commit 2d1858ebae7385a7763f5189706ebaa3a66aafc3
+Author: bol-van <none@none.none>
+Date:   2026-01-29 13:38:05 +0300
+
+    update docs
+---
+ docs/readme.en.md | 4 +++-
+ docs/readme.md    | 4 +++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/docs/readme.en.md b/docs/readme.en.md
+index f8e4fd1..14e5146 100644
+--- a/docs/readme.en.md
++++ b/docs/readme.en.md
+@@ -1702,7 +1702,9 @@ If this is the case then run another script in background and add some delay the
+ 
+ Are welcome here :
+ 
+-USDT `0x3d52Ce15B7Be734c53fc9526ECbAB8267b63d66E`
++USDT ERC `0x3d52Ce15B7Be734c53fc9526ECbAB8267b63d66E` 
++
++USDT TRC `TEzAAtn4VhndqEaAyuCM78xh5W2gCjwWEo`
+ 
+ BTC  `bc1qhqew3mrvp47uk2vevt5sctp7p2x9m7m5kkchve`
+ 
+diff --git a/docs/readme.md b/docs/readme.md
+index f48412b..0ce9c7b 100644
+--- a/docs/readme.md
++++ b/docs/readme.md
+@@ -2724,7 +2724,9 @@ VPS можно приобрести в множестве мест. Сущест
+ 
+ ## Поддержать разработчика
+ 
+-USDT `0x3d52Ce15B7Be734c53fc9526ECbAB8267b63d66E`
++USDT ERC `0x3d52Ce15B7Be734c53fc9526ECbAB8267b63d66E` 
++
++USDT TRC `TEzAAtn4VhndqEaAyuCM78xh5W2gCjwWEo`
+ 
+ BTC  `bc1qhqew3mrvp47uk2vevt5sctp7p2x9m7m5kkchve`
+ 
+
+commit aa8b96d60111c42edff6f5e543bb0ee362492681
+Author: bol-van <none@none.none>
+Date:   2026-02-04 22:09:45 +0300
+
+    nfqws: some protocol.c fixes
+---
+ nfq/protocol.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index 7b1ab6e..9fcb646 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -310,7 +310,7 @@ size_t HttpPos(uint8_t posmarker, int16_t pos, const uint8_t *data, size_t sz)
+ 			if (sz<10) break;
+ 			if (*method=='\n' || *method=='\r') method++;
+ 			if (*method=='\n' || *method=='\r') method++;
+-			for (p=method,i=0;i<7;i++) if (*p>='A' && *p<='Z') p++;
++			for (p=method,i=0; i<9 && *p>='A' && *p<='Z'; i++,p++);
+ 			if (i<3 || *p!=' ') break;
+ 			return CheckPos(sz,method-data+pos);
+ 		case PM_HOST:
+@@ -962,9 +962,9 @@ bool QUICExtractHostFromInitial(const uint8_t *data, size_t data_len, char *host
+ 
+ bool IsQUICInitial(const uint8_t *data, size_t len)
+ {
+-	// too small packets are not likely to be initials with client hello
++	// too small packets are not likely to be initials
+ 	// long header, fixed bit
+-	if (len < 256 || (data[0] & 0xC0)!=0xC0) return false;
++	if (len < 128 || (data[0] & 0xF0)!=0xC0) return false;
+ 
+ 	uint32_t ver = QUICExtractVersion(data,len);
+ 	if (QUICDraftVersion(ver) < 11) return false;
+@@ -973,10 +973,10 @@ bool IsQUICInitial(const uint8_t *data, size_t len)
+ 	// quic v2 : initial packets are 01b
+ 	if ((data[0] & 0x30) != (is_quic_v2(ver) ? 0x10 : 0x00)) return false;
+ 
+-	uint64_t offset=5, sz;
++	uint64_t offset=5, sz, sz2;
+ 
+-	// DCID. must be present
+-	if (!data[offset] || data[offset] > QUIC_MAX_CID_LENGTH) return false;
++	// DCID
++	if (data[offset] > QUIC_MAX_CID_LENGTH) return false;
+ 	offset += 1 + data[offset];
+ 
+ 	// SCID
+@@ -989,13 +989,13 @@ bool IsQUICInitial(const uint8_t *data, size_t len)
+ 	if (offset >= len) return false;
+ 
+ 	// payload length
+-	if ((offset + tvb_get_size(data[offset])) > len) return false;
++	sz2 = tvb_get_size(data[offset]);
++	if ((offset + sz2) > len) return false;
+ 	tvb_get_varint(data + offset, &sz);
+-	offset += sz;
++	offset += sz2 + sz;
+ 	if (offset > len) return false;
+ 
+-	// client hello cannot be too small. likely ACK
+-	return sz>=96;
++	return true;
+ }
+ 
+ 
+
+commit e59efa39db456e64a2415acb4fe9f47760906a30
+Author: bol-van <none@none.none>
+Date:   2026-02-05 18:51:47 +0300
+
+    mdig: minor change
+---
+ mdig/mdig.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/mdig/mdig.c b/mdig/mdig.c
+index d5f327a..f9dc7ab 100644
+--- a/mdig/mdig.c
++++ b/mdig/mdig.c
+@@ -80,15 +80,15 @@ static bool dom_valid(char *dom)
+ {
+ 	if (!dom || *dom=='.') return false;
+ 	for (; *dom; dom++)
+-	if (*dom < 0x20 || (*dom & 0x80) || !(*dom == '.' || *dom == '-' || *dom == '_' || (*dom >= '0' && *dom <= '9') || (*dom >= 'a' && *dom <= 'z') || (*dom >= 'A' && *dom <= 'Z')))
+-		return false;
++		if (!(*dom == '.' || *dom == '-' || *dom == '_' || (*dom >= '0' && *dom <= '9') || (*dom >= 'a' && *dom <= 'z') || (*dom >= 'A' && *dom <= 'Z')))
++			return false;
+ 	return true;
+ }
+ 
+ static void invalid_domain_beautify(char *dom)
+ {
+ 	for (int i = 0; *dom && i < 64; i++, dom++)
+-		if (*dom < 0x20 || *dom<0) *dom = '?';
++		if (*dom < 0x20 || (*dom & 0x80)) *dom = '?';
+ 	if (*dom) *dom = 0;
+ }
+ 
+@@ -220,7 +220,7 @@ static void *t_resolver(void *arg)
+ 			{
+ 				if ((family == AF_INET && (glob.family & FAMILY4)) || (family == AF_INET6 && (glob.family & FAMILY6)))
+ 				{
+-					unsigned int mask;
++					unsigned int mask=0;
+ 					bool mask_needed = false;
+ 					if (s_mask)
+ 					{
+@@ -436,7 +436,7 @@ int dns_parse_query()
+ 	_setmode(_fileno(stdin), _O_BINARY);
+ #endif
+ 	l = fread(a,1,sizeof(a),stdin);
+-	if (!l || !feof(stdin))
++	if (!l || ferror(stdin))
+ 	{
+ 		fprintf(stderr, "could not read DNS reply blob from stdin\n");
+ 		return 10;
+@@ -455,8 +455,8 @@ static void exithelp(void)
+ 	printf(
+ 		" --family=<4|6|46>\t\t; ipv4, ipv6, ipv4+ipv6\n"
+ 		" --threads=<threads_number>\n"
+-		" --eagain=<eagain_retries>\t; how many times to retry if EAGAIN received. default %u\n"
+-		" --eagain-delay=<ms>\t\t; time in msec to wait between EAGAIN attempts. default %u\n"
++		" --eagain=<eagain_retries>\t; how many times to retry if EAI_AGAIN received. default %u\n"
++		" --eagain-delay=<ms>\t\t; time in msec to wait between EAI_AGAIN attempts. default %u\n"
+ 		" --verbose\t\t\t; print query progress to stderr\n"
+ 		" --stats=N\t\t\t; print resolve stats to stderr every N domains\n"
+ 		" --log-resolved=<file>\t\t; log successfully resolved domains to a file\n"
+
+commit be57475eee0d2f3de7f3624e580b94a63412251e
+Author: bol-van <none@none.none>
+Date:   2026-02-06 16:14:04 +0300
+
+    nfqws: fix possible OOB read
+---
+ nfq/protocol.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index 9fcb646..77ab585 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -984,6 +984,7 @@ bool IsQUICInitial(const uint8_t *data, size_t len)
+ 	offset += 1 + data[offset];
+ 
+ 	// token length
++	if (offset>=len || (offset + tvb_get_size(data[offset])) > len) return false;
+ 	offset += tvb_get_varint(data + offset, &sz);
+ 	offset += sz;
+ 	if (offset >= len) return false;
+
+commit 3d12e32ee995979c9b050e887c361d8403030bcf
+Author: Ilya Sorochan <k0tran@altlinux.org>
+Date:   2026-02-16 11:26:55 +0300
+
+    enable seccomp on loongarch64
+---
+ nfq/sec.h  | 4 ++++
+ tpws/sec.h | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/nfq/sec.h b/nfq/sec.h
+index 621eadd..7451bb4 100644
+--- a/nfq/sec.h
++++ b/nfq/sec.h
+@@ -72,6 +72,10 @@ bool dropcaps(void);
+ 
+ # define ARCH_NR	AUDIT_ARCH_RISCV64
+ 
++#elif defined(__loongarch__) && __loongarch_grlen == 64
++
++# define ARCH_NR AUDIT_ARCH_LOONGARCH64
++
+ #else
+ 
+ # error "Platform does not support seccomp filter yet"
+diff --git a/tpws/sec.h b/tpws/sec.h
+index c75ad4b..aa84d48 100644
+--- a/tpws/sec.h
++++ b/tpws/sec.h
+@@ -74,6 +74,10 @@ bool dropcaps(void);
+ 
+ # define ARCH_NR	AUDIT_ARCH_RISCV64
+ 
++#elif defined(__loongarch__) && __loongarch_grlen == 64
++
++# define ARCH_NR AUDIT_ARCH_LOONGARCH64
++
+ #else
+ 
+ # error "Platform does not support seccomp filter yet"
+
+commit e0a211688096ddd63bfbc03a429589edc3dff825
+Merge: be57475 3d12e32
+Author: bol-van <9076680+bol-van@users.noreply.github.com>
+Date:   2026-02-16 11:44:46 +0300
+
+    Merge pull request #2083 from k0tran/master
+    
+    Enable seccomp on loongarch64
+
+commit 0f0e748adb5234d3eab4db65ebcabbd49877c966
+Author: bol-van <none@none.none>
+Date:   2026-02-16 12:02:27 +0300
+
+    nfqws2: ensure old toolchains do not break
+---
+ nfq/sec.h  | 19 +++++++++++++++++++
+ tpws/sec.h | 19 +++++++++++++++++++
+ 2 files changed, 38 insertions(+)
+
+diff --git a/nfq/sec.h b/nfq/sec.h
+index 7451bb4..9cb7a51 100644
+--- a/nfq/sec.h
++++ b/nfq/sec.h
+@@ -18,6 +18,25 @@ bool dropcaps(void);
+ #define arch_nr (offsetof(struct seccomp_data, arch))
+ #define syscall_arg(x) (offsetof(struct seccomp_data, args[x]))
+ 
++#ifndef __AUDIT_ARCH_64BIT
++#define __AUDIT_ARCH_64BIT 0x80000000
++#endif
++#ifndef __AUDIT_ARCH_LE
++#define __AUDIT_ARCH_LE    0x40000000
++#endif
++#ifndef EM_RISCV
++#define EM_RISCV 243
++#endif
++#ifndef AUDIT_ARCH_RISCV64
++#define AUDIT_ARCH_RISCV64 (EM_RISCV | __AUDIT_ARCH_64BIT | __AUDIT_ARCH_LE)
++#endif
++#ifndef EM_LOONGARCH
++#define EM_LOONGARCH 258
++#endif
++#ifndef AUDIT_ARCH_LOONGARCH64
++#define AUDIT_ARCH_LOONGARCH64 (EM_LOONGARCH | __AUDIT_ARCH_64BIT | __AUDIT_ARCH_LE)
++#endif
++
+ #if defined(__aarch64__)
+ 
+ # define ARCH_NR	AUDIT_ARCH_AARCH64
+diff --git a/tpws/sec.h b/tpws/sec.h
+index aa84d48..050d517 100644
+--- a/tpws/sec.h
++++ b/tpws/sec.h
+@@ -20,6 +20,25 @@ bool dropcaps(void);
+ #define arch_nr (offsetof(struct seccomp_data, arch))
+ #define syscall_arg(x) (offsetof(struct seccomp_data, args[x]))
+ 
++#ifndef __AUDIT_ARCH_64BIT
++#define __AUDIT_ARCH_64BIT 0x80000000
++#endif
++#ifndef __AUDIT_ARCH_LE
++#define __AUDIT_ARCH_LE    0x40000000
++#endif
++#ifndef EM_RISCV
++#define EM_RISCV 243
++#endif
++#ifndef AUDIT_ARCH_RISCV64
++#define AUDIT_ARCH_RISCV64 (EM_RISCV | __AUDIT_ARCH_64BIT | __AUDIT_ARCH_LE)
++#endif
++#ifndef EM_LOONGARCH
++#define EM_LOONGARCH 258
++#endif
++#ifndef AUDIT_ARCH_LOONGARCH64
++#define AUDIT_ARCH_LOONGARCH64 (EM_LOONGARCH | __AUDIT_ARCH_64BIT | __AUDIT_ARCH_LE)
++#endif
++
+ #if defined(__aarch64__)
+ 
+ # define ARCH_NR	AUDIT_ARCH_AARCH64
+
+commit 5ef01d14a92525e05a3c89099199b73094428b89
+Author: bol-van <none@none.none>
+Date:   2026-02-16 12:46:22 +0300
+
+    nfqws: fixes backport from z2
+---
+ nfq/crypto/aes-gcm.c    |  2 ++
+ nfq/crypto/gcm.c        | 27 ++++++++++++++++++---------
+ nfq/crypto/hkdf.c       | 32 ++++++++++++--------------------
+ nfq/crypto/hmac.c       | 35 ++++++++++++++---------------------
+ nfq/crypto/sha224-256.c | 12 ++++++------
+ nfq/nfqws.c             |  1 +
+ nfq/protocol.c          | 20 +++++++++-----------
+ 7 files changed, 62 insertions(+), 67 deletions(-)
+
+diff --git a/nfq/crypto/aes-gcm.c b/nfq/crypto/aes-gcm.c
+index 130cd60..7dffa42 100644
+--- a/nfq/crypto/aes-gcm.c
++++ b/nfq/crypto/aes-gcm.c
+@@ -5,6 +5,8 @@ int aes_gcm_crypt(int mode, uint8_t *output, const uint8_t *input, size_t input_
+ 	int ret = 0;
+ 	gcm_context ctx;
+ 
++	gcm_initialize();
++
+ 	if (!(ret = gcm_setkey(&ctx, key, (const uint)key_len)))
+ 	{
+ 		ret = gcm_crypt_and_tag(&ctx, mode, iv, iv_len, adata, adata_len, input, output, input_length, atag, atag_len);
+diff --git a/nfq/crypto/gcm.c b/nfq/crypto/gcm.c
+index 74842ce..398b77c 100644
+--- a/nfq/crypto/gcm.c
++++ b/nfq/crypto/gcm.c
+@@ -391,7 +391,9 @@ int gcm_finish(gcm_context *ctx,   // pointer to user-provided GCM context
+ 	uint64_t orig_add_len = ctx->add_len * 8;
+ 	size_t i;
+ 
+-	if (tag_len != 0) memcpy(tag, ctx->base_ectr, tag_len);
++	if (tag_len>16) return -1;
++
++	if (tag_len) memcpy(tag, ctx->base_ectr, tag_len);
+ 
+ 	if (orig_len || orig_add_len) {
+ 		memset(work_buf, 0x00, 16);
+@@ -443,10 +445,12 @@ int gcm_crypt_and_tag(
+ 	   prepare the gcm context with the keying material, we simply
+ 	   invoke each of the three GCM sub-functions in turn...
+ 	*/
+-	gcm_start(ctx, mode, iv, iv_len, add, add_len);
+-	gcm_update(ctx, length, input, output);
+-	gcm_finish(ctx, tag, tag_len);
+-	return(0);
++	if (tag_len>16) return -1;
++
++	int ret;
++	if ((ret=gcm_start(ctx, mode, iv, iv_len, add, add_len))) return ret;
++	if ((ret=gcm_update(ctx, length, input, output))) return ret;
++	return gcm_finish(ctx, tag, tag_len);
+ }
+ 
+ 
+@@ -477,23 +481,28 @@ int gcm_auth_decrypt(
+ 	uchar check_tag[16];        // the tag generated and returned by decryption
+ 	int diff;                   // an ORed flag to detect authentication errors
+ 	size_t i;                   // our local iterator
++	int ret;
++
++	if (tag_len>16) return -1;
++
+ 	/*
+ 	   we use GCM_DECRYPT_AND_TAG (above) to perform our decryption
+ 	   (which is an identical XORing to reverse the previous one)
+ 	   and also to re-generate the matching authentication tag
+ 	*/
+-	gcm_crypt_and_tag(ctx, AES_DECRYPT, iv, iv_len, add, add_len,
+-		input, output, length, check_tag, tag_len);
++	if ((ret = gcm_crypt_and_tag(ctx, AES_DECRYPT, iv, iv_len, add, add_len, input, output, length, check_tag, tag_len))) return ret;
+ 
+ 	// now we verify the authentication tag in 'constant time'
+ 	for (diff = 0, i = 0; i < tag_len; i++)
+ 		diff |= tag[i] ^ check_tag[i];
+ 
+-	if (diff != 0) {                   // see whether any bits differed?
++	if (diff)
++	{
++		// see whether any bits differed?
+ 		memset(output, 0, length);    // if so... wipe the output data
+ 		return(GCM_AUTH_FAILURE);     // return GCM_AUTH_FAILURE
+ 	}
+-	return(0);
++	return 0;
+ }
+ 
+ /******************************************************************************
+diff --git a/nfq/crypto/hkdf.c b/nfq/crypto/hkdf.c
+index 266cb37..b62f682 100644
+--- a/nfq/crypto/hkdf.c
++++ b/nfq/crypto/hkdf.c
+@@ -60,9 +60,9 @@ int hkdf(SHAversion whichSha,
+ 	uint8_t okm[], size_t okm_len)
+ {
+ 	uint8_t prk[USHAMaxHashSize];
+-	return hkdfExtract(whichSha, salt, salt_len, ikm, ikm_len, prk) ||
+-		hkdfExpand(whichSha, prk, USHAHashSize(whichSha), info,
+-			info_len, okm, okm_len);
++	int ret;
++	if ((ret=hkdfExtract(whichSha, salt, salt_len, ikm, ikm_len, prk))) return ret;
++	return hkdfExpand(whichSha, prk, USHAHashSize(whichSha), info, info_len, okm, okm_len);
+ }
+ 
+ /*
+@@ -103,9 +103,6 @@ int hkdfExtract(SHAversion whichSha,
+ 		salt_len = USHAHashSize(whichSha);
+ 		memset(nullSalt, '\0', salt_len);
+ 	}
+-	else if (salt_len < 0) {
+-		return shaBadParam;
+-	}
+ 	return hmac(whichSha, ikm, ikm_len, salt, salt_len, prk);
+ }
+ 
+@@ -149,16 +146,13 @@ int hkdfExpand(SHAversion whichSha, const uint8_t prk[], size_t prk_len,
+ 	size_t hash_len, N;
+ 	unsigned char T[USHAMaxHashSize];
+ 	size_t Tlen, where, i;
++	int ret;
+ 
+ 	if (info == 0) {
+ 		info = (const unsigned char *)"";
+ 		info_len = 0;
+ 	}
+-	else if (info_len < 0) {
+-		return shaBadParam;
+-	}
+-	if (okm_len <= 0) return shaBadParam;
+-	if (!okm) return shaBadParam;
++	if (!okm || !okm_len) return shaBadParam;
+ 
+ 	hash_len = USHAHashSize(whichSha);
+ 	if (prk_len < hash_len) return shaBadParam;
+@@ -171,12 +165,11 @@ int hkdfExpand(SHAversion whichSha, const uint8_t prk[], size_t prk_len,
+ 	for (i = 1; i <= N; i++) {
+ 		HMACContext context;
+ 		unsigned char c = i;
+-		int ret = hmacReset(&context, whichSha, prk, prk_len) ||
+-			hmacInput(&context, T, Tlen) ||
+-			hmacInput(&context, info, info_len) ||
+-			hmacInput(&context, &c, 1) ||
+-			hmacResult(&context, T);
+-		if (ret != shaSuccess) return ret;
++		if ((ret=hmacReset(&context, whichSha, prk, prk_len))) return ret;
++		if ((ret=hmacInput(&context, T, Tlen))) return ret;
++		if ((ret=hmacInput(&context, info, info_len))) return ret;
++		if ((ret=hmacInput(&context, &c, 1))) return ret;
++		if ((ret=hmacResult(&context, T))) return ret;
+ 		memcpy(okm + where, T,
+ 			(i != N) ? hash_len : (okm_len - where));
+ 		where += hash_len;
+@@ -328,9 +321,8 @@ int hkdfResult(HKDFContext *context,
+ 	if (!okm) return context->Corrupted = shaBadParam;
+ 	if (!prk) prk = prkbuf;
+ 
+-	ret = hmacResult(&context->hmacContext, prk) ||
+-		hkdfExpand(context->whichSha, prk, context->hashSize, info,
+-			info_len, okm, okm_len);
++	if (!(ret = hmacResult(&context->hmacContext, prk)))
++		ret = hkdfExpand(context->whichSha, prk, context->hashSize, info, info_len, okm, okm_len);
+ 	context->Computed = 1;
+ 	return context->Corrupted = ret;
+ }
+diff --git a/nfq/crypto/hmac.c b/nfq/crypto/hmac.c
+index 9e05325..6995da4 100644
+--- a/nfq/crypto/hmac.c
++++ b/nfq/crypto/hmac.c
+@@ -49,9 +49,10 @@ int hmac(SHAversion whichSha,
+ 	uint8_t digest[USHAMaxHashSize])
+ {
+ 	HMACContext context;
+-	return hmacReset(&context, whichSha, key, key_len) ||
+-		hmacInput(&context, message_array, length) ||
+-		hmacResult(&context, digest);
++	int ret;
++	if ((ret=hmacReset(&context, whichSha, key, key_len))) return ret;
++	if ((ret=hmacInput(&context, message_array, length))) return ret;
++	return hmacResult(&context, digest);
+ }
+ 
+ /*
+@@ -101,10 +102,8 @@ int hmacReset(HMACContext *context, enum SHAversion whichSha,
+ 	 */
+ 	if (key_len > blocksize) {
+ 		USHAContext tcontext;
+-		int err = USHAReset(&tcontext, whichSha) ||
+-			USHAInput(&tcontext, key, key_len) ||
+-			USHAResult(&tcontext, tempkey);
+-		if (err != shaSuccess) return err;
++		if ((ret=USHAReset(&tcontext, whichSha)) || (ret=USHAInput(&tcontext, key, key_len)) || (ret=USHAResult(&tcontext, tempkey)))
++			return ret;
+ 
+ 		key = tempkey;
+ 		key_len = hashsize;
+@@ -134,9 +133,9 @@ int hmacReset(HMACContext *context, enum SHAversion whichSha,
+ 
+ 	/* perform inner hash */
+ 	/* init context for 1st pass */
+-	ret = USHAReset(&context->shaContext, whichSha) ||
++	if (!(ret = USHAReset(&context->shaContext, whichSha)))
+ 		/* and start with inner pad */
+-		USHAInput(&context->shaContext, k_ipad, blocksize);
++		ret = USHAInput(&context->shaContext, k_ipad, blocksize);
+ 	return context->Corrupted = ret;
+ }
+ 
+@@ -197,8 +196,7 @@ int hmacFinalBits(HMACContext *context,
+ 	if (context->Corrupted) return context->Corrupted;
+ 	if (context->Computed) return context->Corrupted = shaStateError;
+ 	/* then final bits of datagram */
+-	return context->Corrupted =
+-		USHAFinalBits(&context->shaContext, bits, bit_count);
++	return context->Corrupted = USHAFinalBits(&context->shaContext, bits, bit_count);
+ }
+ 
+ /*
+@@ -229,21 +227,16 @@ int hmacResult(HMACContext *context, uint8_t *digest)
+ 
+ 	/* finish up 1st pass */
+ 	/* (Use digest here as a temporary buffer.) */
+-	ret =
+-		USHAResult(&context->shaContext, digest) ||
+-
++	if (!(ret=USHAResult(&context->shaContext, digest)) &&
+ 		/* perform outer SHA */
+ 		/* init context for 2nd pass */
+-		USHAReset(&context->shaContext, context->whichSha) ||
+-
++		!(ret=USHAReset(&context->shaContext, context->whichSha)) &&
+ 		/* start with outer pad */
+-		USHAInput(&context->shaContext, context->k_opad,
+-			context->blockSize) ||
+-
++		!(ret=USHAInput(&context->shaContext, context->k_opad, context->blockSize)) &&
+ 		/* then results of 1st hash */
+-		USHAInput(&context->shaContext, digest, context->hashSize) ||
++		!(ret=USHAInput(&context->shaContext, digest, context->hashSize)))
+ 		/* finish up 2nd pass */
+-		USHAResult(&context->shaContext, digest);
++		ret=USHAResult(&context->shaContext, digest);
+ 
+ 	context->Computed = 1;
+ 	return context->Corrupted = ret;
+diff --git a/nfq/crypto/sha224-256.c b/nfq/crypto/sha224-256.c
+index 2c9bc9c..ec4954d 100644
+--- a/nfq/crypto/sha224-256.c
++++ b/nfq/crypto/sha224-256.c
+@@ -64,12 +64,12 @@
+  * Add "length" to the length.
+  * Set Corrupted when overflow has occurred.
+  */
+-static uint32_t addTemp;
+-#define SHA224_256AddLength(context, length)               \
+-  (addTemp = (context)->Length_Low, (context)->Corrupted = \
+-    (((context)->Length_Low += (length)) < addTemp) &&     \
+-    (++(context)->Length_High == 0) ? shaInputTooLong :    \
+-                                      (context)->Corrupted )
++static int SHA224_256AddLength(SHA256Context *context, uint32_t length)
++{
++	uint32_t addTemp = context->Length_Low;
++	if (((context->Length_Low += length) < addTemp) && (++(context)->Length_High == 0)) context->Corrupted = shaInputTooLong;
++	return context->Corrupted;
++}
+ 
+ /* Local Function Prototypes */
+ static int SHA224_256Reset(SHA256Context *context, uint32_t *H0);
+diff --git a/nfq/nfqws.c b/nfq/nfqws.c
+index 8117be1..022a32f 100644
+--- a/nfq/nfqws.c
++++ b/nfq/nfqws.c
+@@ -2304,6 +2304,7 @@ int main(int argc, char **argv)
+ #endif
+ 
+ 	srandom(time(NULL));
++	aes_init_keygen_tables(); // required for aes
+ 
+ 	PRINT_VER;
+ 
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index 77ab585..3621779 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -795,21 +795,19 @@ bool QUICDecryptInitial(const uint8_t *data, size_t data_len, uint8_t *clean, si
+ 		return false;
+ 	}
+ 
+-	uint64_t payload_len,token_len;
+-	size_t pn_offset;
++	uint64_t payload_len,token_len,pn_offset;
+ 	pn_offset = 1 + 4 + 1 + data[5];
+ 	if (pn_offset >= data_len) return false;
++	// SCID length
+ 	pn_offset += 1 + data[pn_offset];
+-	if ((pn_offset + tvb_get_size(data[pn_offset])) >= data_len) return false;
++	if (pn_offset >= data_len || (pn_offset + tvb_get_size(data[pn_offset])) >= data_len) return false;
++	// token length
+ 	pn_offset += tvb_get_varint(data + pn_offset, &token_len);
+ 	pn_offset += token_len;
+-	if (pn_offset >= data_len) return false;
+-	if ((pn_offset + tvb_get_size(data[pn_offset])) >= data_len) return false;
++	if (pn_offset >= data_len || (pn_offset + tvb_get_size(data[pn_offset])) >= data_len) return false;
+ 	pn_offset += tvb_get_varint(data + pn_offset, &payload_len);
+ 	if (payload_len<20 || (pn_offset + payload_len)>data_len) return false;
+ 
+-	aes_init_keygen_tables();
+-
+ 	uint8_t sample_enc[16];
+ 	aes_context ctx;
+ 	if (aes_setkey(&ctx, 1, aeshp, sizeof(aeshp)) || aes_cipher(&ctx, data + pn_offset + 4, sample_enc)) return false;
+@@ -827,13 +825,13 @@ bool QUICDecryptInitial(const uint8_t *data, size_t data_len, uint8_t *clean, si
+ 
+  	phton64(aesiv + sizeof(aesiv) - 8, pntoh64(aesiv + sizeof(aesiv) - 8) ^ pkn);
+ 
+-	size_t cryptlen = payload_len - pkn_len - 16;
++	uint64_t cryptlen = payload_len - pkn_len - 16;
+ 	if (cryptlen > *clean_len) return false;
+-	*clean_len = cryptlen;
++	*clean_len = (size_t)cryptlen;
+ 	const uint8_t *decrypt_begin = data + pn_offset + pkn_len;
+ 
+-	uint8_t atag[16],header[256];
+-	size_t header_len = pn_offset + pkn_len;
++	uint8_t atag[16],header[2048];
++	uint64_t header_len = pn_offset + pkn_len;
+ 	if (header_len > sizeof(header)) return false; // not likely header will be so large
+ 	memcpy(header, data, header_len);
+ 	header[0] = packet0;
+
+commit 53eba046ce1b6b8219bbefca6952dcc1c7bfb436
+Author: bol-van <none@none.none>
+Date:   2026-02-19 10:04:49 +0300
+
+    nfqws: fix quicv2 recognition
+---
+ nfq/protocol.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index 3621779..55f4881 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -962,14 +962,12 @@ bool IsQUICInitial(const uint8_t *data, size_t len)
+ {
+ 	// too small packets are not likely to be initials
+ 	// long header, fixed bit
+-	if (len < 128 || (data[0] & 0xF0)!=0xC0) return false;
++	if (len < 128) return false;
+ 
+ 	uint32_t ver = QUICExtractVersion(data,len);
+ 	if (QUICDraftVersion(ver) < 11) return false;
+ 
+-	// quic v1 : initial packets are 00b
+-	// quic v2 : initial packets are 01b
+-	if ((data[0] & 0x30) != (is_quic_v2(ver) ? 0x10 : 0x00)) return false;
++	if ((data[0] & 0xF0) != (is_quic_v2(ver) ? 0xD0 : 0xC0)) return false;
+ 
+ 	uint64_t offset=5, sz, sz2;
+ 
+
+commit 3d567b0ac48f625988bfa6200d09ea05628e981b
+Author: bol-van <none@none.none>
+Date:   2026-02-22 17:32:49 +0300
+
+    nfqws: optimize nfq buffers
+---
+ nfq/nfqws.c  | 4 +++-
+ nfq/params.h | 3 ++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/nfq/nfqws.c b/nfq/nfqws.c
+index 022a32f..9d3b795 100644
+--- a/nfq/nfqws.c
++++ b/nfq/nfqws.c
+@@ -256,6 +256,8 @@ static bool nfq_init(struct nfq_handle **h, struct nfq_q_handle **qh)
+ 		// dot not fail. not supported on old linuxes <3.6 
+ 	}
+ 
++	nfnl_rcvbufsiz(nfq_nfnlh(*h), Q_RCVBUF);
++
+ 	DLOG_CONDUP("initializing raw sockets bind-fix4=%u bind-fix6=%u\n", params.bind_fix4, params.bind_fix6);
+ 	if (!rawsend_preinit(params.bind_fix4, params.bind_fix6))
+ 		goto exiterr;
+@@ -350,7 +352,7 @@ static int nfq_main(void)
+ 			if (rd)
+ 			{
+ 				int r = nfq_handle_packet(h, (char *)buf, (int)rd);
+-				if (r) DLOG_ERR("nfq_handle_packet error %d\n", r);
++				if (r<0) DLOG_ERR("nfq_handle_packet result %d, errno %d : %s\n", r, errno, strerror(errno));
+ 			}
+ 			else
+ 				DLOG("recv from nfq returned 0 !\n");
+diff --git a/nfq/params.h b/nfq/params.h
+index 0d30055..b1d5bbe 100644
+--- a/nfq/params.h
++++ b/nfq/params.h
+@@ -23,7 +23,8 @@
+ 
+ #define RAW_SNDBUF	(64*1024)	// in bytes
+ 
+-#define Q_MAXLEN	1024		// in packets
++#define Q_MAXLEN	4986		// in packets
++#define Q_RCVBUF	(1024*1024)	// in bytes
+ 
+ #define BADSEQ_INCREMENT_DEFAULT 	-10000
+ #define BADSEQ_ACK_INCREMENT_DEFAULT 	-66000
+
+commit 7eb195e533cc348ca2c4a3cf669d432ff102710d
+Author: bol-van <none@none.none>
+Date:   2026-02-24 10:11:11 +0300
+
+    nfqws: fix broken wifi ssid update
+---
+ docs/changes.txt | 5 +++++
+ nfq/darkmagic.c  | 1 +
+ nfq/nfqws.c      | 4 +---
+ nfq/params.h     | 3 +--
+ 4 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/docs/changes.txt b/docs/changes.txt
+index d1d54e7..04e513c 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -600,3 +600,8 @@ nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
+ 
+ blockcheck: fix detection of http redirection if domain/URI specified
+ install_easy: fix writing of ask_list variables
++
++73.10
++
++* nfqws2: fix broken wifi ssid update
++* minor AI fixes
+diff --git a/nfq/darkmagic.c b/nfq/darkmagic.c
+index 35db0f1..a0b3854 100644
+--- a/nfq/darkmagic.c
++++ b/nfq/darkmagic.c
+@@ -2096,6 +2096,7 @@ static bool scan_info(struct mnl_socket* nl, uint16_t wlan_family_id, struct wla
+ 	// wlan_info does not return ssid since kernel 5.19
+ 	// it's used to enumerate all wifi interfaces then call scan_info on each
+ 	if (!wlan_info(nl, wlan_family_id, &wc_all, false)) return false;
++	w->count=0;
+ 	for(int i=0;i<wc_all.count;i++)
+ 		if (!netlink_genl_simple_transact(nl, wlan_family_id, NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP, NL80211_CMD_GET_SCAN, 0, scan_prepare, (void*)&wc_all.wlan[i].ifindex, scan_info_cb, w))
+ 			return false;
+diff --git a/nfq/nfqws.c b/nfq/nfqws.c
+index 9d3b795..022a32f 100644
+--- a/nfq/nfqws.c
++++ b/nfq/nfqws.c
+@@ -256,8 +256,6 @@ static bool nfq_init(struct nfq_handle **h, struct nfq_q_handle **qh)
+ 		// dot not fail. not supported on old linuxes <3.6 
+ 	}
+ 
+-	nfnl_rcvbufsiz(nfq_nfnlh(*h), Q_RCVBUF);
+-
+ 	DLOG_CONDUP("initializing raw sockets bind-fix4=%u bind-fix6=%u\n", params.bind_fix4, params.bind_fix6);
+ 	if (!rawsend_preinit(params.bind_fix4, params.bind_fix6))
+ 		goto exiterr;
+@@ -352,7 +350,7 @@ static int nfq_main(void)
+ 			if (rd)
+ 			{
+ 				int r = nfq_handle_packet(h, (char *)buf, (int)rd);
+-				if (r<0) DLOG_ERR("nfq_handle_packet result %d, errno %d : %s\n", r, errno, strerror(errno));
++				if (r) DLOG_ERR("nfq_handle_packet error %d\n", r);
+ 			}
+ 			else
+ 				DLOG("recv from nfq returned 0 !\n");
+diff --git a/nfq/params.h b/nfq/params.h
+index b1d5bbe..0d30055 100644
+--- a/nfq/params.h
++++ b/nfq/params.h
+@@ -23,8 +23,7 @@
+ 
+ #define RAW_SNDBUF	(64*1024)	// in bytes
+ 
+-#define Q_MAXLEN	4986		// in packets
+-#define Q_RCVBUF	(1024*1024)	// in bytes
++#define Q_MAXLEN	1024		// in packets
+ 
+ #define BADSEQ_INCREMENT_DEFAULT 	-10000
+ #define BADSEQ_ACK_INCREMENT_DEFAULT 	-66000
+
+commit 61edd29b7eda89835cc7c2134afbb3409a568679
+Author: bol-van <none@none.none>
+Date:   2026-02-24 10:11:45 +0300
+
+    Revert "nfqws: fix broken wifi ssid update"
+    
+    This reverts commit 7eb195e533cc348ca2c4a3cf669d432ff102710d.
+---
+ docs/changes.txt | 5 -----
+ nfq/darkmagic.c  | 1 -
+ nfq/nfqws.c      | 4 +++-
+ nfq/params.h     | 3 ++-
+ 4 files changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/docs/changes.txt b/docs/changes.txt
+index 04e513c..d1d54e7 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -600,8 +600,3 @@ nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
+ 
+ blockcheck: fix detection of http redirection if domain/URI specified
+ install_easy: fix writing of ask_list variables
+-
+-73.10
+-
+-* nfqws2: fix broken wifi ssid update
+-* minor AI fixes
+diff --git a/nfq/darkmagic.c b/nfq/darkmagic.c
+index a0b3854..35db0f1 100644
+--- a/nfq/darkmagic.c
++++ b/nfq/darkmagic.c
+@@ -2096,7 +2096,6 @@ static bool scan_info(struct mnl_socket* nl, uint16_t wlan_family_id, struct wla
+ 	// wlan_info does not return ssid since kernel 5.19
+ 	// it's used to enumerate all wifi interfaces then call scan_info on each
+ 	if (!wlan_info(nl, wlan_family_id, &wc_all, false)) return false;
+-	w->count=0;
+ 	for(int i=0;i<wc_all.count;i++)
+ 		if (!netlink_genl_simple_transact(nl, wlan_family_id, NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP, NL80211_CMD_GET_SCAN, 0, scan_prepare, (void*)&wc_all.wlan[i].ifindex, scan_info_cb, w))
+ 			return false;
+diff --git a/nfq/nfqws.c b/nfq/nfqws.c
+index 022a32f..9d3b795 100644
+--- a/nfq/nfqws.c
++++ b/nfq/nfqws.c
+@@ -256,6 +256,8 @@ static bool nfq_init(struct nfq_handle **h, struct nfq_q_handle **qh)
+ 		// dot not fail. not supported on old linuxes <3.6 
+ 	}
+ 
++	nfnl_rcvbufsiz(nfq_nfnlh(*h), Q_RCVBUF);
++
+ 	DLOG_CONDUP("initializing raw sockets bind-fix4=%u bind-fix6=%u\n", params.bind_fix4, params.bind_fix6);
+ 	if (!rawsend_preinit(params.bind_fix4, params.bind_fix6))
+ 		goto exiterr;
+@@ -350,7 +352,7 @@ static int nfq_main(void)
+ 			if (rd)
+ 			{
+ 				int r = nfq_handle_packet(h, (char *)buf, (int)rd);
+-				if (r) DLOG_ERR("nfq_handle_packet error %d\n", r);
++				if (r<0) DLOG_ERR("nfq_handle_packet result %d, errno %d : %s\n", r, errno, strerror(errno));
+ 			}
+ 			else
+ 				DLOG("recv from nfq returned 0 !\n");
+diff --git a/nfq/params.h b/nfq/params.h
+index 0d30055..b1d5bbe 100644
+--- a/nfq/params.h
++++ b/nfq/params.h
+@@ -23,7 +23,8 @@
+ 
+ #define RAW_SNDBUF	(64*1024)	// in bytes
+ 
+-#define Q_MAXLEN	1024		// in packets
++#define Q_MAXLEN	4986		// in packets
++#define Q_RCVBUF	(1024*1024)	// in bytes
+ 
+ #define BADSEQ_INCREMENT_DEFAULT 	-10000
+ #define BADSEQ_ACK_INCREMENT_DEFAULT 	-66000
+
+commit a08a358342d9e390e8f8004dfa5eb2701da88eb6
+Author: bol-van <none@none.none>
+Date:   2026-02-24 10:12:38 +0300
+
+    nfqws: fix broken wifi ssid update
+---
+ nfq/darkmagic.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/nfq/darkmagic.c b/nfq/darkmagic.c
+index 35db0f1..a0b3854 100644
+--- a/nfq/darkmagic.c
++++ b/nfq/darkmagic.c
+@@ -2096,6 +2096,7 @@ static bool scan_info(struct mnl_socket* nl, uint16_t wlan_family_id, struct wla
+ 	// wlan_info does not return ssid since kernel 5.19
+ 	// it's used to enumerate all wifi interfaces then call scan_info on each
+ 	if (!wlan_info(nl, wlan_family_id, &wc_all, false)) return false;
++	w->count=0;
+ 	for(int i=0;i<wc_all.count;i++)
+ 		if (!netlink_genl_simple_transact(nl, wlan_family_id, NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP, NL80211_CMD_GET_SCAN, 0, scan_prepare, (void*)&wc_all.wlan[i].ifindex, scan_info_cb, w))
+ 			return false;
+
+commit f0b0d89f02f44bb047fbfde5d96e9a1fc38e46f0
+Author: bol-van <none@none.none>
+Date:   2026-02-24 10:13:53 +0300
+
+    nfqws: relax stun detector
+---
+ nfq/protocol.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index 55f4881..fd4ce03 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -1017,7 +1017,7 @@ bool IsStunMessage(const uint8_t *data, size_t len)
+ {
+ 	return len>=20 && // header size
+ 		(data[0]&0xC0)==0 && // 2 most significant bits must be zeroes
+-		(data[3]&0b11)==0 && // length must be a multiple of 4
+-		ntohl(*(uint32_t*)(&data[4]))==0x2112A442 && // magic cookie
+-		ntohs(*(uint16_t*)(&data[2]))==len-20;
++		(data[3]&3)==0 && // length must be a multiple of 4
++		pntoh32(data+4)==0x2112A442 && // magic cookie
++		pntoh16(data+2)<=(len-20);
+ }
+
+commit 0870120cceb03bc2ebdae2fb5c956ed377238cb1
+Author: Alibek Omarov <a1ba.omarov@gmail.com>
+Date:   2026-02-26 13:33:08 +0000
+
+    nfqws: fix building on e2k
+---
+ nfq/sec.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/nfq/sec.h b/nfq/sec.h
+index 9cb7a51..0e45b69 100644
+--- a/nfq/sec.h
++++ b/nfq/sec.h
+@@ -95,6 +95,10 @@ bool dropcaps(void);
+ 
+ # define ARCH_NR AUDIT_ARCH_LOONGARCH64
+ 
++#elif defined(__e2k__)
++
++# define ARCH_NR	AUDIT_ARCH_E2K
++
+ #else
+ 
+ # error "Platform does not support seccomp filter yet"
+
+commit 003c540f24ee88b7c80a7603bf31b3ca1df45345
+Author: Alibek Omarov <a1ba.omarov@gmail.com>
+Date:   2026-02-26 13:33:30 +0000
+
+    tpws: fix building on e2k
+---
+ tpws/sec.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/tpws/sec.h b/tpws/sec.h
+index 050d517..ea2dbf9 100644
+--- a/tpws/sec.h
++++ b/tpws/sec.h
+@@ -97,6 +97,10 @@ bool dropcaps(void);
+ 
+ # define ARCH_NR AUDIT_ARCH_LOONGARCH64
+ 
++#elif defined(__e2k__)
++
++# define ARCH_NR	AUDIT_ARCH_E2K
++
+ #else
+ 
+ # error "Platform does not support seccomp filter yet"
+
+commit 6cb394de4d86af0dcb13d3cc5db995bc7c9fb30a
+Merge: f0b0d89 003c540
+Author: bol-van <9076680+bol-van@users.noreply.github.com>
+Date:   2026-02-26 16:30:36 +0300
+
+    Merge pull request #2096 from a1batross/master
+    
+    Fix build on e2k
+
+commit 934903dfdf1d047f7386e903f3cc11169a3d948b
+Author: bol-van <none@none.none>
+Date:   2026-02-27 14:35:38 +0300
+
+    nfqws: cosmetic
+---
+ nfq/win.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/nfq/win.h b/nfq/win.h
+index 13a0980..6a30f20 100644
+--- a/nfq/win.h
++++ b/nfq/win.h
+@@ -4,7 +4,7 @@
+ 
+ #include <stdbool.h>
+ 
+-bool service_run();
++bool service_run(int argc, char *argv[]);
+ 
+ #endif
+ 
+
+commit 74c5b58a1b5391bc1391b65e73e2f5141b84f30a
+Author: bol-van <none@none.none>
+Date:   2026-02-28 10:10:12 +0300
+
+    AI fixes
+---
+ nfq/crypto/gcm.h | 1 -
+ nfq/params.c     | 2 +-
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/nfq/crypto/gcm.h b/nfq/crypto/gcm.h
+index 42adad9..788faa3 100644
+--- a/nfq/crypto/gcm.h
++++ b/nfq/crypto/gcm.h
+@@ -29,7 +29,6 @@
+ 
+ #if defined(_MSC_VER)
+ #include <basetsd.h>
+-typedef unsigned int size_t;// use the right type for length declarations
+ typedef UINT32 uint32_t;
+ typedef UINT64 uint64_t;
+ #else
+diff --git a/nfq/params.c b/nfq/params.c
+index a59a810..8e0fbcc 100644
+--- a/nfq/params.c
++++ b/nfq/params.c
+@@ -50,7 +50,7 @@ static char log_buf[1024];
+ static size_t log_buf_sz=0;
+ static void syslog_log_function(int priority, const char *line)
+ {
+-	syslog(priority,"%s",log_buf);
++	syslog(priority,"%s",line);
+ }
+ #ifdef __ANDROID__
+ static enum android_LogPriority syslog_priority_to_android(int priority)
+
+commit 378411443f2ea713989d29d07f0aad39b3a51006
+Author: bol-van <none@none.none>
+Date:   2026-03-01 09:50:52 +0300
+
+    minor fixes
+---
+ nfq/nfqws.c   | 6 +++---
+ tpws/params.h | 2 +-
+ tpws/tpws.c   | 4 ++--
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/nfq/nfqws.c b/nfq/nfqws.c
+index 9d3b795..d88350b 100644
+--- a/nfq/nfqws.c
++++ b/nfq/nfqws.c
+@@ -3169,7 +3169,7 @@ int main(int argc, char **argv)
+ 			}
+ 			break;
+ 		case IDX_HOSTLIST_AUTO_FAIL_THRESHOLD:
+-			dp->hostlist_auto_fail_threshold = (uint8_t)atoi(optarg);
++			dp->hostlist_auto_fail_threshold = atoi(optarg);
+ 			if (dp->hostlist_auto_fail_threshold < 1 || dp->hostlist_auto_fail_threshold>20)
+ 			{
+ 				DLOG_ERR("auto hostlist fail threshold must be within 1..20\n");
+@@ -3177,7 +3177,7 @@ int main(int argc, char **argv)
+ 			}
+ 			break;
+ 		case IDX_HOSTLIST_AUTO_FAIL_TIME:
+-			dp->hostlist_auto_fail_time = (uint8_t)atoi(optarg);
++			dp->hostlist_auto_fail_time = atoi(optarg);
+ 			if (dp->hostlist_auto_fail_time < 1)
+ 			{
+ 				DLOG_ERR("auto hostlist fail time is not valid\n");
+@@ -3185,7 +3185,7 @@ int main(int argc, char **argv)
+ 			}
+ 			break;
+ 		case IDX_HOSTLIST_AUTO_RETRANS_THRESHOLD:
+-			dp->hostlist_auto_retrans_threshold = (uint8_t)atoi(optarg);
++			dp->hostlist_auto_retrans_threshold = atoi(optarg);
+ 			if (dp->hostlist_auto_retrans_threshold < 2 || dp->hostlist_auto_retrans_threshold>10)
+ 			{
+ 				DLOG_ERR("auto hostlist fail threshold must be within 2..10\n");
+diff --git a/tpws/params.h b/tpws/params.h
+index 4cf5181..a0f2a11 100644
+--- a/tpws/params.h
++++ b/tpws/params.h
+@@ -74,7 +74,7 @@ struct desync_profile
+ 	struct hostlist_collection_head hl_collection, hl_collection_exclude;
+ 	// pointer to autohostlist. NULL if no autohostlist for the profile.
+ 	struct hostlist_file *hostlist_auto;
+-	int hostlist_auto_fail_threshold, hostlist_auto_fail_time, hostlist_auto_retrans_threshold;
++	int hostlist_auto_fail_threshold, hostlist_auto_fail_time;
+ 
+ 	hostfail_pool *hostlist_auto_fail_counters;
+ };
+diff --git a/tpws/tpws.c b/tpws/tpws.c
+index a205e7f..69e6d39 100644
+--- a/tpws/tpws.c
++++ b/tpws/tpws.c
+@@ -1273,7 +1273,7 @@ void parse_params(int argc, char *argv[])
+ 			params.tamper = true; // need to detect blocks and update autohostlist. cannot just slice.
+ 			break;
+ 		case IDX_HOSTLIST_AUTO_FAIL_THRESHOLD:
+-			dp->hostlist_auto_fail_threshold = (uint8_t)atoi(optarg);
++			dp->hostlist_auto_fail_threshold = atoi(optarg);
+ 			if (dp->hostlist_auto_fail_threshold<1 || dp->hostlist_auto_fail_threshold>20)
+ 			{
+ 				DLOG_ERR("auto hostlist fail threshold must be within 1..20\n");
+@@ -1281,7 +1281,7 @@ void parse_params(int argc, char *argv[])
+ 			}
+ 			break;
+ 		case IDX_HOSTLIST_AUTO_FAIL_TIME:
+-			dp->hostlist_auto_fail_time = (uint8_t)atoi(optarg);
++			dp->hostlist_auto_fail_time = atoi(optarg);
+ 			if (dp->hostlist_auto_fail_time<1)
+ 			{
+ 				DLOG_ERR("auto hostlist fail time is not valid\n");
+
+commit e5c3e4c706fe75b59b1e615e030355ddc3434f2c
+Author: bol-van <none@none.none>
+Date:   2026-03-01 14:14:28 +0300
+
+    optimize binaries size
+---
+ .github/workflows/build.yml | 34 +++++++++++++++-------------------
+ nfq/Makefile                | 18 +++++++++++-------
+ tpws/Makefile               | 18 +++++++++++-------
+ 3 files changed, 37 insertions(+), 33 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index d474aaf..608fbdd 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -25,27 +25,13 @@ jobs:
+           - arch: arm64
+             tool: aarch64-unknown-linux-musl
+           - arch: arm
+-            tool: arm-unknown-linux-musleabi
+-          # - arch: armhf
+-          #   tool: arm-unknown-linux-musleabihf
+-          # - arch: armv7
+-          #   tool: armv7-unknown-linux-musleabi
+-          # - arch: armv7hf
+-          #   tool: armv7-unknown-linux-musleabihf
+-          # - arch: mips64el
+-          #   tool: mips64el-unknown-linux-musl
++            tool: armv7-unknown-linux-musleabi
+           - arch: mips64
+             tool: mips64-unknown-linux-musl
+-          # - arch: mipsel
+-          #   tool: mipsel-unknown-linux-musl
+           - arch: mipselsf
+             tool: mipsel-unknown-linux-muslsf
+-          # - arch: mips
+-          #   tool: mips-unknown-linux-musl
+           - arch: mipssf
+             tool: mips-unknown-linux-muslsf
+-          # - arch: ppc64
+-          #   tool: powerpc64-unknown-linux-musl
+           - arch: ppc
+             tool: powerpc-unknown-linux-musl
+           - arch: x86
+@@ -69,7 +55,7 @@ jobs:
+         env:
+           ARCH: ${{ matrix.arch }}
+           TOOL: ${{ matrix.tool }}
+-          REPO: ${{ matrix.arch == 'lexra' && matrix.repo || 'spvkgn/musl-cross' }}
++          REPO: ${{ matrix.arch == 'lexra' && matrix.repo || 'bol-van/musl-cross' }}
+           DIR: ${{ matrix.arch == 'lexra' && matrix.dir || matrix.tool }}
+         run: |
+           if [[ "$ARCH" == lexra ]]; then
+@@ -102,6 +88,15 @@ jobs:
+           export STRIP=$TARGET-strip
+           export PKG_CONFIG_PATH=$DEPS_DIR/lib/pkgconfig
+           export STAGING_DIR=$RUNNER_TEMP
++          OPTIMIZE=-Oz
++          case "$ARCH" in
++            lexra)
++              OPTIMIZE=-Os
++              ;;
++            arm)
++              CPU="-mcpu=cortex-a7 -mthumb"
++              ;;
++          esac
+ 
+           # netfilter libs
+           wget -qO- https://www.netfilter.org/pub/libnfnetlink/libnfnetlink-1.0.2.tar.bz2 | tar -xj
+@@ -111,7 +106,7 @@ jobs:
+           for i in libmnl libnfnetlink libnetfilter_queue ; do
+             (
+               cd $i-*
+-              CFLAGS="-Os -flto=auto $CFLAGS" \
++              CFLAGS="$OPTIMIZE $CPU -flto=auto $CFLAGS" \
+               ./configure --prefix= --host=$TARGET --enable-static --disable-shared --disable-dependency-tracking
+               make install -j$(nproc) DESTDIR=$DEPS_DIR
+             )
+@@ -123,7 +118,7 @@ jobs:
+             xargs -I{} wget -qO- https://github.com/madler/zlib/archive/refs/tags/{}.tar.gz | tar -xz
+           (
+             cd zlib-*
+-            CFLAGS="-Os -flto=auto $CFLAGS" \
++            CFLAGS="$OPTIMIZE $CPU -flto=auto $CFLAGS" \
+             ./configure --prefix= --static
+             make install -j$(nproc) DESTDIR=$DEPS_DIR
+           )
+@@ -134,7 +129,8 @@ jobs:
+           install -Dm644 -t $DEPS_DIR/include/sys /usr/include/x86_64-linux-gnu/sys/queue.h /usr/include/sys/capability.h
+ 
+           # zapret
+-          CFLAGS="-DZAPRET_GH_VER=${{ github.ref_name }} -DZAPRET_GH_HASH=${{ github.sha }} -static-libgcc -static -I$DEPS_DIR/include $CFLAGS" \
++          OPTIMIZE=$OPTIMIZE \
++          CFLAGS="-DZAPRET_GH_VER=${{ github.ref_name }} -DZAPRET_GH_HASH=${{ github.sha }} -static-libgcc -static $CPU -I$DEPS_DIR/include $CFLAGS" \
+           LDFLAGS="-L$DEPS_DIR/lib $LDFLAGS" \
+           make -C zapret -j$(nproc)
+           tar -C zapret/binaries/my -cJf zapret-linux-$ARCH.tar.xz .
+diff --git a/nfq/Makefile b/nfq/Makefile
+index 97cf6bb..5a2d1fd 100644
+--- a/nfq/Makefile
++++ b/nfq/Makefile
+@@ -1,10 +1,14 @@
+ CC ?= cc
+ OPTIMIZE ?= -Os
+-CFLAGS += -std=gnu99 $(OPTIMIZE) -flto=auto
++CFLAGS += -std=gnu99 $(OPTIMIZE) -flto=auto -ffunction-sections -fdata-sections
+ CFLAGS_SYSTEMD = -DUSE_SYSTEMD
+ CFLAGS_BSD = -Wno-address-of-packed-member
+ CFLAGS_CYGWIN = -Wno-address-of-packed-member -static
+-LDFLAGS_ANDROID = -llog
++LDFLAGS += -flto=auto
++LDFLAGS_ANDROID = -Wl,--gc-sections -llog
++LDFLAGS_BSD = -Wl,--gc-sections
++LDFLAGS_LINUX = -Wl,--gc-sections
++LDFLAGS_MAC = -Wl,-dead_strip
+ LIBS_LINUX = -lz -lnetfilter_queue -lnfnetlink -lmnl
+ LIBS_SYSTEMD = -lsystemd
+ LIBS_BSD = -lz
+@@ -18,20 +22,20 @@ SRC_FILES = *.c crypto/*.c
+ all: nfqws
+ 
+ nfqws: $(SRC_FILES)
+-	$(CC) -s $(CFLAGS) -o nfqws $(SRC_FILES) $(LIBS_LINUX) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) -o nfqws $(SRC_FILES) $(LIBS_LINUX) $(LDFLAGS) $(LDFLAGS_LINUX)
+ 
+ systemd: $(SRC_FILES)
+-	$(CC) -s $(CFLAGS) $(CFLAGS_SYSTEMD) -o nfqws $(SRC_FILES) $(LIBS_LINUX) $(LIBS_SYSTEMD) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) $(CFLAGS_SYSTEMD) -o nfqws $(SRC_FILES) $(LIBS_LINUX) $(LIBS_SYSTEMD) $(LDFLAGS) $(LDFLAGS_LINUX)
+ 
+ android: $(SRC_FILES)
+ 	$(CC) -s $(CFLAGS) -o nfqws $(SRC_FILES) $(LIBS_LINUX) $(LDFLAGS) $(LDFLAGS_ANDROID)
+ 
+ bsd: $(SRC_FILES)
+-	$(CC) -s $(CFLAGS) $(CFLAGS_BSD) -o dvtws $(SRC_FILES) $(LIBS_BSD) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) $(CFLAGS_BSD) -o dvtws $(SRC_FILES) $(LIBS_BSD) $(LDFLAGS) $(LDFLAGS_BSD)
+ 
+ mac: $(SRC_FILES)
+-	$(CC) $(CFLAGS) $(CFLAGS_BSD) -o dvtwsa $(SRC_FILES) -target arm64-apple-macos10.8 $(LIBS_BSD) $(LDFLAGS)
+-	$(CC) $(CFLAGS) $(CFLAGS_BSD) -o dvtwsx $(SRC_FILES) -target x86_64-apple-macos10.8 $(LIBS_BSD) $(LDFLAGS)
++	$(CC) $(CFLAGS) $(CFLAGS_BSD) -o dvtwsa $(SRC_FILES) -target arm64-apple-macos10.8 $(LIBS_BSD) $(LDFLAGS) $(LDFLAGS_MAC)
++	$(CC) $(CFLAGS) $(CFLAGS_BSD) -o dvtwsx $(SRC_FILES) -target x86_64-apple-macos10.8 $(LIBS_BSD) $(LDFLAGS) $(LDFLAGS_MAC)
+ 	strip dvtwsa dvtwsx
+ 	lipo -create -output dvtws dvtwsx dvtwsa
+ 	rm -f dvtwsx dvtwsa
+diff --git a/tpws/Makefile b/tpws/Makefile
+index 35ebb45..821a3fe 100644
+--- a/tpws/Makefile
++++ b/tpws/Makefile
+@@ -1,9 +1,13 @@
+ CC ?= cc
+ OPTIMIZE ?= -Os
+-CFLAGS += -std=gnu99 $(OPTIMIZE) -flto=auto
++CFLAGS += -std=gnu99 $(OPTIMIZE) -flto=auto -ffunction-sections -fdata-sections
+ CFLAGS_SYSTEMD = -DUSE_SYSTEMD
+ CFLAGS_BSD = -Wno-address-of-packed-member
+-LDFLAGS_ANDROID = -llog
++LDFLAGS += -flto=auto
++LDFLAGS_ANDROID = -Wl,--gc-sections -llog
++LDFLAGS_BSD = -Wl,--gc-sections
++LDFLAGS_LINUX = -Wl,--gc-sections
++LDFLAGS_MAC = -Wl,-dead_strip
+ LIBS = -lz -lpthread
+ LIBS_SYSTEMD = -lsystemd
+ LIBS_ANDROID = -lz
+@@ -13,20 +17,20 @@ SRC_FILES_ANDROID = $(SRC_FILES) andr/*.c
+ all: tpws
+ 
+ tpws: $(SRC_FILES)
+-	$(CC) -s $(CFLAGS) -o tpws $(SRC_FILES) $(LIBS) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) -o tpws $(SRC_FILES) $(LIBS) $(LDFLAGS) $(LDFLAGS_LINUX)
+ 
+ systemd: $(SRC_FILES)
+-	$(CC) -s $(CFLAGS) $(CFLAGS_SYSTEMD) -o tpws $(SRC_FILES) $(LIBS) $(LIBS_SYSTEMD) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) $(CFLAGS_SYSTEMD) -o tpws $(SRC_FILES) $(LIBS) $(LIBS_SYSTEMD) $(LDFLAGS) $(LDFLAGS_LINUX)
+ 
+ android: $(SRC_FILES)
+ 	$(CC) -s $(CFLAGS) -o tpws $(SRC_FILES_ANDROID) $(LIBS_ANDROID) $(LDFLAGS) $(LDFLAGS_ANDROID)
+ 
+ bsd: $(SRC_FILES)
+-	$(CC) -s $(CFLAGS) $(CFLAGS_BSD) -Iepoll-shim/include -o tpws $(SRC_FILES) epoll-shim/src/*.c $(LIBS) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) $(CFLAGS_BSD) -Iepoll-shim/include -o tpws $(SRC_FILES) epoll-shim/src/*.c $(LIBS) $(LDFLAGS) $(LDFLAGS_BSD)
+ 
+ mac: $(SRC_FILES)
+-	$(CC) $(CFLAGS) $(CFLAGS_BSD) -Iepoll-shim/include -Imacos -o tpwsa -target arm64-apple-macos10.8 $(SRC_FILES) epoll-shim/src/*.c $(LIBS) $(LDFLAGS)
+-	$(CC) $(CFLAGS) $(CFLAGS_BSD) -Iepoll-shim/include -Imacos -o tpwsx -target x86_64-apple-macos10.8 $(SRC_FILES) epoll-shim/src/*.c $(LIBS) $(LDFLAGS)
++	$(CC) $(CFLAGS) $(CFLAGS_BSD) -Iepoll-shim/include -Imacos -o tpwsa -target arm64-apple-macos10.8 $(SRC_FILES) epoll-shim/src/*.c $(LIBS) $(LDFLAGS) $(LDFLAGS_MAC)
++	$(CC) $(CFLAGS) $(CFLAGS_BSD) -Iepoll-shim/include -Imacos -o tpwsx -target x86_64-apple-macos10.8 $(SRC_FILES) epoll-shim/src/*.c $(LIBS) $(LDFLAGS) $(LDFLAGS_MAC)
+ 	strip tpwsa tpwsx
+ 	lipo -create -output tpws tpwsx tpwsa
+ 	rm -f tpwsx tpwsa
+
+commit 928134ca36c6c7c166023c66a46041530ec9d5ba
+Author: bol-van <none@none.none>
+Date:   2026-03-01 14:15:36 +0300
+
+    update docs
+---
+ docs/changes.txt | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/docs/changes.txt b/docs/changes.txt
+index d1d54e7..b50aefa 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -600,3 +600,12 @@ nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
+ 
+ blockcheck: fix detection of http redirection if domain/URI specified
+ install_easy: fix writing of ask_list variables
++
++73.10
++
++* nfqws2: fix broken wifi ssid update
++* minor AI fixes
++
++73.11
++
++* github: reduce binaries size
+
+commit cb382036f4a2281d59d185ec501e0ccd6e37d930
+Author: bol-van <none@none.none>
+Date:   2026-03-01 14:38:11 +0300
+
+    winws: -Wl,--gc-sections
+---
+ nfq/Makefile | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/nfq/Makefile b/nfq/Makefile
+index 5a2d1fd..d8b95fb 100644
+--- a/nfq/Makefile
++++ b/nfq/Makefile
+@@ -9,6 +9,7 @@ LDFLAGS_ANDROID = -Wl,--gc-sections -llog
+ LDFLAGS_BSD = -Wl,--gc-sections
+ LDFLAGS_LINUX = -Wl,--gc-sections
+ LDFLAGS_MAC = -Wl,-dead_strip
++LDFLAGS_WIN = -Wl,--gc-sections
+ LIBS_LINUX = -lz -lnetfilter_queue -lnfnetlink -lmnl
+ LIBS_SYSTEMD = -lsystemd
+ LIBS_BSD = -lz
+@@ -41,9 +42,9 @@ mac: $(SRC_FILES)
+ 	rm -f dvtwsx dvtwsa
+ 
+ cygwin64:
+-	$(CC) -s $(CFLAGS) $(CFLAGS_CYGWIN) -o winws $(SRC_FILES) $(LIBS_CYGWIN) $(LIBS_CYGWIN64) $(RES_CYGWIN64) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) $(CFLAGS_CYGWIN) -o winws $(SRC_FILES) $(LIBS_CYGWIN) $(LIBS_CYGWIN64) $(RES_CYGWIN64) $(LDFLAGS) $(LDFLAGS_WIN)
+ cygwin32:
+-	$(CC) -s $(CFLAGS) $(CFLAGS_CYGWIN) -o winws $(SRC_FILES) $(LIBS_CYGWIN) $(LIBS_CYGWIN32) $(RES_CYGWIN32) $(LDFLAGS)
++	$(CC) -s $(CFLAGS) $(CFLAGS_CYGWIN) -o winws $(SRC_FILES) $(LIBS_CYGWIN) $(LIBS_CYGWIN32) $(RES_CYGWIN32) $(LDFLAGS) $(LDFLAGS_WIN)
+ cygwin: cygwin64
+ 
+ clean:
+
+commit 63e6215be0c0220e5f82ebd0d35322a459aef83e
+Author: bol-van <none@none.none>
+Date:   2026-03-01 18:32:26 +0300
+
+    github: use thumb in android armv7 build
+---
+ .github/workflows/build.yml | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 608fbdd..a02bc3a 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -336,6 +336,11 @@ jobs:
+           export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+           export STRIP=$TOOLCHAIN/bin/llvm-strip
+           export PKG_CONFIG_PATH=$DEPS_DIR/lib/pkgconfig
++          case "$ABI" in
++            armeabi-v7a)
++              CPU="-mthumb"
++              ;;
++          esac
+ 
+           # netfilter libs
+           wget -qO- https://www.netfilter.org/pub/libnfnetlink/libnfnetlink-1.0.2.tar.bz2 | tar -xj
+@@ -346,7 +351,7 @@ jobs:
+           for i in libmnl libnfnetlink libnetfilter_queue ; do
+             (
+               cd $i-*
+-              CFLAGS="-Os -flto=auto -Wno-implicit-function-declaration" \
++              CFLAGS="$CPU -Os -flto=auto -Wno-implicit-function-declaration" \
+               ./configure --prefix= --host=$TARGET --enable-static --disable-shared --disable-dependency-tracking
+               make install -j$(nproc) DESTDIR=$DEPS_DIR
+             )
+@@ -354,7 +359,7 @@ jobs:
+           done
+ 
+           # zapret
+-          CFLAGS="-DZAPRET_GH_VER=${{ github.ref_name }} -DZAPRET_GH_HASH=${{ github.sha }} -I$DEPS_DIR/include" \
++          CFLAGS="$CPU -DZAPRET_GH_VER=${{ github.ref_name }} -DZAPRET_GH_HASH=${{ github.sha }} -I$DEPS_DIR/include" \
+           LDFLAGS="-L$DEPS_DIR/lib" \
+           make -C zapret android -j$(nproc)
+ 
+
+commit 24e3b531650182a5ec42c642c42187c1b03f9ec2
+Author: bol-van <none@none.none>
+Date:   2026-03-01 20:35:00 +0300
+
+    github: move arm to armv6
+---
+ .github/workflows/build.yml | 2 +-
+ docs/changes.txt            | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index a02bc3a..34f4487 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -25,7 +25,7 @@ jobs:
+           - arch: arm64
+             tool: aarch64-unknown-linux-musl
+           - arch: arm
+-            tool: armv7-unknown-linux-musleabi
++            tool: armv6-unknown-linux-musleabi
+           - arch: mips64
+             tool: mips64-unknown-linux-musl
+           - arch: mipselsf
+diff --git a/docs/changes.txt b/docs/changes.txt
+index b50aefa..dd1080e 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -606,6 +606,6 @@ install_easy: fix writing of ask_list variables
+ * nfqws2: fix broken wifi ssid update
+ * minor AI fixes
+ 
+-73.11
++73.12
+ 
+ * github: reduce binaries size
+
+commit a92b4a543eea6d0dd5265396841d45b4525c5e58
+Author: bol-van <none@none.none>
+Date:   2026-03-04 22:49:25 +0300
+
+    nfqws: backport QUICDefragCrypto
+---
+ nfq/protocol.c | 51 +++++++++++++++++++++++++++++++++++----------------
+ 1 file changed, 35 insertions(+), 16 deletions(-)
+
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index fd4ce03..74659ea 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -866,7 +866,7 @@ bool QUICDefragCrypto(const uint8_t *clean,size_t clean_len, uint8_t *defrag,siz
+ 	uint64_t offset,sz,szmax=0,zeropos=0,pos=0;
+ 	bool found=false;
+ 	struct range64 ranges[MAX_DEFRAG_PIECES];
+-	int i,range=0;
++	int i,j,range=0;
+ 
+ 	while(pos<clean_len)
+ 	{
+@@ -893,42 +893,59 @@ bool QUICDefragCrypto(const uint8_t *clean,size_t clean_len, uint8_t *defrag,siz
+ 				memset(defrag_data+zeropos,0,offset-zeropos);
+ 			if ((offset+sz) > zeropos)
+ 				zeropos=offset+sz;
++
+ 			memcpy(defrag_data+offset,clean+pos,sz);
+ 			if ((offset+sz) > szmax) szmax = offset+sz;
+ 
+ 			found=true;
+ 			pos+=sz;
+ 
++			// remove exact duplicates early to save cpu
++			for(i=0;i<range;i++)
++				if (ranges[i].offset==offset && ranges[i].len==sz)
++					goto endloop;
++
+ 			ranges[range].offset = offset;
+ 			ranges[range].len = sz;
+ 			range++;
+ 		}
++endloop:
+ 	}
+ 	if (found)
+ 	{
+-		defrag[0] = 6;
+-		defrag[1] = 0; // offset
+-		// 2..9 - length 64 bit
+-		// +10 - data start
+-		phton64(defrag+2,szmax);
+-		defrag[2] |= 0xC0; // 64 bit value
+-		*defrag_len = (size_t)(szmax+10);
+-
+ 		qsort(ranges, range, sizeof(*ranges), cmp_range64);
+ 
+-		//for(i=0 ; i<range ; i++)
+-		//	printf("RANGE %zu len %zu\n",ranges[i].offset,ranges[i].len);
++//		for(i=0 ; i<range ; i++)
++//			printf("range1 %llu-%llu\n",ranges[i].offset,ranges[i].offset+ranges[i].len);
+ 
+-		for(i=0,offset=0,*bFull=true ; i<range ; i++)
++		if (range>0)
+ 		{
+-			if (ranges[i].offset!=offset)
++			for (j=0,i=1; i < range; i++)
+ 			{
+-				*bFull = false;
+-				break;
++				uint64_t current_end = ranges[j].offset + ranges[j].len;
++				uint64_t next_start = ranges[i].offset;
++				uint64_t next_end = ranges[i].offset + ranges[i].len;
++
++				if (next_start <= current_end)
++					ranges[j].len = MAX(next_end,current_end) - ranges[j].offset;
++				else
++					ranges[++j] = ranges[i];
+ 			}
+-			offset += ranges[i].len;
++			range = j+1;
+ 		}
+ 
++//		for(i=0 ; i<range ; i++)
++//			printf("range2 %llu-%llu\n",ranges[i].offset,ranges[i].offset+ranges[i].len);
++
++		defrag[0] = 6;
++		defrag[1] = 0; // offset
++		// 2..9 - length 64 bit
++		// +10 - data start
++		phton64(defrag+2,szmax);
++		defrag[2] |= 0xC0; // 64 bit value
++		*defrag_len = (size_t)(szmax+10);
++
++		*bFull = range==1 && !ranges[0].offset;
+ 		//printf("bFull=%u\n",*bFull);
+ 	}
+ 	return found;
+@@ -975,6 +992,8 @@ bool IsQUICInitial(const uint8_t *data, size_t len)
+ 	if (data[offset] > QUIC_MAX_CID_LENGTH) return false;
+ 	offset += 1 + data[offset];
+ 
++	if (offset>=len) return false;
++
+ 	// SCID
+ 	if (data[offset] > QUIC_MAX_CID_LENGTH) return false;
+ 	offset += 1 + data[offset];
+
+commit acccfc75e963bfbb1a0b8b9e9b1a8f19353e3405
+Author: bol-van <none@none.none>
+Date:   2026-03-05 10:32:26 +0300
+
+    nfqws: backport QUICDefragCrypto
+---
+ nfq/protocol.c | 21 ++++++++++-----------
+ 1 file changed, 10 insertions(+), 11 deletions(-)
+
+diff --git a/nfq/protocol.c b/nfq/protocol.c
+index 74659ea..b6122f9 100644
+--- a/nfq/protocol.c
++++ b/nfq/protocol.c
+@@ -888,28 +888,27 @@ bool QUICDefragCrypto(const uint8_t *clean,size_t clean_len, uint8_t *defrag,siz
+ 			if ((pos+sz)>clean_len) return false;
+ 
+ 			if ((offset+sz)>defrag_data_len) return false; // defrag buf overflow
++
++			// remove exact duplicates early to save cpu
++			for(i=0;i<range;i++)
++				if (ranges[i].offset==offset && ranges[i].len==sz)
++					goto skip_range;
++
+ 			if (zeropos < offset)
+ 				// make sure no uninitialized gaps exist in case of not full fragment coverage
+ 				memset(defrag_data+zeropos,0,offset-zeropos);
+ 			if ((offset+sz) > zeropos)
+ 				zeropos=offset+sz;
+ 
+-			memcpy(defrag_data+offset,clean+pos,sz);
+-			if ((offset+sz) > szmax) szmax = offset+sz;
+-
+ 			found=true;
+-			pos+=sz;
+-
+-			// remove exact duplicates early to save cpu
+-			for(i=0;i<range;i++)
+-				if (ranges[i].offset==offset && ranges[i].len==sz)
+-					goto endloop;
+-
++			if ((offset+sz) > szmax) szmax = offset+sz;
++			memcpy(defrag_data+offset,clean+pos,sz);
+ 			ranges[range].offset = offset;
+ 			ranges[range].len = sz;
+ 			range++;
++skip_range:
++			pos+=sz;
+ 		}
+-endloop:
+ 	}
+ 	if (found)
+ 	{
+
+commit ef637c482c7e64f3063f35dc2b10201e98d18e6d
+Author: bol-van <none@none.none>
+Date:   2026-03-05 19:37:27 +0300
+
+    github: use 16K page size for android arm64 build
+---
+ .github/workflows/build.yml | 5 ++++-
+ docs/changes.txt            | 2 ++
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 34f4487..c8af305 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -340,6 +340,9 @@ jobs:
+             armeabi-v7a)
+               CPU="-mthumb"
+               ;;
++            arm64-v8a)
++              PAGESIZE="-Wl,-z,max-page-size=16384"
++              ;;
+           esac
+ 
+           # netfilter libs
+@@ -360,7 +363,7 @@ jobs:
+ 
+           # zapret
+           CFLAGS="$CPU -DZAPRET_GH_VER=${{ github.ref_name }} -DZAPRET_GH_HASH=${{ github.sha }} -I$DEPS_DIR/include" \
+-          LDFLAGS="-L$DEPS_DIR/lib" \
++          LDFLAGS="-L$DEPS_DIR/lib $PAGESIZE" \
+           make -C zapret android -j$(nproc)
+ 
+           # strip unwanted ELF sections to prevent warnings on old Android versions
+diff --git a/docs/changes.txt b/docs/changes.txt
+index dd1080e..da587f0 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -609,3 +609,5 @@ install_easy: fix writing of ask_list variables
+ 73.12
+ 
+ * github: reduce binaries size
++* github: use 16K page size for android arm64 build
++* nfqws: join fragments in quic CRYPTO reconstruction. allow intersections.
+
+commit 5cc46a9815b00e97401b1459984dff44abfec411
+Author: bol-van <none@none.none>
+Date:   2026-03-12 14:36:58 +0300
+
+    update changes.txt
+---
+ docs/changes.txt | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/docs/changes.txt b/docs/changes.txt
+index da587f0..498d244 100644
+--- a/docs/changes.txt
++++ b/docs/changes.txt
+@@ -568,45 +568,45 @@ nfqws: --wssize-forced-cutoff
+ nfqws: --orig-tcp-flags, --dup-tcp-flags, --dpi-desync-tcp-flags
+ nfqws: --dup-ip-id
+ 
+-73.3
++72.3
+ 
+ blockcheck: support URIs
+ blockcheck: CURL_HTTPS_GET=1 suppresses -I curl option for https (HEAD -> GET)
+ 
+-73.4
++72.4
+ 
+ blockcheck: fix broken dns cache
+ 
+-73.5
++72.5
+ 
+ nfqws: fix broken l7proto profile rediscovery
+ nfqws: backport from nfqws2 nl80211 ssid discovery fix for newer kernels
+ 
+-73.6
++72.6
+ 
+ ipset: remove zapret-info based scripts because it's gone
+ blockcheck: fix tpws test regression
+ 
+-73.7
++72.7
+ 
+ nfqws,tpws: memleak fix
+ mdig: --eagain, --eagain-delay
+ 
+-73.8
++72.8
+ 
+ nfqws: fix breaking tcp if ts fooling is enabled but no timestamps present
+ 
+-73.9
++72.9
+ 
+ blockcheck: fix detection of http redirection if domain/URI specified
+ install_easy: fix writing of ask_list variables
+ 
+-73.10
++72.10
+ 
+ * nfqws2: fix broken wifi ssid update
+ * minor AI fixes
+ 
+-73.12
++72.12
+ 
+ * github: reduce binaries size
+ * github: use 16K page size for android arm64 build
+
+commit 363fbe6943b16b0acd4a0e9dae35fc5075069d0d
+Author: bol-van <none@none.none>
+Date:   2026-03-12 20:55:17 +0300
+
+    github: remove sdiv crash on old armv7
+---
+ .github/workflows/build.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index c8af305..3d785d8 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -94,7 +94,7 @@ jobs:
+               OPTIMIZE=-Os
+               ;;
+             arm)
+-              CPU="-mcpu=cortex-a7 -mthumb"
++              CPU="-mcpu=arm1176jzf-s -mthumb"
+               ;;
+           esac
+ 
