@@ -54,4 +54,17 @@ url = "https://github.com/TelegramMessenger/MTProxy.git"
 branch = "master"
 start_commit = "580909c"
 
+[[projects]]
+name = "dpibreak"
+path = "./antiDPI/dpibreak"
+url = "https://github.com/dilluti0n/dpibreak.git"
+branch = "master"
+start_commit = "f65c78f9b028533d620a67c846e92f6f443dd5bd"
+
+[[projects]]
+name = "zapret"
+path = "./antiDPI/zapret"
+url = "https://github.com/bol-van/zapret.git"
+branch = "master"
+start_commit = "76764ad6b0ee7d3991c97e7b8c24d53189d25c28"
 
