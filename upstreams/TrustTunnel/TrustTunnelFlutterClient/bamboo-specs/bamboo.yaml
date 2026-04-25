@@ -1,0 +1,29 @@
+---
+!include 'plan-testing.yaml'
+
+---
+!include 'plan-build-number-increment.yaml'
+
+---
+!include 'plan-building-to-deploy.yaml'
+
+---
+!include 'deployment-nightly.yaml'
+
+---
+!include 'deployment-beta.yaml'
+
+---
+!include 'deployment-release.yaml'
+
+---
+!include 'deployment-nightly-permissions.yaml'
+
+---
+!include 'deployment-beta-permissions.yaml'
+
+---
+!include 'deployment-release-permissions.yaml'
+
+---
+!include 'plan-sync-translations.yaml'

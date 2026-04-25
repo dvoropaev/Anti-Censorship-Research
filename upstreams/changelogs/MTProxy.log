@@ -1,0 +1,4386 @@
+commit 580909cbca12a2f8529dbb387edf8e9bc5bd4e3a
+Author: Viktor Oreshkin <imselfish@stek29.rocks>
+Date:   2018-06-02 15:08:18 +0300
+
+    Revert/improve previous commit (see #57)
+---
+ net/net-tcp-rpc-client.c | 2 +-
+ net/net-tcp-rpc-server.c | 4 +---
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/net/net-tcp-rpc-client.c b/net/net-tcp-rpc-client.c
+index f2cc96d..bae0d7d 100644
+--- a/net/net-tcp-rpc-client.c
++++ b/net/net-tcp-rpc-client.c
+@@ -243,7 +243,7 @@ static int tcp_rpcc_send_handshake_packet (connection_job_t C) /* {{{ */ {
+ 
+   struct tcp_rpc_data *D = TCP_RPC_DATA (C);
+   struct tcp_rpc_handshake_packet P;
+-  if (!PID.pid) {
++  if (!PID.ip) {
+     init_client_PID (c->our_ip);
+   }
+   memset (&P, 0, sizeof (P));
+diff --git a/net/net-tcp-rpc-server.c b/net/net-tcp-rpc-server.c
+index a1d858b..167deab 100644
+--- a/net/net-tcp-rpc-server.c
++++ b/net/net-tcp-rpc-server.c
+@@ -237,9 +237,7 @@ static int tcp_rpcs_process_nonce_packet (connection_job_t C, struct raw_message
+ static int tcp_rpcs_send_handshake_packet (connection_job_t c) {
+   struct tcp_rpc_data *D = TCP_RPC_DATA(c);
+   struct tcp_rpc_handshake_packet P;
+-  if (!PID.ip) {
+-    PID.ip = get_my_ipv4 ();
+-  }
++  assert(PID.ip);
+   memset (&P, 0, sizeof (P));
+   P.type = RPC_HANDSHAKE;
+   P.flags = D->crypto_flags & RPCF_USE_CRC32C;
+
+commit e03d00235f20e16bc904ff80450419000678a224
+Author: Savely Krasovsky <savely@krasovsky.me>
+Date:   2018-06-07 18:09:51 +0300
+
+    Making README more friendly and readable (#69)
+    
+    * Making README more friendly and readable
+    
+    * Info about multiple secrets
+    
+    * Information about systemd and Docker
+---
+ README    | 30 ---------------------------
+ README.md | 71 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 71 insertions(+), 30 deletions(-)
+
+diff --git a/README b/README
+deleted file mode 100644
+index 94b2398..0000000
+--- a/README
++++ /dev/null
+@@ -1,30 +0,0 @@
+-to build, simply run 'make'. Your binary will be objs/bin/mtproto-proxy
+-
+-to run mtproto-proxy:
+-  1. Obtain a secret, used to connect to telegram servers. 
+-  curl -s https://core.telegram.org/getProxySecret -o proxy-secret
+-
+-  2. Obtain current telegram configuration. It can change (occasionally), so we encourage you to update it once per day.
+-  curl -s https://core.telegram.org/getProxyConfig -o proxy-multi.conf
+-
+-  3. Generate a secret to be used by users to connect to your proxy
+-  head -c 16 /dev/urandom | xxd -ps
+-
+-  4. Run mtproto-proxy
+-        mtproto-proxy -u nobody -p 8888 -H 443 -S <secret> --aes-pwd proxy-secret proxy-multi.conf -M 1
+-  where:
+-          - nobody is the user name. mtproto-proxy calls setuid() to drop privilegies
+-          - 443 is the port, used by clients to connect to the proxy
+-          - 8888 is the local port. You can use it to get statistics from mtproto. Like wget localhost:8888/stats
+-            You can only get this stat via loopback
+-          - <secret> is the secret generated at step 3. 
+-          - proxy-secret and proxy-multi.conf are obtained at steps 1 and 2
+-          - 1 is the number of workers. You can increase the number of workers, if you have a powerful server
+-          - also feel free to check out other options using mtproto-proxy help 
+-             
+-
+-  5. generate the  link tg://proxy?server=SERVER_NAME&port=443&secret=SECRET
+-
+-  6.  register your proxy with @MTProxybot on Telegram.
+-
+-  7. enjoy
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..92ac2cd
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,71 @@
++# MTProxy
++To build, simply run `make`. Your binary will be in `objs/bin/mtproto-proxy`. If build was failed, you would do `make clear` at first, before building it again.
++
++To run `mtproto-proxy`:
++1. Obtain a secret, used to connect to telegram servers.
++```bash
++curl -s https://core.telegram.org/getProxySecret -o proxy-secret
++```
++2. Obtain current telegram configuration. It can change (occasionally), so we encourage you to update it once per day.
++```bash
++curl -s https://core.telegram.org/getProxyConfig -o proxy-multi.conf
++```
++3. Generate a secret to be used by users to connect to your proxy.
++```bash
++head -c 16 /dev/urandom | xxd -ps
++```
++4. Run `mtproto-proxy`:
++```bash
++./mtproto-proxy -u nobody -p 8888 -H 443 -S <secret> --aes-pwd proxy-secret proxy-multi.conf -M 1
++```
++... where:
++- `nobody` is the username. `mtproto-proxy` calls `setuid()` to drop privilegies.
++- `443` is the port, used by clients to connect to the proxy.
++- `8888` is the local port. You can use it to get statistics from `mtproto-proxy`. Like `wget localhost:8888/stats`. You can only get this stat via loopback.
++- `<secret>` is the secret generated at step 3. Also you can set multiple secrets: `-S <secret1> -S <secret2>`.
++- `proxy-secret` and `proxy-multi.conf` are obtained at steps 1 and 2.
++- `1` is the number of workers. You can increase the number of workers, if you have a powerful server.
++- also feel free to check out other options using `mtproto-proxy --help`.
++
++5. Generate the link with followed schema: `tg://proxy?server=SERVER_NAME&port=443&secret=SECRET` (by the way official bot provides links anyway).
++6. Register your proxy with [@MTProxybot](https://t.me/MTProxybot) on Telegram.
++7. Set received tag as param `-P <proxy tag>`
++8. Enjoy.
++
++## Systemd example configuration
++1. Create systemd service file (it's standart path for the most Linux distros, but you should check it before):
++```bash
++sudo nano /etc/systemd/system/MTProxy.service
++```
++2. Edit this basic service (especially paths and params):
++```bash
++[Unit]
++Description=MTProxy
++After=network.target
++
++[Service]
++Type=simple
++WorkingDirectory=/opt/MTProxy/objs/bin
++ExecStart=/opt/MTProxy/objs/bin/mtproto-proxy -u nobody -p 8888 -H 443 -S <secret> -P <tag> [other params]
++Restart=on-failure
++
++[Install]
++WantedBy=multi-user.target
++```
++3. Reload daemons:
++```bash
++sudo systemctl daemon-reload
++```
++4. Test fresh MTProxy service:
++```bash
++sudo systemctl restart MTProxy.service
++# Check status, it should be active
++sudo systemctl status MTProxy.service
++```
++5. Enable it, to autostart service after reboot:
++```bash
++sudo systemctl enable MTProxy.service
++```
++
++## Docker image
++Telegram is also providing [official Docker image](https://hub.docker.com/r/telegrammessenger/proxy/).
+
+commit dbe89fc67e6fdb31d7a69a36801ea58e03a84cfa
+Author: Viktor Oreshkin <imselfish@stek29.rocks>
+Date:   2018-06-07 18:18:02 +0300
+
+    Add info about deps to README
+---
+ README.md | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 92ac2cd..fbc5424 100644
+--- a/README.md
++++ b/README.md
+@@ -1,7 +1,24 @@
+ # MTProxy
++
++# Building
++
++Install dependencies: you'd need normal set of tools for building from
++source, and a dev package for openssl.
++
++On Ubuntu/Debian:
++```bash
++apt install build-essential libssl-dev
++```
++
++On CentOS:
++```bash
++yum install openssl-devel
++yum groupinstall "Development Tools"
++```
++
+ To build, simply run `make`. Your binary will be in `objs/bin/mtproto-proxy`. If build was failed, you would do `make clear` at first, before building it again.
+ 
+-To run `mtproto-proxy`:
++# Running
+ 1. Obtain a secret, used to connect to telegram servers.
+ ```bash
+ curl -s https://core.telegram.org/getProxySecret -o proxy-secret
+
+commit d2ceadca49eb3dbe0177e34a8ca7e8ec1791fbf7
+Author: Savely Krasovsky <savely@krasovsky.me>
+Date:   2018-06-08 09:06:39 +0300
+
+    Add zlib-devel and remove sudo -- README.md (#101)
+---
+ README.md | 28 ++++++++++++----------------
+ 1 file changed, 12 insertions(+), 16 deletions(-)
+
+diff --git a/README.md b/README.md
+index fbc5424..8a7f6d5 100644
+--- a/README.md
++++ b/README.md
+@@ -1,24 +1,20 @@
+ # MTProxy
+ 
+-# Building
++## Building
++Install dependencies, you would need common set of tools for building from source, and development packages for `openssl` and `zlib`.
+ 
+-Install dependencies: you'd need normal set of tools for building from
+-source, and a dev package for openssl.
+-
+-On Ubuntu/Debian:
++On Debian/Ubuntu:
+ ```bash
+-apt install build-essential libssl-dev
++apt install build-essential libssl-dev zlib1g-dev
+ ```
+-
+-On CentOS:
++On CentOS/RHEL:
+ ```bash
+-yum install openssl-devel
++yum install openssl-devel zlib-devel
+ yum groupinstall "Development Tools"
+ ```
+-
+ To build, simply run `make`. Your binary will be in `objs/bin/mtproto-proxy`. If build was failed, you would do `make clear` at first, before building it again.
+ 
+-# Running
++## Running
+ 1. Obtain a secret, used to connect to telegram servers.
+ ```bash
+ curl -s https://core.telegram.org/getProxySecret -o proxy-secret
+@@ -52,7 +48,7 @@ head -c 16 /dev/urandom | xxd -ps
+ ## Systemd example configuration
+ 1. Create systemd service file (it's standart path for the most Linux distros, but you should check it before):
+ ```bash
+-sudo nano /etc/systemd/system/MTProxy.service
++nano /etc/systemd/system/MTProxy.service
+ ```
+ 2. Edit this basic service (especially paths and params):
+ ```bash
+@@ -71,17 +67,17 @@ WantedBy=multi-user.target
+ ```
+ 3. Reload daemons:
+ ```bash
+-sudo systemctl daemon-reload
++systemctl daemon-reload
+ ```
+ 4. Test fresh MTProxy service:
+ ```bash
+-sudo systemctl restart MTProxy.service
++systemctl restart MTProxy.service
+ # Check status, it should be active
+-sudo systemctl status MTProxy.service
++systemctl status MTProxy.service
+ ```
+ 5. Enable it, to autostart service after reboot:
+ ```bash
+-sudo systemctl enable MTProxy.service
++systemctl enable MTProxy.service
+ ```
+ 
+ ## Docker image
+
+commit 69516f066b61252b40e2c6cdac0c8ab5ea8918fb
+Author: Viktor Oreshkin <imselfish@stek29.rocks>
+Date:   2018-06-09 12:01:00 +0300
+
+    Readme improvements
+---
+ README.md | 27 +++++++++++++++++++++------
+ 1 file changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/README.md b/README.md
+index 8a7f6d5..20a9491 100644
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,5 @@
+ # MTProxy
++Simple MT-Proto proxy
+ 
+ ## Building
+ Install dependencies, you would need common set of tools for building from source, and development packages for `openssl` and `zlib`.
+@@ -12,7 +13,20 @@ On CentOS/RHEL:
+ yum install openssl-devel zlib-devel
+ yum groupinstall "Development Tools"
+ ```
+-To build, simply run `make`. Your binary will be in `objs/bin/mtproto-proxy`. If build was failed, you would do `make clear` at first, before building it again.
++
++Clone the repo:
++```bash
++git clone https://github.com/TelegramMessenger/MTProxy
++cd MTProxy
++```
++
++To build, simply run `make`, the binary will be in `objs/bin/mtproto-proxy`:
++
++```bash
++make && cd objs/bin
++```
++
++If the build has failed, you should run `make clean` before building it again.
+ 
+ ## Running
+ 1. Obtain a secret, used to connect to telegram servers.
+@@ -38,11 +52,12 @@ head -c 16 /dev/urandom | xxd -ps
+ - `<secret>` is the secret generated at step 3. Also you can set multiple secrets: `-S <secret1> -S <secret2>`.
+ - `proxy-secret` and `proxy-multi.conf` are obtained at steps 1 and 2.
+ - `1` is the number of workers. You can increase the number of workers, if you have a powerful server.
+-- also feel free to check out other options using `mtproto-proxy --help`.
+ 
+-5. Generate the link with followed schema: `tg://proxy?server=SERVER_NAME&port=443&secret=SECRET` (by the way official bot provides links anyway).
++Also feel free to check out other options using `mtproto-proxy --help`.
++
++5. Generate the link with following schema: `tg://proxy?server=SERVER_NAME&port=PORT&secret=SECRET` (or let the official bot generate it for you).
+ 6. Register your proxy with [@MTProxybot](https://t.me/MTProxybot) on Telegram.
+-7. Set received tag as param `-P <proxy tag>`
++7. Set received tag with arguments: `-P <proxy tag>`
+ 8. Enjoy.
+ 
+ ## Systemd example configuration
+@@ -58,8 +73,8 @@ After=network.target
+ 
+ [Service]
+ Type=simple
+-WorkingDirectory=/opt/MTProxy/objs/bin
+-ExecStart=/opt/MTProxy/objs/bin/mtproto-proxy -u nobody -p 8888 -H 443 -S <secret> -P <tag> [other params]
++WorkingDirectory=/opt/MTProxy
++ExecStart=/opt/MTProxy/mtproto-proxy -u nobody -p 8888 -H 443 -S <secret> -P <proxy tag> <other params>
+ Restart=on-failure
+ 
+ [Install]
+
+commit 20824f5fa8af3939e667fba5c1785f02059c1c43
+Author: Amir <loskiq@gmail.com>
+Date:   2018-06-09 15:06:40 +0300
+
+    Readme improvements (#110)
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 20a9491..16b2d94 100644
+--- a/README.md
++++ b/README.md
+@@ -6,7 +6,7 @@ Install dependencies, you would need common set of tools for building from sourc
+ 
+ On Debian/Ubuntu:
+ ```bash
+-apt install build-essential libssl-dev zlib1g-dev
++apt install git curl build-essential libssl-dev zlib1g-dev
+ ```
+ On CentOS/RHEL:
+ ```bash
+
+commit cf26efc6367ef3a30cde96ba76d6eaf11871a10a
+Author: vvaltman <vvaltman@localhost>
+Date:   2018-07-09 14:04:50 +0300
+
+    updated mtproto proxy protocol
+---
+ mtproto/mtproto-proxy.c      | 43 +++++++++++++++++++++++++++++++++++--------
+ net/net-tcp-rpc-common.c     | 11 ++++++++++-
+ net/net-tcp-rpc-common.h     |  1 +
+ net/net-tcp-rpc-ext-server.c | 21 +++++++++++++++++----
+ 4 files changed, 63 insertions(+), 13 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index 711b1f5..9eef02b 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -789,11 +789,38 @@ static int _notify_remote_closed (JOB_REF_ARG(C), long long out_conn_id) {
+ }
+ 
+ void push_rpc_confirmation (JOB_REF_ARG (C), int confirm) {
+-  struct raw_message *msg = malloc (sizeof (struct raw_message));
+-  rwm_create (msg, "\xdd", 1);
+-  rwm_push_data (msg, &confirm, 4);
+-  mpq_push_w (CONN_INFO(C)->out_queue, msg, 0);
+-  job_signal (JOB_REF_PASS (C), JS_RUN);
++
++  if ((lrand48_j() & 1) || !(TCP_RPC_DATA(C)->flags & RPC_F_PAD)) {
++    struct raw_message *msg = malloc (sizeof (struct raw_message));
++    rwm_create (msg, "\xdd", 1);
++    rwm_push_data (msg, &confirm, 4);
++    mpq_push_w (CONN_INFO(C)->out_queue, msg, 0);
++    job_signal (JOB_REF_PASS (C), JS_RUN);
++  } else {
++    int x = -1;
++    struct raw_message m;
++    assert (rwm_create (&m, &x, 4) == 4);
++    assert (rwm_push_data (&m, &confirm, 4) == 4);
++
++    int z = lrand48_j() & 1;
++    while (z-- > 0) {
++      int t = lrand48_j();
++      assert (rwm_push_data (&m, &t, 4) == 4);
++    }
++
++    tcp_rpc_conn_send (JOB_REF_CREATE_PASS (C), &m, 0);
++
++    x = 0;
++    assert (rwm_create (&m, &x, 4) == 4);
++
++    z = lrand48_j() & 1;
++    while (z-- > 0) {
++      int t = lrand48_j();
++      assert (rwm_push_data (&m, &t, 4) == 4);
++    }
++
++    tcp_rpc_conn_send (JOB_REF_PASS (C), &m, 0);
++  }
+ }
+ 
+ struct client_packet_info {
+@@ -1645,7 +1672,7 @@ conn_target_job_t choose_proxy_target (int target_dc) {
+ }
+ 
+ static int forward_mtproto_enc_packet (struct tl_in_state *tlio_in, connection_job_t C, long long auth_key_id, int len, int remote_ip_port[5], int rpc_flags) {
+-  if (len < offsetof (struct encrypted_message, message) || (len & 15) != (offsetof (struct encrypted_message, server_salt) & 15)) {
++  if (len < offsetof (struct encrypted_message, message) /*|| (len & 15) != (offsetof (struct encrypted_message, server_salt) & 15)*/) {
+     return 0;
+   }
+   vkprintf (2, "received mtproto encrypted packet of %d bytes from connection %p (#%d~%d), key=%016llx\n", len, C, CONN_INFO(C)->fd, CONN_INFO(C)->generation, auth_key_id);
+@@ -1670,11 +1697,11 @@ int forward_mtproto_packet (struct tl_in_state *tlio_in, connection_job_t C, int
+   }
+   vkprintf (2, "received mtproto packet of %d bytes\n", len);
+   int inner_len = header[4];
+-  if (inner_len + 20 != len) {
++  if (inner_len + 20 > len) {
+     vkprintf (1, "received packet with bad inner length: %d (%d expected)\n", inner_len, len - 20);
+     return 0;
+   }
+-  if (len < 40) {
++  if (inner_len < 20) {
+     //must have at least function id and nonce
+     return 0;
+   }
+diff --git a/net/net-tcp-rpc-common.c b/net/net-tcp-rpc-common.c
+index ab175f6..4e9958f 100644
+--- a/net/net-tcp-rpc-common.c
++++ b/net/net-tcp-rpc-common.c
+@@ -185,8 +185,17 @@ int tcp_rpc_write_packet_compact (connection_job_t C, struct raw_message *raw) {
+     return tcp_rpc_write_packet (C, raw);
+   }
+ 
++  if (TCP_RPC_DATA(C)->flags & RPC_F_PAD) {
++    int x = lrand48_j();
++    int y = lrand48_j() & 3;
++    assert (rwm_push_data (raw, &x, y) == y);
++  }
++
+   int len = raw->total_bytes;
+-  assert (!(len & 0xfc000003));
++  assert (!(len & 0xfc000000));
++  if (!(TCP_RPC_DATA(C)->flags & RPC_F_PAD)) {
++    assert (!(len & 3));
++  }
+   if (TCP_RPC_DATA(C)->flags & RPC_F_MEDIUM) {
+     rwm_push_data_front (raw, &len, 4);
+   } else if (len <= 0x7e * 4) {
+diff --git a/net/net-tcp-rpc-common.h b/net/net-tcp-rpc-common.h
+index e1f3618..ad43ece 100644
+--- a/net/net-tcp-rpc-common.h
++++ b/net/net-tcp-rpc-common.h
+@@ -105,6 +105,7 @@ int tcp_rpc_default_execute (connection_job_t C, int op, struct raw_message *raw
+ #define RPCF_USE_CRC32C		2048
+ 
+ /* for flags in struct tcp_rpc_data */
++#define RPC_F_PAD       0x8000000
+ #define RPC_F_DROPPED		0x10000000
+ #define RPC_F_MEDIUM		0x20000000
+ #define RPC_F_COMPACT		0x40000000
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 4d7ed55..efc29cf 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -149,6 +149,13 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         vkprintf (1, "Medium type\n");
+         continue;
+       }
++      if (packet_len == 0xdddddddd) {
++        D->flags |= RPC_F_MEDIUM | RPC_F_PAD;
++        assert (rwm_skip_data (&c->in, 4) == 4);
++        D->in_packet_num = 0;
++        vkprintf (1, "Medium type\n");
++        continue;
++      }
+         
+       // http
+       if ((packet_len == *(int *)"HEAD" || packet_len == *(int *)"POST" || packet_len == *(int *)"GET " || packet_len == *(int *)"OPTI") && TCP_RPCS_FUNC(C)->http_fallback_type) {
+@@ -216,7 +223,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         T->read_aeskey.type->ctr128_crypt (&T->read_aeskey, random_header, random_header, 64, T->read_iv, T->read_ebuf, &T->read_num);
+         unsigned tag = *(unsigned *)(random_header + 56);
+ 
+-        if (tag == 0xeeeeeeee || tag == 0xefefefef) {
++        if (tag == 0xdddddddd || tag == 0xeeeeeeee || tag == 0xefefefef) {
+           assert (rwm_skip_data (&c->in, 64) == 64);
+           rwm_union (&c->in_u, &c->in);
+           rwm_init (&c->in, 0);
+@@ -226,6 +233,9 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+             case 0xeeeeeeee:
+               D->flags |= RPC_F_MEDIUM | RPC_F_EXTMODE2;
+               break;
++            case 0xdddddddd:
++              D->flags |= RPC_F_MEDIUM | RPC_F_EXTMODE2 | RPC_F_PAD;
++              break;
+             case 0xefefefef:
+               D->flags |= RPC_F_COMPACT | RPC_F_EXTMODE2;
+               break;
+@@ -269,10 +279,10 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+     int packet_len_bytes = 4;
+     if (D->flags & RPC_F_MEDIUM) {
+       // packet len in `medium` mode
+-      if (D->crypto_flags & RPCF_QUICKACK) {
++      //if (D->crypto_flags & RPCF_QUICKACK) {
+         D->flags = (D->flags & ~RPC_F_QUICKACK) | (packet_len & RPC_F_QUICKACK);
+         packet_len &= ~RPC_F_QUICKACK;
+-      }
++      //}
+     } else {
+       // packet len in `compact` mode
+       if (packet_len & 0x80) {
+@@ -295,7 +305,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+       packet_len <<= 2;
+     }
+ 
+-    if (packet_len <= 0 || (packet_len & 0xc0000003)) {
++    if (packet_len <= 0 || (packet_len & 0xc0000000) || (!(D->flags & RPC_F_PAD) && (packet_len & 3))) {
+       vkprintf (1, "error while parsing packet: bad packet length %d\n", packet_len);
+       fail_connection (C, -1);
+       return 0;
+@@ -317,6 +327,9 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+     int packet_type;
+ 
+     rwm_split_head (&msg, &c->in, packet_len);
++    if (D->flags & RPC_F_PAD) {
++      rwm_trunc (&msg, packet_len & -4);
++    }
+ 
+     assert (rwm_fetch_lookup (&msg, &packet_type, 4) == 4);
+ 
+
+commit f9158e3129efd4ccdc291aefb840209791226a77
+Author: Viktor Oreshkin <imselfish@stek29.rocks>
+Date:   2018-07-19 10:12:10 +0300
+
+    Update readme (fix #173)
+---
+ README.md | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/README.md b/README.md
+index 16b2d94..e3c131c 100644
+--- a/README.md
++++ b/README.md
+@@ -60,6 +60,15 @@ Also feel free to check out other options using `mtproto-proxy --help`.
+ 7. Set received tag with arguments: `-P <proxy tag>`
+ 8. Enjoy.
+ 
++## Random padding
++Due to some ISPs detecting MTProxy by packet sizes, random padding is
++added to packets if such mode is enabled.
++
++It's only enabled for clients which request it.
++
++Add `dd` prefix to secret (`cafe...babe` => `ddcafe...babe`) to enable
++this mode on client side.
++
+ ## Systemd example configuration
+ 1. Create systemd service file (it's standart path for the most Linux distros, but you should check it before):
+ ```bash
+@@ -97,3 +106,4 @@ systemctl enable MTProxy.service
+ 
+ ## Docker image
+ Telegram is also providing [official Docker image](https://hub.docker.com/r/telegrammessenger/proxy/).
++Note: the image is outdated.
+
+commit b9950a18f8f289837545a5152c2fd423717c0b48
+Author: Ramin <44315995+pkka@users.noreply.github.com>
+Date:   2018-12-05 23:34:20 +0330
+
+    Update README.md (#229)
+    
+    fix typo: standard
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index e3c131c..67ca9db 100644
+--- a/README.md
++++ b/README.md
+@@ -70,7 +70,7 @@ Add `dd` prefix to secret (`cafe...babe` => `ddcafe...babe`) to enable
+ this mode on client side.
+ 
+ ## Systemd example configuration
+-1. Create systemd service file (it's standart path for the most Linux distros, but you should check it before):
++1. Create systemd service file (it's standard path for the most Linux distros, but you should check it before):
+ ```bash
+ nano /etc/systemd/system/MTProxy.service
+ ```
+
+commit 28f5b17eef2f50d768c4f010f8a4fc149254550a
+Author: vvaltman <vvaltman@localhost>
+Date:   2019-01-25 12:24:00 +0400
+
+    mtproto: by default do not open stats port
+---
+ mtproto/mtproto-proxy.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index 9eef02b..718c6b2 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -62,6 +62,7 @@
+ #include "mtproto-config.h"
+ #include "common/tl-parse.h"
+ #include "engine/engine.h"
++#include "engine/engine-net.h"
+ 
+ #ifndef COMMIT
+ #define COMMIT "unknown"
+@@ -2123,6 +2124,7 @@ void usage (void) {
+   exit (2);
+ }
+ 
++server_functions_t mtproto_front_functions;
+ int f_parse_option (int val) {
+   char *colon, *ptr;
+   switch (val) {
+@@ -2174,6 +2176,10 @@ int f_parse_option (int val) {
+       ping_interval = PING_INTERVAL;
+     }
+     break;
++  case 2000:
++    engine_set_http_fallback (&ct_http_server, &http_methods_stats);
++    mtproto_front_functions.flags &= ~ENGINE_NO_PORT;
++    break;
+   case 'S':
+   case 'P':
+     {
+@@ -2216,6 +2222,7 @@ int f_parse_option (int val) {
+ }
+ 
+ void mtfront_prepare_parse_options (void) {
++  parse_option ("http-stats", no_argument, 0, 2000, "allow http server to answer on stats queries");
+   parse_option ("mtproto-secret", required_argument, 0, 'S', "16-byte secret in hex mode");
+   parse_option ("proxy-tag", required_argument, 0, 'P', "16-byte proxy tag in hex mode to be passed along with all forwarded queries");
+   parse_option ("max-special-connections", required_argument, 0, 'C', "sets maximal number of accepted client connections per worker");
+@@ -2328,7 +2335,8 @@ server_functions_t mtproto_front_functions = {
+   .FullVersionStr = FullVersionStr,
+   .ShortVersionStr = "mtproxy",
+   .parse_function = mtfront_parse_function,
+-  .http_functions = &http_methods_stats
++  .flags = ENGINE_NO_PORT
++  //.http_functions = &http_methods_stats
+ };
+ 
+ int main (int argc, char *argv[]) {
+
+commit 2c942119c4ee340c80922ba11d14fb3b10d5e654
+Author: vvaltman <vvaltman@localhost>
+Date:   2019-01-25 14:41:56 +0400
+
+    enable stats only on 127.0.0.1
+---
+ engine/engine-net.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/engine/engine-net.c b/engine/engine-net.c
+index eb9e98b..38ddd67 100644
+--- a/engine/engine-net.c
++++ b/engine/engine-net.c
+@@ -55,11 +55,10 @@ int get_port_mod (void) /* {{{ */ {
+ 
+ int try_open_port (int port, int quit_on_fail) /* {{{ */ {
+   engine_t *E = engine_state;
+-  int enable_ipv6 = engine_check_ipv6_enabled () ? SM_IPV6 : 0;
+   if (engine_check_tcp_enabled ()) {
+     struct in_addr l;
+     l.s_addr = htonl(0x7f000001);
+-    E->sfd = server_socket (port, l, engine_get_backlog (), enable_ipv6);
++    E->sfd = server_socket (port, l, engine_get_backlog (), 0);
+     vkprintf (1, "opened tcp socket\n");
+     if (E->sfd < 0) {
+       if (quit_on_fail) {
+
+commit e4c6b8bcd46dff2c7e7c7595ff02631d2f1fbd45
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-03 05:09:31 +0300
+
+    Implement TLS transport for MTProto-proxy.
+---
+ common/sha256.c              |  12 +-
+ common/sha256.h              |   2 +
+ net/net-connections.h        |  46 +++----
+ net/net-tcp-connections.c    |  53 +++++++--
+ net/net-tcp-rpc-common.c     |   5 +
+ net/net-tcp-rpc-common.h     |  20 ++--
+ net/net-tcp-rpc-ext-server.c | 278 +++++++++++++++++++++++++++++++++++++++++--
+ net/net-tcp-rpc-server.c     |   3 -
+ 8 files changed, 362 insertions(+), 57 deletions(-)
+
+diff --git a/common/sha256.c b/common/sha256.c
+index 5a6a6e8..08fd90d 100644
+--- a/common/sha256.c
++++ b/common/sha256.c
+@@ -18,9 +18,12 @@
+               2016 Nikolai Durov
+ */
+ 
+-#include <assert.h>
+ #include "sha256.h"
+ 
++#include <assert.h>
++
++#include <openssl/hmac.h>
++
+ void sha256_starts (sha256_context *ctx) {
+   EVP_MD_CTX_init (ctx);
+   EVP_DigestInit_ex (ctx, EVP_sha256(), NULL); 
+@@ -52,3 +55,10 @@ void sha256_two_chunks (const unsigned char *input1, int ilen1, const unsigned c
+   sha256_finish (ctx, output);
+   EVP_MD_CTX_free (ctx);
+ }
++
++void sha256_hmac (unsigned char *key, int keylen, unsigned char *input, int ilen, unsigned char output[32]) {
++  unsigned int len = 0;
++  unsigned char *result = HMAC(EVP_sha256(), key, keylen, input, ilen, output, &len);
++  assert (result == output);
++  assert (len == 32);
++}
+diff --git a/common/sha256.h b/common/sha256.h
+index cc60726..bad4c65 100644
+--- a/common/sha256.h
++++ b/common/sha256.h
+@@ -35,3 +35,5 @@ void sha256_update (sha256_context *ctx, const unsigned char *input, int ilen);
+ void sha256_finish (sha256_context *ctx, unsigned char output[32]);
+ void sha256 (const unsigned char *input, int ilen, unsigned char output[32]);
+ void sha256_two_chunks (const unsigned char *input1, int ilen1, const unsigned char *input2, int ilen2, unsigned char output[32]);
++
++void sha256_hmac (unsigned char *key, int keylen, unsigned char *input, int ilen, unsigned char output[32]);
+diff --git a/net/net-connections.h b/net/net-connections.h
+index 943b3dc..d22fe7f 100644
+--- a/net/net-connections.h
++++ b/net/net-connections.h
+@@ -54,35 +54,36 @@
+ 
+ 
+ /* for connection flags */
+-#define	C_WANTRD	1
+-#define	C_WANTWR	2
+-#define	C_WANTRW	(C_WANTRD | C_WANTWR)
+-#define	C_INCONN	4
+-#define	C_ERROR		8
+-#define	C_NORD		0x10
+-#define	C_NOWR		0x20
+-#define	C_NORW		(C_NORD | C_NOWR)
+-#define	C_INQUERY	0x40
+-#define	C_FAILED	0x80
+-#define	C_ALARM		0x100
++#define C_WANTRD	1
++#define C_WANTWR	2
++#define C_WANTRW	(C_WANTRD | C_WANTWR)
++#define C_INCONN	4
++#define C_ERROR		8
++#define C_NORD		0x10
++#define C_NOWR		0x20
++#define C_NORW		(C_NORD | C_NOWR)
++#define C_INQUERY	0x40
++#define C_FAILED	0x80
++#define C_ALARM		0x100
+ #define C_AIO		0x200
+ #define C_INTIMEOUT	0x400
+-#define	C_STOPREAD	0x800
+-#define	C_REPARSE	0x1000
++#define C_STOPREAD	0x800
++#define C_REPARSE	0x1000
+ #define C_DFLUSH	0x2000
+-#define	C_IPV6		0x4000
++#define C_IPV6		0x4000
+ #define C_EXTERNAL     	0x8000
+ #define C_SPECIAL	0x10000
+-#define	C_NOQACK	0x20000
+-#define	C_RAWMSG	0x40000
+-#define C_NET_FAILED 0x80000
+-#define	C_CRYPTOIN	0x100000
+-#define	C_CRYPTOOUT	0x200000
+-#define C_STOPPARSE 0x400000
++#define C_NOQACK	0x20000
++#define C_RAWMSG	0x40000
++#define C_NET_FAILED	0x80000
++#define C_CRYPTOIN	0x100000
++#define C_CRYPTOOUT	0x200000
++#define C_STOPPARSE	0x400000
+ #define C_ISDH		0x800000
+ #define C_READY_PENDING 0x1000000
+-#define C_CONNECTED 0x2000000
+-#define	C_STOPWRITE	0x4000000
++#define C_CONNECTED	0x2000000
++#define C_STOPWRITE	0x4000000
++#define C_IS_TLS	0x8000000
+ 
+ #define C_PERMANENT (C_IPV6 | C_RAWMSG)
+ /* for connection status */
+@@ -232,6 +233,7 @@ struct connection_info {
+   void *crypto_temp;
+   int listening, listening_generation;
+   int window_clamp;
++  int left_tls_packet_length;
+ 
+   struct raw_message in_u, in, out, out_p;
+ 
+diff --git a/net/net-tcp-connections.c b/net/net-tcp-connections.c
+index 9b2f462..909be1a 100644
+--- a/net/net-tcp-connections.c
++++ b/net/net-tcp-connections.c
+@@ -238,11 +238,22 @@ int cpu_tcp_aes_crypto_ctr128_encrypt_output (connection_job_t C) /* {{{ */ {
+ 
+   struct aes_crypto *T = c->crypto;
+   assert (c->crypto);
+-  struct raw_message *out = &c->out;
+ 
+-  int l = out->total_bytes;
+-  if (l) {
+-    assert (rwm_encrypt_decrypt_to (&c->out, &c->out_p, l, &T->write_aeskey, (void *)T->write_aeskey.type->ctr128_crypt, T->write_iv, 1, T->write_ebuf, &T->write_num) == l);
++  while (c->out.total_bytes) {
++    int len = c->out.total_bytes;
++    if (c->flags & C_IS_TLS) {
++      assert (c->left_tls_packet_length >= 0);
++      const int MAX_PACKET_LENGTH = 1425;
++      if (MAX_PACKET_LENGTH < len) {
++        len = MAX_PACKET_LENGTH;
++      }
++
++      unsigned char header[5] = {0x17, 0x03, 0x03, len >> 8, len & 255};
++      rwm_push_data (&c->out_p, header, 5);
++      vkprintf (2, "Send TLS-packet of length %d\n", len);
++    }
++
++    assert (rwm_encrypt_decrypt_to (&c->out, &c->out_p, len, &T->write_aeskey, (void *)T->write_aeskey.type->ctr128_crypt, T->write_iv, 1, T->write_ebuf, &T->write_num) == len);
+   }
+ 
+   return 0;
+@@ -254,11 +265,37 @@ int cpu_tcp_aes_crypto_ctr128_decrypt_input (connection_job_t C) /* {{{ */ {
+   struct connection_info *c = CONN_INFO (C);
+   struct aes_crypto *T = c->crypto;
+   assert (c->crypto);
+-  struct raw_message *in = &c->in_u;
+ 
+-  int l = in->total_bytes;
+-  if (l) {
+-    assert (rwm_encrypt_decrypt_to (&c->in_u, &c->in, l, &T->read_aeskey, (void *)T->read_aeskey.type->ctr128_crypt, T->read_iv, 1, T->read_ebuf, &T->read_num) == l);
++  while (c->in_u.total_bytes) {
++    int len = c->in_u.total_bytes;
++    if (c->flags & C_IS_TLS) {
++      assert (c->left_tls_packet_length >= 0);
++      if (c->left_tls_packet_length == 0) {
++        if (len < 5) {
++          vkprintf (2, "Need %d more bytes to parse TLS header\n", 5 - len);
++          return 5 - len;
++        }
++
++        unsigned char header[5];
++        assert (rwm_fetch_lookup (&c->in_u, header, 5) == 5);
++        if (memcmp (header, "\x17\x03\x03", 3) != 0) {
++          vkprintf (1, "error while parsing packet: expect TLS header\n");
++          fail_connection (C, -1);
++          return 0;
++        }
++        c->left_tls_packet_length = 256 * header[3] + header[4];
++        vkprintf (2, "Receive TLS-packet of length %d\n", c->left_tls_packet_length);
++        assert (rwm_skip_data (&c->in_u, 5) == 5);
++        len -= 5;
++      }
++
++      if (c->left_tls_packet_length < len) {
++        len = c->left_tls_packet_length;
++      }
++      c->left_tls_packet_length -= len;
++    }
++    vkprintf (2, "Read %d bytes out of %d available\n", len, c->in_u.total_bytes);
++    assert (rwm_encrypt_decrypt_to (&c->in_u, &c->in, len, &T->read_aeskey, (void *)T->read_aeskey.type->ctr128_crypt, T->read_iv, 1, T->read_ebuf, &T->read_num) == len);
+   }
+ 
+   return 0;
+diff --git a/net/net-tcp-rpc-common.c b/net/net-tcp-rpc-common.c
+index 4e9958f..674bd5c 100644
+--- a/net/net-tcp-rpc-common.c
++++ b/net/net-tcp-rpc-common.c
+@@ -180,6 +180,11 @@ int tcp_rpc_write_packet_compact (connection_job_t C, struct raw_message *raw) {
+     rwm_union (&CONN_INFO(C)->out, raw);
+     return 0;
+   }
++  if ((CONN_INFO (C)->flags & C_IS_TLS) && CONN_INFO (C)->left_tls_packet_length == -1) {
++    // uninited TLS connection
++    rwm_union (&CONN_INFO(C)->out, raw);
++    return 0;
++  }
+     
+   if (!(TCP_RPC_DATA(C)->flags & (RPC_F_COMPACT | RPC_F_MEDIUM))) {
+     return tcp_rpc_write_packet (C, raw);
+diff --git a/net/net-tcp-rpc-common.h b/net/net-tcp-rpc-common.h
+index ad43ece..8c273ff 100644
+--- a/net/net-tcp-rpc-common.h
++++ b/net/net-tcp-rpc-common.h
+@@ -94,18 +94,18 @@ void tcp_rpc_conn_send_data_im (JOB_REF_ARG (C), int len, void *Q);
+ int tcp_rpc_default_execute (connection_job_t C, int op, struct raw_message *raw);
+ 
+ /* for crypto_flags in struct tcp_rpc_data */
+-#define RPCF_ALLOW_UNENC	1
+-#define RPCF_ALLOW_ENC		2
+-#define RPCF_REQ_DH		4
+-#define RPCF_ALLOW_SKIP_DH	8
++#define RPCF_ALLOW_UNENC	1     // allow unencrypted
++#define RPCF_ALLOW_ENC		2     // allow encrypted
++#define RPCF_REQ_DH		4     // require DH
++#define RPCF_ALLOW_SKIP_DH	8     // crypto NONCE packet sent
+ #define RPCF_ENC_SENT		16
+-#define RPCF_SEQNO_HOLES	256
+-#define RPCF_QUICKACK		512
+-#define RPCF_COMPACT_OFF	1024
+-#define RPCF_USE_CRC32C		2048
++#define RPCF_SEQNO_HOLES	256   // packet numbers not sequential
++#define RPCF_QUICKACK		512   // allow quick ack packets
++#define RPCF_COMPACT_OFF	1024  // compact mode off
++#define RPCF_USE_CRC32C		2048  // use CRC32-C instead of CRC32
+ 
+ /* for flags in struct tcp_rpc_data */
+-#define RPC_F_PAD       0x8000000
++#define RPC_F_PAD		0x8000000
+ #define RPC_F_DROPPED		0x10000000
+ #define RPC_F_MEDIUM		0x20000000
+ #define RPC_F_COMPACT		0x40000000
+@@ -124,7 +124,7 @@ struct tcp_rpc_data {
+   int flags;
+   int in_packet_num;
+   int out_packet_num;
+-  int crypto_flags;					/* 1 = allow unencrypted, 2 = allow encrypted, 4 = require DH, 8 = crypto NONCE packet sent, 256 = packet numbers not sequential, 512 = allow quick ack packets, 1024 = compact mode off, 2048 = use CRC32-C instead of CRC32 */
++  int crypto_flags;	/* RPCF_* flags */
+   struct process_id remote_pid;
+   char nonce[16];
+   int nonce_time;
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index efc29cf..5efeb79 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -33,23 +33,21 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
+-#include "crc32.h"
+-#include "crc32c.h"
++#include <openssl/rand.h>
++
++#include "common/kprintf.h"
++#include "common/precise-time.h"
++#include "common/rpc-const.h"
+ #include "common/sha256.h"
+-#include "net/net-events.h"
+-#include "kprintf.h"
+-#include "precise-time.h"
+ #include "net/net-connections.h"
+-#include "net/net-tcp-rpc-ext-server.h"
++#include "net/net-crypto-aes.h"
++#include "net/net-events.h"
+ #include "net/net-tcp-connections.h"
++#include "net/net-tcp-rpc-ext-server.h"
+ #include "net/net-thread.h"
+ 
+-#include "rpc-const.h"
+-
+-#include "net/net-crypto-aes.h"
+-//#include "net/net-config.h"
+-
+ #include "vv/vv-io.h"
++
+ /*
+  *
+  *                EXTERNAL RPC SERVER INTERFACE
+@@ -100,6 +98,125 @@ struct tcp_rpc_server_functions default_tcp_rpc_ext_server = {
+ };
+ */
+ 
++#define MAX_TLS_SERVER_EXTENSIONS 3
++static int tls_server_extensions[MAX_TLS_SERVER_EXTENSIONS + 1] = {0x33, 0x2b, -1};
++
++int get_tls_server_hello_encrypted_size() {
++  int r = rand();
++  return 2509 + ((r >> 1) & 1) - (r & 1);
++}
++
++struct client_random {
++  unsigned char random[16];
++  struct client_random *next_by_time;
++  struct client_random *next_by_hash;
++  int time;
++};
++
++#define RANDOM_HASH_BITS 14
++static struct client_random *client_randoms[1 << RANDOM_HASH_BITS];
++
++static struct client_random *first_client_random;
++static struct client_random *last_client_random;
++
++static struct client_random **get_bucket(unsigned char random[16]) {
++  int i = RANDOM_HASH_BITS;
++  int pos = 0;
++  int id = 0;
++  while (i > 0) {
++    int bits = i < 8 ? i : 8;
++    id = (id << bits) | (random[pos++] & ((1 << bits) - 1));
++    i -= bits;
++  }
++  assert (0 <= id && id < (1 << RANDOM_HASH_BITS));
++  return client_randoms + id;
++}
++
++static int have_client_random (unsigned char random[16]) {
++  struct client_random *cur = *get_bucket (random);
++  while (cur != NULL) {
++    if (memcmp (random, cur->random, 16) == 0) {
++      return 1;
++    }
++    cur = cur->next_by_hash;
++  }
++  return 0;
++}
++
++static void add_client_random (unsigned char random[16]) {
++  struct client_random *entry = malloc (sizeof (struct client_random));
++  memcpy (entry->random, random, 16);
++  entry->time = now;
++  entry->next_by_time = NULL;
++  if (last_client_random == NULL) {
++    assert (first_client_random == NULL);
++    first_client_random = last_client_random = entry;
++  } else {
++    last_client_random->next_by_time = entry;
++    last_client_random = entry;
++  }
++
++  struct client_random **bucket = get_bucket (random);
++  entry->next_by_hash = *bucket;
++  *bucket = entry;
++}
++
++#define MAX_CLIENT_RANDOM_CACHE_TIME 2 * 86400
++
++static void delete_old_client_randoms() {
++  while (first_client_random != last_client_random) {
++    assert (first_client_random != NULL);
++    if (first_client_random->time > now - MAX_CLIENT_RANDOM_CACHE_TIME) {
++      return;
++    }
++
++    struct client_random *entry = first_client_random;
++    assert (entry->next_by_hash == NULL);
++
++    first_client_random = first_client_random->next_by_time;
++
++    struct client_random **cur = get_bucket (entry->random);
++    while (*cur != entry) {
++      cur = &(*cur)->next_by_hash;
++    }
++    *cur = NULL;
++
++    free (entry);
++  }
++}
++
++static int is_allowed_timestamp (int timestamp) {
++  if (timestamp > now + 3) {
++    // do not allow timestamps in the future
++    // after time synchronization client should always have time in the past
++    vkprintf (1, "Disallow request with timestamp %d from the future\n", timestamp);
++    return 0;
++  }
++
++  // first_client_random->time is an exact time when corresponding request was received
++  // if the timestamp is bigger than (first_client_random->time + 3), then the current request could be accepted
++  // only after the request with first_client_random, so the client random still must be cached
++  // if the request wasn't accepted, then the client_random still will be cached for MAX_CLIENT_RANDOM_CACHE_TIME seconds,
++  // so we can miss duplicate request only after a lot of time has passed
++  if (first_client_random != NULL && timestamp > first_client_random->time + 3) {
++    vkprintf (1, "Allow new request with timestamp %d\n", timestamp);
++    return 1;
++  }
++
++  // allow all requests with timestamp recently in past, regardless of ability to check repeating client random
++  // the allowed error must be big enough to allow requests after time synchronization
++  const int MAX_ALLOWED_TIMESTAMP_ERROR = 10 * 60;
++  if (timestamp > now - MAX_ALLOWED_TIMESTAMP_ERROR) {
++    // this can happen only first (MAX_ALLOWED_TIMESTAMP_ERROR + 3) sceonds after first_client_random->time
++    vkprintf (1, "Allow recent request with timestamp %d without full check for client random duplication\n", timestamp);
++    return 1;
++  }
++
++  // the request is too old to check client random, do not allow it to force client to synchronize it's time
++  vkprintf (1, "Disallow too old request with timestamp %d\n", timestamp);
++  return 0;
++}
++
+ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+   struct tcp_rpc_data *D = TCP_RPC_DATA (C);
+   if (D->crypto_flags & RPCF_COMPACT_OFF) {
+@@ -124,7 +241,6 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+     }
+ 
+     int min_len = (D->flags & RPC_F_MEDIUM) ? 4 : 1;
+-
+     if (len < min_len + 8) {
+       return min_len + 8 - len;
+     }
+@@ -163,10 +279,145 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         vkprintf (1, "HTTP type\n");
+         return tcp_rpcs_parse_execute (C);
+       }
++#endif
++
++      // fake tls
++      if (c->flags & C_IS_TLS) {
++        if (len < 11) {
++          return 11 - len;
++        }
++
++        vkprintf (1, "Established TLS connection\n");
++        unsigned char header[11];
++        assert (rwm_fetch_lookup (&c->in, header, 11) == 11);
++        if (memcmp (header, "\x14\x03\x03\x00\x01\x01\x17\x03\x03", 9) != 0) {
++          vkprintf (1, "error while parsing packet: bad client dummy ChangeCipherSpec\n");
++          fail_connection (C, -1);
++          return 0;
++        }
++
++        min_len = 11 + 256 * header[9] + header[10];
++        if (len < min_len) {
++          vkprintf (2, "Need %d bytes, but have only %d\n", min_len, len);
++          return min_len - len;
++        }
++
++        assert (rwm_skip_data (&c->in, 11) == 11);
++        len -= 11;
++        c->left_tls_packet_length = 256 * header[9] + header[10]; // store left length of current TLS packet in extra_int3
++        vkprintf (2, "Receive first TLS packet of length %d\n", c->left_tls_packet_length);
++
++        if (c->left_tls_packet_length < 64) {
++          vkprintf (1, "error while parsing packet: too short first TLS packet: %d\n", c->left_tls_packet_length);
++          fail_connection (C, -1);
++          return 0;
++        }
++        // now len >= c->left_tls_packet_length >= 64
++
++        assert (rwm_fetch_lookup (&c->in, &packet_len, 4) == 4);
++
++        c->left_tls_packet_length -= 64; // skip header length
++      } else if (packet_len == *(int *)"\x16\x03\x01\x02" && ext_secret_cnt > 0) {
++        unsigned char header[5];
++        assert (rwm_fetch_lookup (&c->in, header, 5) == 5);
++        min_len = 5 + 256 * header[3] + header[4];
++        if (len < min_len) {
++          return min_len - len;
++        }
++        if (len > min_len) {
++          vkprintf (1, "Too much data in ClientHello, receive %d instead of %d\n", len, min_len);
++          return (-1 << 28);
++        }
++
++        vkprintf (1, "TLS type\n");
++
++        unsigned char client_hello[len]; // VLA
++        assert (rwm_fetch_lookup (&c->in, client_hello, len) == len);
++
++        unsigned char client_random[32];
++        memcpy (client_random, client_hello + 11, 32);
++        memset (client_hello + 11, '\0', 32);
++
++        if (have_client_random (client_random)) {
++          vkprintf (1, "Receive again request with the same client random\n");
++          return (-1 << 28);
++        }
++        add_client_random (client_random);
++        delete_old_client_randoms();
++
++        unsigned char expected_random[32];
++        int secret_id;
++        for (secret_id = 0; secret_id < ext_secret_cnt; secret_id++) {
++          sha256_hmac (ext_secret[secret_id], 16, client_hello, len, expected_random);
++          if (memcmp (expected_random, client_random, 28) == 0) {
++            break;
++          }
++        }
++        if (secret_id == ext_secret_cnt) {
++          vkprintf (1, "Receive request with unmatched client random\n");
++          return (-1 << 28);
++        }
++        int timestamp = *(int *)(expected_random + 28) ^ *(int *)(client_random + 28);
++        if (!is_allowed_timestamp (timestamp)) {
++          return (-1 << 28);
++        }
++
++        assert (rwm_skip_data (&c->in, len) == len);
++        c->flags |= C_IS_TLS;
++        c->left_tls_packet_length = -1;
++
++        int encrypted_size = get_tls_server_hello_encrypted_size();
++        int response_size = 127 + 6 + 5 + encrypted_size;
++        unsigned char *buffer = malloc (32 + response_size);
++        assert (buffer != NULL);
++        memcpy (buffer, client_random, 32);
++        unsigned char *response_buffer = buffer + 32;
++        memcpy (response_buffer, "\x16\x03\x03\x00\x7a\x02\x00\x00\x76\x03\x03", 11);
++        memset (response_buffer + 11, '\0', 32);
++        response_buffer[43] = '\x20';
++        memcpy (response_buffer + 44, client_random, 32);
++        memcpy (response_buffer + 76, "\x13\x01\x00\x00\x2e", 5);
++        int i;
++        int pos = 81;
++        for (i = 0; tls_server_extensions[i] != -1; i++) {
++          if (tls_server_extensions[i] == 0x33) {
++            assert (pos + 40 <= response_size);
++            memcpy (response_buffer + pos, "\x00\x33\x00\x24\x00\x1d\x00\x20", 8);
++            RAND_bytes (response_buffer + pos + 8, 32);
++            pos += 40;
++          } else if (tls_server_extensions[i] == 0x2b) {
++            assert (pos + 5 <= response_size);
++            memcpy (response_buffer + pos, "\x00\x2b\x00\x02\x03\x04", 6);
++            pos += 6;
++          } else {
++            assert (0);
++          }
++        }
++        assert (pos == 127);
++        memcpy (response_buffer + 127, "\x14\x03\x03\x00\x01\x01\x17\x03\x03", 9);
++        pos += 9;
++        response_buffer[pos++] = encrypted_size / 256;
++        response_buffer[pos++] = encrypted_size % 256;
++        assert (pos + encrypted_size == response_size);
++        RAND_bytes (response_buffer + pos, encrypted_size);
++
++        unsigned char server_random[32];
++        sha256_hmac (ext_secret[secret_id], 16, buffer, 32 + response_size, server_random);
++        memcpy (response_buffer + 11, server_random, 32);
++
++        struct raw_message *m = calloc (sizeof (struct raw_message), 1);
++        rwm_create (m, response_buffer, response_size);
++        mpq_push_w (c->out_queue, m, 0);
++        job_signal (JOB_REF_CREATE_PASS (C), JS_RUN);
++
++        free (buffer);
++        return 11; // waiting for dummy ChangeCipherSpec and first packet
++      }
+ 
++#if __ALLOW_UNOBFS__
+       int tmp[2];
+       assert (rwm_fetch_lookup (&c->in, &tmp, 8) == 8);
+-      if (!tmp[1]) {
++      if (!tmp[1] && !(c->flags & C_IS_TLS)) {
+         D->crypto_flags |= RPCF_COMPACT_OFF;
+         vkprintf (1, "Long type\n");
+         return tcp_rpcs_parse_execute (C);
+@@ -174,6 +425,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ #endif
+ 
+       if (len < 64) {
++        assert (!(c->flags & C_IS_TLS));
+ #if __ALLOW_UNOBFS__
+         vkprintf (1, "random 64-byte header: first 0x%08x 0x%08x, need %d more bytes to distinguish\n", tmp[0], tmp[1], 64 - len);
+ #else
+diff --git a/net/net-tcp-rpc-server.c b/net/net-tcp-rpc-server.c
+index 167deab..ba1f14f 100644
+--- a/net/net-tcp-rpc-server.c
++++ b/net/net-tcp-rpc-server.c
+@@ -547,9 +547,6 @@ int tcp_rpcs_init_fake_crypto (connection_job_t c) {
+   return 1;
+ }
+ 
+-#include "net/net-crypto-aes.h"
+-#include "net/net-config.h"
+-
+ int tcp_rpcs_default_check_perm (connection_job_t C) {
+   return RPCF_ALLOW_ENC | RPCF_REQ_DH | tcp_get_default_rpc_flags();
+ }
+
+commit b2777943be9d5be386609234f6f175452e105cb5
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-07 03:51:38 +0300
+
+    Automatically emulate TLS response from the specified domain.
+---
+ mtproto/mtproto-proxy.c      |  23 +-
+ net/net-tcp-rpc-ext-server.c | 518 ++++++++++++++++++++++++++++++++++++++++++-
+ net/net-tcp-rpc-ext-server.h |   5 +
+ 3 files changed, 534 insertions(+), 12 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index 718c6b2..fae21fd 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -2076,6 +2076,8 @@ void cron (void) {
+ int sfd;
+ int http_ports_num;
+ int http_sfd[MAX_HTTP_LISTEN_PORTS], http_port[MAX_HTTP_LISTEN_PORTS];
++static int domain_count;
++static int secret_count;
+ 
+ // static double next_create_outbound;
+ // int outbound_connections_per_second = DEFAULT_OUTBOUND_CONNECTION_CREATION_RATE;
+@@ -2180,6 +2182,10 @@ int f_parse_option (int val) {
+     engine_set_http_fallback (&ct_http_server, &http_methods_stats);
+     mtproto_front_functions.flags &= ~ENGINE_NO_PORT;
+     break;
++  case 'D':
++    tcp_rpc_add_proxy_domain (optarg);
++    domain_count++;
++    break;
+   case 'S':
+   case 'P':
+     {
+@@ -2209,6 +2215,7 @@ int f_parse_option (int val) {
+       }
+       if (val == 'S') {
+ 	tcp_rpcs_set_ext_secret (secret);
++	secret_count++;
+       } else {
+ 	memcpy (proxy_tag, secret, sizeof (proxy_tag));
+ 	proxy_tag_set = 1;
+@@ -2225,6 +2232,7 @@ void mtfront_prepare_parse_options (void) {
+   parse_option ("http-stats", no_argument, 0, 2000, "allow http server to answer on stats queries");
+   parse_option ("mtproto-secret", required_argument, 0, 'S', "16-byte secret in hex mode");
+   parse_option ("proxy-tag", required_argument, 0, 'P', "16-byte proxy tag in hex mode to be passed along with all forwarded queries");
++  parse_option ("domain", required_argument, 0, 'D', "domain to which all requests unrecognized as TLS-transport requests will be proxied. If specified, value of 'slaves' option is ignored");
+   parse_option ("max-special-connections", required_argument, 0, 'C', "sets maximal number of accepted client connections per worker");
+   parse_option ("window-clamp", required_argument, 0, 'W', "sets window clamp for client TCP connections");
+   parse_option ("http-ports", required_argument, 0, 'H', "comma-separated list of client (HTTP) ports to listen");
+@@ -2255,12 +2263,25 @@ void mtfront_pre_init (void) {
+ 
+   vkprintf (1, "config loaded!\n");
+ 
++  if (domain_count) {
++    tcp_rpc_init_proxy_domains();
++
++    if (workers) {
++      kprintf ("Workers can't be used when a domain for TLS transport is specified");
++      workers = 0;
++    }
++    if (secret_count == 0) {
++      kprintf ("You must specify at least one mtproto-secret to use when using TLS transport");
++      exit (2);
++    }
++  }
++
+   int i, enable_ipv6 = engine_check_ipv6_enabled () ? SM_IPV6 : 0;
+ 
+   for (i = 0; i < http_ports_num; i++) {
+     http_sfd[i] = server_socket (http_port[i], engine_state->settings_addr, engine_get_backlog (), enable_ipv6);
+     if (http_sfd[i] < 0) {
+-      fprintf (stderr, "cannot open http/tcp server socket at port %d: %m\n", http_port[i]);
++      kprintf ("cannot open http/tcp server socket at port %d: %m\n", http_port[i]);
+       exit (1);
+     }
+   }
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 5efeb79..4e8461d 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -27,6 +27,7 @@
+ #define        _FILE_OFFSET_BITS        64
+ 
+ #include <assert.h>
++#include <errno.h>
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -37,6 +38,7 @@
+ 
+ #include "common/kprintf.h"
+ #include "common/precise-time.h"
++#include "common/resolver.h"
+ #include "common/rpc-const.h"
+ #include "common/sha256.h"
+ #include "net/net-connections.h"
+@@ -48,6 +50,14 @@
+ 
+ #include "vv/vv-io.h"
+ 
++#include <arpa/inet.h>
++#include <fcntl.h>
++#include <netinet/in.h>
++#include <sys/select.h>
++#include <sys/socket.h>
++#include <sys/types.h>
++#include <unistd.h>
++
+ /*
+  *
+  *                EXTERNAL RPC SERVER INTERFACE
+@@ -80,7 +90,7 @@ int tcp_rpcs_default_execute (connection_job_t c, int op, struct raw_message *ms
+ static unsigned char ext_secret[16][16];
+ static int ext_secret_cnt = 0;
+ 
+-void tcp_rpcs_set_ext_secret(unsigned char secret[16]) {
++void tcp_rpcs_set_ext_secret (unsigned char secret[16]) {
+   assert (ext_secret_cnt < 16);
+   memcpy (ext_secret[ext_secret_cnt ++], secret, 16);
+ }
+@@ -98,12 +108,482 @@ struct tcp_rpc_server_functions default_tcp_rpc_ext_server = {
+ };
+ */
+ 
+-#define MAX_TLS_SERVER_EXTENSIONS 3
+-static int tls_server_extensions[MAX_TLS_SERVER_EXTENSIONS + 1] = {0x33, 0x2b, -1};
++static int allow_only_tls;
++
++struct domain_info {
++  const char *domain;
++  short server_hello_encrypted_size;
++  char use_random_encrypted_size;
++  char is_reversed_extension_order;
++};
++
++static struct domain_info domain;
++
++static int get_domain_server_hello_encrypted_size (const struct domain_info *domain) {
++  if (domain->use_random_encrypted_size) {
++    int r = rand();
++    return domain->server_hello_encrypted_size + ((r >> 1) & 1) - (r & 1);
++  } else {
++    return domain->server_hello_encrypted_size;
++  }
++}
++
++#define TLS_REQUEST_LENGTH 517
++
++static void add_string (unsigned char *str, int *pos, const char *data, int data_len) {
++  assert (*pos + data_len <= TLS_REQUEST_LENGTH);
++  memcpy (str + (*pos), data, data_len);
++  (*pos) += data_len;
++}
++
++static void add_random (unsigned char *str, int *pos, int random_len) {
++  assert (*pos + random_len <= TLS_REQUEST_LENGTH);
++  assert (RAND_bytes (str + (*pos), random_len) == 1);
++  (*pos) += random_len;
++}
++
++static void add_length (unsigned char *str, int *pos, int length) {
++  assert (*pos + 2 <= TLS_REQUEST_LENGTH);
++  str[*pos + 0] = (unsigned char)(length / 256);
++  str[*pos + 1] = (unsigned char)(length % 256);
++  (*pos) += 2;
++}
++
++static void add_grease (unsigned char *str, int *pos, const unsigned char *greases, int num) {
++  assert (*pos + 2 <= TLS_REQUEST_LENGTH);
++  str[*pos + 0] = greases[num];
++  str[*pos + 1] = greases[num];
++  (*pos) += 2;
++}
++
++static unsigned char *create_request (const char *domain) {
++  unsigned char *result = malloc (TLS_REQUEST_LENGTH);
++  int pos = 0;
++
++#define MAX_GREASE 7
++  unsigned char greases[MAX_GREASE];
++  assert (RAND_bytes (greases, MAX_GREASE) == 1);
++  int i;
++  for (i = 0; i < MAX_GREASE; i++) {
++    greases[i] = (unsigned char)((greases[i] & 0xF0) + 0x0A);
++  }
++  for (i = 1; i < MAX_GREASE; i += 2) {
++    if (greases[i] == greases[i - 1]) {
++      greases[i] = (unsigned char)(0x10 ^ greases[i]);
++    }
++  }
++#undef MAX_GREASE
++
++  int domain_length = (int)strlen (domain);
++
++  add_string (result, &pos, "\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03", 11);
++  add_random (result, &pos, 32);
++  add_string (result, &pos, "\x20", 1);
++  add_random (result, &pos, 32);
++  add_string (result, &pos, "\x00\x22", 2);
++  add_grease (result, &pos, greases, 0);
++  add_string (result, &pos, "\x13\x01\x13\x02\x13\x03\xc0\x2b\xc0\x2f\xc0\x2c\xc0\x30\xcc\xa9\xcc\xa8"
++                            "\xc0\x13\xc0\x14\x00\x9c\x00\x9d\x00\x2f\x00\x35\x00\x0a\x01\x00\x01\x91", 36);
++  add_grease (result, &pos, greases, 2);
++  add_string (result, &pos, "\x00\x00\x00\x00", 4);
++  add_length (result, &pos, domain_length + 5);
++  add_length (result, &pos, domain_length + 3);
++  add_string (result, &pos, "\x00", 1);
++  add_length (result, &pos, domain_length);
++  add_string (result, &pos, domain, domain_length);
++  add_string (result, &pos, "\x00\x17\x00\x00\xff\x01\x00\x01\x00\x00\x0a\x00\x0a\x00\x08", 15);
++  add_grease (result, &pos, greases, 4);
++  add_string (result, &pos, "\x00\x1d\x00\x17\x00\x18\x00\x0b\x00\x02\x01\x00\x00\x23\x00\x00\x00\x10"
++                            "\x00\x0e\x00\x0c\x02\x68\x32\x08\x68\x74\x74\x70\x2f\x31\x2e\x31\x00\x05"
++                            "\x00\x05\x01\x00\x00\x00\x00\x00\x0d\x00\x14\x00\x12\x04\x03\x08\x04\x04"
++                            "\x01\x05\x03\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01\x00\x12\x00\x00\x00"
++                            "\x33\x00\x2b\x00\x29", 77);
++  add_grease (result, &pos, greases, 4);
++  add_string (result, &pos, "\x00\x01\x00\x00\x1d\x00\x20", 7);
++  add_random (result, &pos, 32);
++  add_string (result, &pos, "\x00\x2d\x00\x02\x01\x01\x00\x2b\x00\x0b\x0a", 11);
++  add_grease (result, &pos, greases, 6);
++  add_string (result, &pos, "\x03\x04\x03\x03\x03\x02\x03\x01\x00\x1b\x00\x03\x02\x00\x02", 15);
++  add_grease (result, &pos, greases, 3);
++  add_string (result, &pos, "\x00\x01\x00\x00\x15", 5);
++
++  int padding_length = TLS_REQUEST_LENGTH - 2 - pos;
++  assert (padding_length >= 0);
++  add_length (result, &pos, padding_length);
++  memset (result + pos, 0, TLS_REQUEST_LENGTH - pos);
++  return result;
++}
++
++static int read_length (const unsigned char *response, int *pos) {
++  *pos += 2;
++  return response[*pos - 2] * 256 + response[*pos - 1];
++}
++
++static int check_response (const unsigned char *response, int len, const unsigned char *request_session_id, int *is_reversed_extension_order, int *encrypted_application_data_length) {
++#define FAIL(error) {                                               \
++    kprintf ("Failed to parse upstream TLS response: " error "\n"); \
++    return 0;                                                       \
++  }
++#define CHECK_LENGTH(length)  \
++  if (pos + (length) > len) { \
++    FAIL("Too short");        \
++  }
++#define EXPECT_STR(pos, str, error)                          \
++  if (memcmp (response + pos, str, sizeof (str) - 1) != 0) { \
++    FAIL(error);                                             \
++  }
++
++  int pos = 0;
++  CHECK_LENGTH(3);
++  EXPECT_STR(0, "\x16\x03\x03", "Non-TLS response or TLS <= 1.1");
++  pos += 3;
++  CHECK_LENGTH(2);
++  int server_hello_length = read_length (response, &pos);
++  if (server_hello_length <= 39) {
++    FAIL("Receive too short ServerHello");
++  }
++  CHECK_LENGTH(server_hello_length);
++
++  EXPECT_STR(5, "\x02\x00", "Non-TLS response 2");
++  EXPECT_STR(9, "\x03\x03", "Non-TLS response 3");
++
++  if (memcmp (response + 11, "\xcf\x21\xad\x74\xe5\x9a\x61\x11\xbe\x1d\x8c\x02\x1e\x65\xb8\x91"
++                             "\xc2\xa2\x11\x16\x7a\xbb\x8c\x5e\x07\x9e\x09\xe2\xc8\xa8\x33\x9c", 32) == 0) {
++    FAIL("TLS 1.3 servers returning HelloRetryRequest are not supprted");
++  }
++  if (response[43] == '\x00') {
++    FAIL("TLS <= 1.2: empty session_id");
++  }
++  EXPECT_STR(43, "\x20", "Non-TLS response 4");
++  if (server_hello_length <= 75) {
++    FAIL("Receive too short server hello 2");
++  }
++  if (memcmp (response + 44, request_session_id, 32) != 0) {
++    FAIL("TLS <= 1.2: expected mirrored session_id");
++  }
++  EXPECT_STR(76, "\x13\x01\x00", "TLS <= 1.2: expected x25519 as a chosen cipher");
++  pos += 74;
++  int extensions_length = read_length (response, &pos);
++  if (extensions_length + 76 != server_hello_length) {
++    FAIL("Receive wrong extensions length");
++  }
++  int sum = 0;
++  while (pos < 5 + server_hello_length - 4) {
++    int extension_id = read_length (response, &pos);
++    if (extension_id != 0x33 && extension_id != 0x2b) {
++      FAIL("Receive unexpected extension");
++    }
++    if (pos == 83) {
++      *is_reversed_extension_order = (extension_id == 0x2b);
++    }
++    sum += extension_id;
++
++    int extension_length = read_length (response, &pos);
++    if (pos + extension_length > 5 + server_hello_length) {
++      FAIL("Receive wrong extension length");
++    }
++    if (extension_length != (extension_id == 0x33 ? 36 : 2)) {
++      FAIL("Unexpected extension length");
++    }
++    pos += extension_length;
++  }
++  if (sum != 0x33 + 0x2b) {
++    FAIL("Receive duplicate extensions");
++  }
++  if (pos != 5 + server_hello_length) {
++    FAIL("Receive wrong extensions list");
++  }
++
++  CHECK_LENGTH(9);
++  EXPECT_STR(pos, "\x14\x03\x03\x00\x01\x01", "Expected dummy ChangeCipherSpec");
++  EXPECT_STR(pos + 6, "\x17\x03\x03", "Expected encrypted application data");
++  pos += 9;
++
++  CHECK_LENGTH(2);
++  *encrypted_application_data_length = read_length (response, &pos);
++  if (*encrypted_application_data_length == 0) {
++    FAIL("Receive empty encrypted application data");
++  }
++
++  CHECK_LENGTH(*encrypted_application_data_length);
++  pos += *encrypted_application_data_length;
++  if (pos != len) {
++    FAIL("Too long");
++  }
++#undef FAIL
++#undef CHECK_LENGTH
++#undef EXPECT_STR
++
++  return 1;
++}
++
++static int update_domain_info (struct domain_info *info) {
++  const char *domain = info->domain;
++  struct hostent *host = kdb_gethostbyname (domain);
++  if (host == NULL || host->h_addr == NULL) {
++    kprintf ("Failed to resolve host %s\n", domain);
++    return 0;
++  }
++  assert (host->h_addrtype == AF_INET || host->h_addrtype == AF_INET6);
++
++  fd_set read_fd;
++  fd_set write_fd;
++  fd_set except_fd;
++  FD_ZERO(&read_fd);
++  FD_ZERO(&write_fd);
++  FD_ZERO(&except_fd);
++
++#define TRIES 20
++  int sockets[TRIES];
++  int i;
++  for (i = 0; i < TRIES; i++) {
++    sockets[i] = socket (host->h_addrtype, SOCK_STREAM, IPPROTO_TCP);
++    if (sockets[i] < 0) {
++      kprintf ("Failed to open socket for %s: %s\n", domain, strerror (errno));
++      return 0;
++    }
++    if (fcntl (sockets[i], F_SETFL, O_NONBLOCK) == -1) {
++      kprintf ("Failed to make socket non-blocking: %s\n", strerror (errno));
++      return 0;
++    }
++
++    int e_connect;
++    if (host->h_addrtype == AF_INET) {
++      struct sockaddr_in addr;
++      memset (&addr, 0, sizeof (addr));
++      addr.sin_family = AF_INET;
++      addr.sin_port = htons (443);
++      memcpy (&addr.sin_addr, host->h_addr, sizeof (struct in_addr));
++
++      e_connect = connect (sockets[i], &addr, sizeof (addr));
++    } else {
++      struct sockaddr_in6 addr;
++      memset (&addr, 0, sizeof (addr));
++      addr.sin6_family = AF_INET6;
++      addr.sin6_port = htons (443);
++      memcpy (&addr.sin6_addr, host->h_addr, sizeof (struct in6_addr));
++
++      e_connect = connect (sockets[i], &addr, sizeof (addr));
++    }
++
++    if (e_connect == -1 && errno != EINPROGRESS) {
++      kprintf ("Failed to connect to %s: %s\n", domain, strerror (errno));
++      return 0;
++    }
++  }
++
++  unsigned char *requests[TRIES];
++  for (i = 0; i < TRIES; i++) {
++    requests[i] = create_request (domain);
++  }
++  unsigned char *responses[TRIES] = {};
++  int response_len[TRIES] = {};
++  int is_encrypted_application_data_length_read[TRIES] = {};
++
++  int finished_count = 0;
++  int is_written[TRIES] = {};
++  int is_finished[TRIES] = {};
++  int read_pos[TRIES] = {};
++  double finish_time = get_utime_monotonic() + 5.0;
++  int encrypted_application_data_length_min = 0;
++  int encrypted_application_data_length_sum = 0;
++  int encrypted_application_data_length_max = 0;
++  int is_reversed_extension_order_min = 0;
++  int is_reversed_extension_order_max = 0;
++  int have_error = 0;
++  while (get_utime_monotonic() < finish_time && finished_count < TRIES && !have_error) {
++    struct timeval timeout_data;
++    timeout_data.tv_sec = (int)(finish_time - precise_now + 1);
++    timeout_data.tv_usec = 0;
++
++    int max_fd = 0;
++    for (i = 0; i < TRIES; i++) {
++      if (is_finished[i]) {
++        continue;
++      }
++      if (is_written[i]) {
++        FD_SET(sockets[i], &read_fd);
++        FD_CLR(sockets[i], &write_fd);
++      } else {
++        FD_CLR(sockets[i], &read_fd);
++        FD_SET(sockets[i], &write_fd);
++      }
++      FD_SET(sockets[i], &except_fd);
++      if (sockets[i] > max_fd) {
++        max_fd = sockets[i];
++      }
++    }
++
++    select (max_fd + 1, &read_fd, &write_fd, &except_fd, &timeout_data);
++
++    for (i = 0; i < TRIES; i++) {
++      if (is_finished[i]) {
++        continue;
++      }
++      if (FD_ISSET(sockets[i], &read_fd)) {
++        assert (is_written[i]);
+ 
+-int get_tls_server_hello_encrypted_size() {
+-  int r = rand();
+-  return 2509 + ((r >> 1) & 1) - (r & 1);
++        unsigned char header[5];
++        if (responses[i] == NULL) {
++          ssize_t read_res = read (sockets[i], header, sizeof (header));
++          if (read_res != sizeof (header)) {
++            kprintf ("Failed to read response header for checking domain %s: %s\n", domain, read_res == -1 ? strerror (errno) : "Read less bytes than expected");
++            have_error = 1;
++            break;
++          }
++          if (memcmp (header, "\x16\x03\x03", 3) != 0) {
++            kprintf ("Non-TLS response, or TLS <= 1.1, or unsuccessful request to %s: receive \\x%02x\\x%02x\\x%02x\\x%02x\\x%02x...\n",
++                     domain, header[0], header[1], header[2], header[3], header[4]);
++            have_error = 1;
++            break;
++          }
++          response_len[i] = 5 + header[3] * 256 + header[4] + 6 + 5;
++          responses[i] = malloc (response_len[i]);
++          memcpy (responses[i], header, sizeof (header));
++          read_pos[i] = 5;
++        } else {
++          ssize_t read_res = read (sockets[i], responses[i] + read_pos[i], response_len[i] - read_pos[i]);
++          if (read_res == -1) {
++            kprintf ("Failed to read response from %s: %s\n", domain, strerror (errno));
++            have_error = 1;
++            break;
++          }
++          read_pos[i] += read_res;
++
++          if (read_pos[i] == response_len[i]) {
++            if (!is_encrypted_application_data_length_read[i]) {
++              if (memcmp (responses[i] + response_len[i] - 11, "\x14\x03\x03\x00\x01\x01\x17\x03\x03", 9) != 0) {
++                kprintf ("Not found TLS 1.3 support on domain %s\n", domain);
++                have_error = 1;
++                break;
++              }
++
++              is_encrypted_application_data_length_read[i] = 1;
++              int encrypted_application_data_length = responses[i][response_len[i] - 2] * 256 + responses[i][response_len[i] - 1];
++              response_len[i] += encrypted_application_data_length;
++              unsigned char *new_buffer = realloc (responses[i], response_len[i]);
++              assert (new_buffer != NULL);
++              responses[i] = new_buffer;
++              continue;
++            }
++
++            int is_reversed_extension_order = -1;
++            int encrypted_application_data_length = -1;
++            if (check_response (responses[i], response_len[i], requests[i] + 44, &is_reversed_extension_order, &encrypted_application_data_length)) {
++              assert (is_reversed_extension_order != -1);
++              assert (encrypted_application_data_length != -1);
++              if (finished_count == 0) {
++                is_reversed_extension_order_min = is_reversed_extension_order;
++                is_reversed_extension_order_max = is_reversed_extension_order;
++                encrypted_application_data_length_min = encrypted_application_data_length;
++                encrypted_application_data_length_max = encrypted_application_data_length;
++              } else {
++                if (is_reversed_extension_order < is_reversed_extension_order_min) {
++                  is_reversed_extension_order_min = is_reversed_extension_order;
++                }
++                if (is_reversed_extension_order > is_reversed_extension_order_max) {
++                  is_reversed_extension_order_max = is_reversed_extension_order;
++                }
++                if (encrypted_application_data_length < encrypted_application_data_length_min) {
++                  encrypted_application_data_length_min = encrypted_application_data_length;
++                }
++                if (encrypted_application_data_length > encrypted_application_data_length_max) {
++                  encrypted_application_data_length_max = encrypted_application_data_length;
++                }
++              }
++              encrypted_application_data_length_sum += encrypted_application_data_length;
++
++              FD_CLR(sockets[i], &write_fd);
++              FD_CLR(sockets[i], &read_fd);
++              FD_CLR(sockets[i], &except_fd);
++              is_finished[i] = 1;
++              finished_count++;
++            } else {
++              have_error = 1;
++              break;
++            }
++          }
++        }
++      }
++      if (FD_ISSET(sockets[i], &write_fd)) {
++        assert (!is_written[i]);
++        ssize_t write_res = write (sockets[i], requests[i], TLS_REQUEST_LENGTH);
++        if (write_res != TLS_REQUEST_LENGTH) {
++          kprintf ("Failed to write request for checking domain %s: %s", domain, write_res == -1 ? strerror (errno) : "Written less bytes than expected");
++          have_error = 1;
++          break;
++        }
++        is_written[i] = 1;
++      }
++      if (FD_ISSET(sockets[i], &except_fd)) {
++        kprintf ("Failed to check domain %s: %s\n", domain, strerror (errno));
++        have_error = 1;
++        break;
++      }
++    }
++  }
++
++  for (i = 0; i < TRIES; i++) {
++    close (sockets[i]);
++    free (requests[i]);
++    free (responses[i]);
++  }
++
++  if (finished_count != TRIES) {
++    if (!have_error) {
++      kprintf ("Failed to check domain %s in 5 seconds\n", domain);
++    }
++    return 0;
++  }
++
++  if (is_reversed_extension_order_min != is_reversed_extension_order_max) {
++    kprintf ("Upstream server %s uses non-deterministic extension order\n", domain);
++  }
++
++  info->is_reversed_extension_order = (char)is_reversed_extension_order_min;
++
++  if (encrypted_application_data_length_min == encrypted_application_data_length_max) {
++    info->server_hello_encrypted_size = encrypted_application_data_length_min;
++    info->use_random_encrypted_size = 0;
++  } else if (encrypted_application_data_length_max - encrypted_application_data_length_min <= 3) {
++    info->server_hello_encrypted_size = encrypted_application_data_length_max - 1;
++    info->use_random_encrypted_size = 1;
++  } else {
++    kprintf ("Unrecognized encrypted application data length pattern with min = %d, max = %d, mean = %.3lf\n",
++             encrypted_application_data_length_min, encrypted_application_data_length_max, encrypted_application_data_length_sum * 1.0 / TRIES);
++    info->server_hello_encrypted_size = (int)(encrypted_application_data_length_sum * 1.0 / TRIES + 0.5);
++    info->use_random_encrypted_size = 1;
++  }
++
++  vkprintf (1, "Successfully checked domain %s in %.3lf seconds: is_reversed_extension_order = %d, server_hello_encrypted_size = %d, use_random_encrypted_size = %d\n",
++            domain, get_utime_monotonic() - (finish_time - 5.0), info->is_reversed_extension_order, info->server_hello_encrypted_size, info->use_random_encrypted_size);
++  if (info->is_reversed_extension_order && info->server_hello_encrypted_size <= 1250) {
++    kprintf ("Multiple encrypted client data packets are unsupported, so handshake with %s will not be fully emulated\n", domain);
++  }
++  return 1;
++#undef TRIES
++}
++
++#undef TLS_REQUEST_LENGTH
++
++void tcp_rpc_add_proxy_domain (const char *domain_url) {
++  assert (domain_url != NULL);
++  allow_only_tls = 1;
++
++  domain.domain = strdup (domain_url);
++}
++
++void tcp_rpc_init_proxy_domains() {
++  if (domain.domain == NULL) {
++    return;
++  }
++
++  if (!update_domain_info (&domain)) {
++    kprintf ("Failed to update response data about %s, so default response settings wiil be used\n", domain.domain);
++    domain.is_reversed_extension_order = 0;
++    domain.use_random_encrypted_size = 1;
++    domain.server_hello_encrypted_size = 2500 + rand() % 1120;
++  }
+ }
+ 
+ struct client_random {
+@@ -119,7 +599,7 @@ static struct client_random *client_randoms[1 << RANDOM_HASH_BITS];
+ static struct client_random *first_client_random;
+ static struct client_random *last_client_random;
+ 
+-static struct client_random **get_bucket(unsigned char random[16]) {
++static struct client_random **get_bucket (unsigned char random[16]) {
+   int i = RANDOM_HASH_BITS;
+   int pos = 0;
+   int id = 0;
+@@ -317,7 +797,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         assert (rwm_fetch_lookup (&c->in, &packet_len, 4) == 4);
+ 
+         c->left_tls_packet_length -= 64; // skip header length
+-      } else if (packet_len == *(int *)"\x16\x03\x01\x02" && ext_secret_cnt > 0) {
++      } else if (packet_len == *(int *)"\x16\x03\x01\x02" && ext_secret_cnt > 0 && allow_only_tls) {
+         unsigned char header[5];
+         assert (rwm_fetch_lookup (&c->in, header, 5) == 5);
+         min_len = 5 + 256 * header[3] + header[4];
+@@ -328,6 +808,10 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+           vkprintf (1, "Too much data in ClientHello, receive %d instead of %d\n", len, min_len);
+           return (-1 << 28);
+         }
++        if (len > 1024) {
++          vkprintf (1, "Too big ClientHello: receive %d bytes\n", len);
++          return (-1 << 28);
++        }
+ 
+         vkprintf (1, "TLS type\n");
+ 
+@@ -366,7 +850,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         c->flags |= C_IS_TLS;
+         c->left_tls_packet_length = -1;
+ 
+-        int encrypted_size = get_tls_server_hello_encrypted_size();
++        int encrypted_size = get_domain_server_hello_encrypted_size (&domain);
+         int response_size = 127 + 6 + 5 + encrypted_size;
+         unsigned char *buffer = malloc (32 + response_size);
+         assert (buffer != NULL);
+@@ -377,8 +861,15 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         response_buffer[43] = '\x20';
+         memcpy (response_buffer + 44, client_random, 32);
+         memcpy (response_buffer + 76, "\x13\x01\x00\x00\x2e", 5);
+-        int i;
++
+         int pos = 81;
++        int tls_server_extensions[3] = {0x33, 0x2b, -1};
++        if (domain.is_reversed_extension_order) {
++          int t = tls_server_extensions[0];
++          tls_server_extensions[0] = tls_server_extensions[1];
++          tls_server_extensions[1] = t;
++        }
++        int i;
+         for (i = 0; tls_server_extensions[i] != -1; i++) {
+           if (tls_server_extensions[i] == 0x33) {
+             assert (pos + 40 <= response_size);
+@@ -414,6 +905,11 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         return 11; // waiting for dummy ChangeCipherSpec and first packet
+       }
+ 
++      if (allow_only_tls && !(c->flags & C_IS_TLS)) {
++        vkprintf (1, "Expected TLS-transport\n");
++        return (-1 << 28);
++      }
++
+ #if __ALLOW_UNOBFS__
+       int tmp[2];
+       assert (rwm_fetch_lookup (&c->in, &tmp, 8) == 8);
+@@ -591,7 +1087,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+     }
+ 
+     if (verbosity > 2) {
+-      fprintf (stderr, "received packet from connection %d (length %d, num %d, type %08x)\n", c->fd, packet_len, D->in_packet_num, packet_type);
++      kprintf ("received packet from connection %d (length %d, num %d, type %08x)\n", c->fd, packet_len, D->in_packet_num, packet_type);
+       rwm_dump (&msg);
+     }
+ 
+diff --git a/net/net-tcp-rpc-ext-server.h b/net/net-tcp-rpc-ext-server.h
+index 61e50d6..f1a6740 100644
+--- a/net/net-tcp-rpc-ext-server.h
++++ b/net/net-tcp-rpc-ext-server.h
+@@ -29,4 +29,9 @@ extern conn_type_t ct_tcp_rpc_ext_server;
+ // extern struct tcp_rpc_server_functions default_tcp_rpc_server;
+ 
+ int tcp_rpcs_compact_parse_execute (connection_job_t c);
++
+ void tcp_rpcs_set_ext_secret(unsigned char secret[16]);
++
++void tcp_rpc_add_proxy_domain (const char *domain);
++
++void tcp_rpc_init_proxy_domains();
+
+commit d3479a5ba9315cecd086f4fd13a7714cb7f33a4b
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-07 06:32:34 +0300
+
+    Allow to specify more than one TLS domain and check request SNI.
+---
+ mtproto/mtproto-proxy.c      |   4 +-
+ net/net-tcp-rpc-ext-server.c | 157 ++++++++++++++++++++++++++++++++++---------
+ 2 files changed, 129 insertions(+), 32 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index fae21fd..fc58afb 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -2232,12 +2232,12 @@ void mtfront_prepare_parse_options (void) {
+   parse_option ("http-stats", no_argument, 0, 2000, "allow http server to answer on stats queries");
+   parse_option ("mtproto-secret", required_argument, 0, 'S', "16-byte secret in hex mode");
+   parse_option ("proxy-tag", required_argument, 0, 'P', "16-byte proxy tag in hex mode to be passed along with all forwarded queries");
+-  parse_option ("domain", required_argument, 0, 'D', "domain to which all requests unrecognized as TLS-transport requests will be proxied. If specified, value of 'slaves' option is ignored");
++  parse_option ("domain", required_argument, 0, 'D', "adds allowed domain for TLS-transport mode, disables other transports; can be specified more than once");
+   parse_option ("max-special-connections", required_argument, 0, 'C', "sets maximal number of accepted client connections per worker");
+   parse_option ("window-clamp", required_argument, 0, 'W', "sets window clamp for client TCP connections");
+   parse_option ("http-ports", required_argument, 0, 'H', "comma-separated list of client (HTTP) ports to listen");
+   // parse_option ("outbound-connections-ps", required_argument, 0, 'o', "limits creation rate of outbound connections to mtproto-servers (default %d)", DEFAULT_OUTBOUND_CONNECTION_CREATION_RATE);
+-  parse_option ("slaves", required_argument, 0, 'M', "spawn several slave workers");
++  parse_option ("slaves", required_argument, 0, 'M', "spawn several slave workers; not supported for TLS-transport mode");
+   parse_option ("ping-interval", required_argument, 0, 'T', "sets ping interval in second for local TCP connections (default %.3lf)", PING_INTERVAL);
+ }
+ 
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 4e8461d..4960766 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -115,16 +115,40 @@ struct domain_info {
+   short server_hello_encrypted_size;
+   char use_random_encrypted_size;
+   char is_reversed_extension_order;
++  struct domain_info *next;
+ };
+ 
+-static struct domain_info domain;
++static struct domain_info *default_domain_info;
+ 
+-static int get_domain_server_hello_encrypted_size (const struct domain_info *domain) {
+-  if (domain->use_random_encrypted_size) {
++#define DOMAIN_HASH_MOD 257
++static struct domain_info *domains[DOMAIN_HASH_MOD];
++
++static struct domain_info **get_domain_info_bucket (const char *domain, size_t len) {
++  size_t i;
++  unsigned hash = 0;
++  for (i = 0; i < len; i++) {
++    hash = hash * 239017 + (unsigned char)domain[i];
++  }
++  return domains + hash % DOMAIN_HASH_MOD;
++}
++
++static const struct domain_info *get_domain_info (const char *domain, size_t len) {
++  struct domain_info *info = *get_domain_info_bucket (domain, len);
++  while (info != NULL) {
++    if (strlen (info->domain) == len && memcmp (domain, info->domain, len) == 0) {
++      return info;
++    }
++    info = info->next;
++  }
++  return NULL;
++}
++
++static int get_domain_server_hello_encrypted_size (const struct domain_info *info) {
++  if (info->use_random_encrypted_size) {
+     int r = rand();
+-    return domain->server_hello_encrypted_size + ((r >> 1) & 1) - (r & 1);
++    return info->server_hello_encrypted_size + ((r >> 1) & 1) - (r & 1);
+   } else {
+-    return domain->server_hello_encrypted_size;
++    return info->server_hello_encrypted_size;
+   }
+ }
+ 
+@@ -555,7 +579,7 @@ static int update_domain_info (struct domain_info *info) {
+     info->use_random_encrypted_size = 1;
+   }
+ 
+-  vkprintf (1, "Successfully checked domain %s in %.3lf seconds: is_reversed_extension_order = %d, server_hello_encrypted_size = %d, use_random_encrypted_size = %d\n",
++  vkprintf (0, "Successfully checked domain %s in %.3lf seconds: is_reversed_extension_order = %d, server_hello_encrypted_size = %d, use_random_encrypted_size = %d\n",
+             domain, get_utime_monotonic() - (finish_time - 5.0), info->is_reversed_extension_order, info->server_hello_encrypted_size, info->use_random_encrypted_size);
+   if (info->is_reversed_extension_order && info->server_hello_encrypted_size <= 1250) {
+     kprintf ("Multiple encrypted client data packets are unsupported, so handshake with %s will not be fully emulated\n", domain);
+@@ -566,23 +590,85 @@ static int update_domain_info (struct domain_info *info) {
+ 
+ #undef TLS_REQUEST_LENGTH
+ 
+-void tcp_rpc_add_proxy_domain (const char *domain_url) {
+-  assert (domain_url != NULL);
+-  allow_only_tls = 1;
++static const struct domain_info *get_sni_domain_info (const unsigned char *request, int len) {
++#define CHECK_LENGTH(length)  \
++  if (pos + (length) > len) { \
++    return NULL;              \
++  }
++
++  int pos = 11 + 32 + 1 + 32;
++  CHECK_LENGTH(2);
++  int cipher_suites_length = read_length (request, &pos);
++  CHECK_LENGTH(cipher_suites_length + 4);
++  pos += cipher_suites_length + 4;
++  while (1) {
++    CHECK_LENGTH(4);
++    int extension_id = read_length (request, &pos);
++    int extension_length = read_length (request, &pos);
++    CHECK_LENGTH(extension_length);
++
++    if (extension_id == 0) {
++      // found SNI
++      CHECK_LENGTH(5);
++      int inner_length = read_length (request, &pos);
++      if (inner_length != extension_length - 2) {
++        return NULL;
++      }
++      if (request[pos++] != 0) {
++        return NULL;
++      }
++      int domain_length = read_length (request, &pos);
++      if (domain_length != extension_length - 5) {
++        return NULL;
++      }
++      int i;
++      for (i = 0; i < domain_length; i++) {
++        if (request[pos + i] == 0) {
++          return NULL;
++        }
++      }
++      const struct domain_info *info = get_domain_info ((const char *)(request + pos), domain_length);
++      if (info == NULL) {
++        vkprintf (1, "Receive request for unknown domain %.*s\n", domain_length, request + pos);
++      }
++      return info;
++    }
+ 
+-  domain.domain = strdup (domain_url);
++    pos += extension_length;
++  }
++#undef CHECK_LENGTH
+ }
+ 
+-void tcp_rpc_init_proxy_domains() {
+-  if (domain.domain == NULL) {
+-    return;
++void tcp_rpc_add_proxy_domain (const char *domain) {
++  assert (domain != NULL);
++
++  struct domain_info *info = malloc (sizeof (struct domain_info));
++  info->domain = strdup (domain);
++
++  struct domain_info **bucket = get_domain_info_bucket (domain, strlen (domain));
++  info->next = *bucket;
++  *bucket = info;
++
++  if (!allow_only_tls) {
++    allow_only_tls = 1;
++    default_domain_info = info;
+   }
++}
++
++void tcp_rpc_init_proxy_domains() {
++  int i;
++  for (i = 0; i < DOMAIN_HASH_MOD; i++) {
++    struct domain_info *info = domains[i];
++    while (info != NULL) {
++      if (!update_domain_info (info)) {
++        kprintf ("Failed to update response data about %s, so default response settings wiil be used\n", info->domain);
++        info->is_reversed_extension_order = 0;
++        info->use_random_encrypted_size = 1;
++        info->server_hello_encrypted_size = 2500 + rand() % 1120;
++      }
+ 
+-  if (!update_domain_info (&domain)) {
+-    kprintf ("Failed to update response data about %s, so default response settings wiil be used\n", domain.domain);
+-    domain.is_reversed_extension_order = 0;
+-    domain.use_random_encrypted_size = 1;
+-    domain.server_hello_encrypted_size = 2500 + rand() % 1120;
++      info = info->next;
++    }
+   }
+ }
+ 
+@@ -599,7 +685,7 @@ static struct client_random *client_randoms[1 << RANDOM_HASH_BITS];
+ static struct client_random *first_client_random;
+ static struct client_random *last_client_random;
+ 
+-static struct client_random **get_bucket (unsigned char random[16]) {
++static struct client_random **get_client_random_bucket (unsigned char random[16]) {
+   int i = RANDOM_HASH_BITS;
+   int pos = 0;
+   int id = 0;
+@@ -613,7 +699,7 @@ static struct client_random **get_bucket (unsigned char random[16]) {
+ }
+ 
+ static int have_client_random (unsigned char random[16]) {
+-  struct client_random *cur = *get_bucket (random);
++  struct client_random *cur = *get_client_random_bucket (random);
+   while (cur != NULL) {
+     if (memcmp (random, cur->random, 16) == 0) {
+       return 1;
+@@ -636,7 +722,7 @@ static void add_client_random (unsigned char random[16]) {
+     last_client_random = entry;
+   }
+ 
+-  struct client_random **bucket = get_bucket (random);
++  struct client_random **bucket = get_client_random_bucket (random);
+   entry->next_by_hash = *bucket;
+   *bucket = entry;
+ }
+@@ -655,7 +741,7 @@ static void delete_old_client_randoms() {
+ 
+     first_client_random = first_client_random->next_by_time;
+ 
+-    struct client_random **cur = get_bucket (entry->random);
++    struct client_random **cur = get_client_random_bucket (entry->random);
+     while (*cur != entry) {
+       cur = &(*cur)->next_by_hash;
+     }
+@@ -804,20 +890,27 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         if (len < min_len) {
+           return min_len - len;
+         }
++
++        int read_len = len <= 4096 ? len : 4096;
++        unsigned char client_hello[read_len + 1]; // VLA
++        assert (rwm_fetch_lookup (&c->in, client_hello, read_len) == read_len);
++
++        const struct domain_info *info = get_sni_domain_info (client_hello, read_len);
++        if (info == NULL) {
++          return (-1 << 28);
++        }
++
++        vkprintf (1, "TLS type with domain %s\n", info->domain);
++
+         if (len > min_len) {
+           vkprintf (1, "Too much data in ClientHello, receive %d instead of %d\n", len, min_len);
+           return (-1 << 28);
+         }
+-        if (len > 1024) {
++        if (len != read_len) {
+           vkprintf (1, "Too big ClientHello: receive %d bytes\n", len);
+           return (-1 << 28);
+         }
+ 
+-        vkprintf (1, "TLS type\n");
+-
+-        unsigned char client_hello[len]; // VLA
+-        assert (rwm_fetch_lookup (&c->in, client_hello, len) == len);
+-
+         unsigned char client_random[32];
+         memcpy (client_random, client_hello + 11, 32);
+         memset (client_hello + 11, '\0', 32);
+@@ -850,7 +943,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         c->flags |= C_IS_TLS;
+         c->left_tls_packet_length = -1;
+ 
+-        int encrypted_size = get_domain_server_hello_encrypted_size (&domain);
++        int encrypted_size = get_domain_server_hello_encrypted_size (info);
+         int response_size = 127 + 6 + 5 + encrypted_size;
+         unsigned char *buffer = malloc (32 + response_size);
+         assert (buffer != NULL);
+@@ -864,7 +957,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ 
+         int pos = 81;
+         int tls_server_extensions[3] = {0x33, 0x2b, -1};
+-        if (domain.is_reversed_extension_order) {
++        if (info->is_reversed_extension_order) {
+           int t = tls_server_extensions[0];
+           tls_server_extensions[0] = tls_server_extensions[1];
+           tls_server_extensions[1] = t;
+@@ -972,6 +1065,10 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         unsigned tag = *(unsigned *)(random_header + 56);
+ 
+         if (tag == 0xdddddddd || tag == 0xeeeeeeee || tag == 0xefefefef) {
++          if (tag != 0xdddddddd && allow_only_tls) {
++            vkprintf (1, "Expected random padding mode\n");
++            return (-1 << 28);
++          }
+           assert (rwm_skip_data (&c->in, 64) == 64);
+           rwm_union (&c->in_u, &c->in);
+           rwm_init (&c->in, 0);
+
+commit febe7c9e5d94af7b506ab87bfcb4137031c76044
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-09 19:59:27 +0300
+
+    Improve logging.
+---
+ net/net-tcp-rpc-ext-server.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 4960766..8f35c73 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -755,7 +755,7 @@ static int is_allowed_timestamp (int timestamp) {
+   if (timestamp > now + 3) {
+     // do not allow timestamps in the future
+     // after time synchronization client should always have time in the past
+-    vkprintf (1, "Disallow request with timestamp %d from the future\n", timestamp);
++    vkprintf (1, "Disallow request with timestamp %d from the future, now is %d\n", timestamp, now);
+     return 0;
+   }
+ 
+@@ -792,7 +792,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+   struct connection_info *c = CONN_INFO (C);
+   int len;
+ 
+-  vkprintf (4, "%s. in_total_bytes = %d\n", __func__, c->in.total_bytes);  
++  vkprintf (4, "%s. in_total_bytes = %d\n", __func__, c->in.total_bytes);
+ 
+   while (1) {
+     if (c->flags & C_ERROR) {
+@@ -815,7 +815,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+     assert (rwm_fetch_lookup (&c->in, &packet_len, 4) == 4);
+ 
+     if (D->in_packet_num == -3) {
+-      vkprintf (1, "trying to determine connection type\n");
++      vkprintf (1, "trying to determine type of connection from %s:%d\n", show_remote_ip (C), c->remote_port);
+ #if __ALLOW_UNOBFS__
+       if ((packet_len & 0xff) == 0xef) {
+         D->flags |= RPC_F_COMPACT;
+@@ -853,7 +853,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+           return 11 - len;
+         }
+ 
+-        vkprintf (1, "Established TLS connection\n");
++        vkprintf (1, "Established TLS connection from %s:%d\n", show_remote_ip (C), c->remote_port);
+         unsigned char header[11];
+         assert (rwm_fetch_lookup (&c->in, header, 11) == 11);
+         if (memcmp (header, "\x14\x03\x03\x00\x01\x01\x17\x03\x03", 9) != 0) {
+@@ -900,7 +900,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+           return (-1 << 28);
+         }
+ 
+-        vkprintf (1, "TLS type with domain %s\n", info->domain);
++        vkprintf (1, "TLS type with domain %s from %s:%d\n", info->domain, show_remote_ip (C), c->remote_port);
+ 
+         if (len > min_len) {
+           vkprintf (1, "Too much data in ClientHello, receive %d instead of %d\n", len, min_len);
+
+commit 7bd174643fa29bbc57d76fc1f5714c823c7f22f0
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-09 21:17:08 +0300
+
+    Add dummy proxy_connection and immediately proxy all request to port 80 to upstream.
+---
+ net/net-tcp-rpc-ext-server.c | 49 ++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 40 insertions(+), 9 deletions(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 8f35c73..60ab945 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -112,6 +112,8 @@ static int allow_only_tls;
+ 
+ struct domain_info {
+   const char *domain;
++  struct in_addr target;
++  unsigned char target_ipv6[16];
+   short server_hello_encrypted_size;
+   char use_random_encrypted_size;
+   char is_reversed_extension_order;
+@@ -373,6 +375,9 @@ static int update_domain_info (struct domain_info *info) {
+ 
+     int e_connect;
+     if (host->h_addrtype == AF_INET) {
++      info->target = *((struct in_addr *) host->h_addr);
++      memset (info->target_ipv6, 0, sizeof (info->target_ipv6));
++
+       struct sockaddr_in addr;
+       memset (&addr, 0, sizeof (addr));
+       addr.sin_family = AF_INET;
+@@ -381,6 +386,10 @@ static int update_domain_info (struct domain_info *info) {
+ 
+       e_connect = connect (sockets[i], &addr, sizeof (addr));
+     } else {
++      assert (sizeof (struct in6_addr) == sizeof (info->target_ipv6));
++      info->target.s_addr = 0;
++      memcpy (info->target_ipv6, host->h_addr, sizeof (struct in6_addr));
++
+       struct sockaddr_in6 addr;
+       memset (&addr, 0, sizeof (addr));
+       addr.sin6_family = AF_INET6;
+@@ -642,7 +651,8 @@ static const struct domain_info *get_sni_domain_info (const unsigned char *reque
+ void tcp_rpc_add_proxy_domain (const char *domain) {
+   assert (domain != NULL);
+ 
+-  struct domain_info *info = malloc (sizeof (struct domain_info));
++  struct domain_info *info = calloc (1, sizeof (struct domain_info));
++  assert (info != NULL);
+   info->domain = strdup (domain);
+ 
+   struct domain_info **bucket = get_domain_info_bucket (domain, strlen (domain));
+@@ -662,6 +672,7 @@ void tcp_rpc_init_proxy_domains() {
+     while (info != NULL) {
+       if (!update_domain_info (info)) {
+         kprintf ("Failed to update response data about %s, so default response settings wiil be used\n", info->domain);
++        // keep target addresses as is
+         info->is_reversed_extension_order = 0;
+         info->use_random_encrypted_size = 1;
+         info->server_hello_encrypted_size = 2500 + rand() % 1120;
+@@ -783,7 +794,21 @@ static int is_allowed_timestamp (int timestamp) {
+   return 0;
+ }
+ 
++static void proxy_connection (connection_job_t C, const struct domain_info *info) {
++  const char zero[16] = {};
++  if (info->target.s_addr == 0 && !memcmp (info->target_ipv6, zero, 16)) {
++    vkprintf (0, "failed to proxy request to %s\n", info->domain);
++    return;
++  }
++
++  // TODO proxy the connection to info->target.s_addr / info->target_ipv6
++}
++
+ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
++#define RETURN_TLS_ERROR(info) \
++  proxy_connection (C, info);  \
++  return (-1 << 28);
++
+   struct tcp_rpc_data *D = TCP_RPC_DATA (C);
+   if (D->crypto_flags & RPCF_COMPACT_OFF) {
+     return tcp_rpcs_parse_execute (C);
+@@ -897,18 +922,23 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ 
+         const struct domain_info *info = get_sni_domain_info (client_hello, read_len);
+         if (info == NULL) {
+-          return (-1 << 28);
++          RETURN_TLS_ERROR(default_domain_info);
+         }
+ 
+         vkprintf (1, "TLS type with domain %s from %s:%d\n", info->domain, show_remote_ip (C), c->remote_port);
+ 
++        if (c->our_port == 80) {
++          vkprintf (1, "Receive TLS request on port %d, proxying to %s\n", c->our_port, info->domain);
++          RETURN_TLS_ERROR(info);
++        }
++
+         if (len > min_len) {
+           vkprintf (1, "Too much data in ClientHello, receive %d instead of %d\n", len, min_len);
+-          return (-1 << 28);
++          RETURN_TLS_ERROR(info);
+         }
+         if (len != read_len) {
+           vkprintf (1, "Too big ClientHello: receive %d bytes\n", len);
+-          return (-1 << 28);
++          RETURN_TLS_ERROR(info);
+         }
+ 
+         unsigned char client_random[32];
+@@ -917,7 +947,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ 
+         if (have_client_random (client_random)) {
+           vkprintf (1, "Receive again request with the same client random\n");
+-          return (-1 << 28);
++          RETURN_TLS_ERROR(info);
+         }
+         add_client_random (client_random);
+         delete_old_client_randoms();
+@@ -932,11 +962,11 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         }
+         if (secret_id == ext_secret_cnt) {
+           vkprintf (1, "Receive request with unmatched client random\n");
+-          return (-1 << 28);
++          RETURN_TLS_ERROR(info);
+         }
+         int timestamp = *(int *)(expected_random + 28) ^ *(int *)(client_random + 28);
+         if (!is_allowed_timestamp (timestamp)) {
+-          return (-1 << 28);
++          RETURN_TLS_ERROR(info);
+         }
+ 
+         assert (rwm_skip_data (&c->in, len) == len);
+@@ -1000,7 +1030,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ 
+       if (allow_only_tls && !(c->flags & C_IS_TLS)) {
+         vkprintf (1, "Expected TLS-transport\n");
+-        return (-1 << 28);
++        RETURN_TLS_ERROR(default_domain_info);
+       }
+ 
+ #if __ALLOW_UNOBFS__
+@@ -1067,7 +1097,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         if (tag == 0xdddddddd || tag == 0xeeeeeeee || tag == 0xefefefef) {
+           if (tag != 0xdddddddd && allow_only_tls) {
+             vkprintf (1, "Expected random padding mode\n");
+-            return (-1 << 28);
++            RETURN_TLS_ERROR(default_domain_info);
+           }
+           assert (rwm_skip_data (&c->in, 64) == 64);
+           rwm_union (&c->in_u, &c->in);
+@@ -1204,6 +1234,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+     D->in_packet_num++;
+   }
+   return NEED_MORE_BYTES;
++#undef RETURN_TLS_ERROR
+ }
+ 
+ /*
+
+commit 1b916c4027b09d7304f8e19e3ec2301c0d85398e
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-09 22:50:33 +0300
+
+    Simplify and optimize encryption.
+---
+ crypto/aesni256.c            | 117 ++++---------------------------------------
+ crypto/aesni256.h            |  32 ++----------
+ net/net-crypto-aes.c         |  24 ++++-----
+ net/net-crypto-aes.h         |   8 +--
+ net/net-msg.c                |  22 +++-----
+ net/net-msg.h                |   4 +-
+ net/net-tcp-connections.c    |   8 +--
+ net/net-tcp-rpc-ext-server.c |   2 +-
+ 8 files changed, 41 insertions(+), 176 deletions(-)
+
+diff --git a/crypto/aesni256.c b/crypto/aesni256.c
+index f3bdc1a..4c95a32 100644
+--- a/crypto/aesni256.c
++++ b/crypto/aesni256.c
+@@ -22,115 +22,20 @@
+ */
+ 
+ #include "crypto/aesni256.h"
+-#include <assert.h>
+-#include <string.h>
+-#include <stdint.h>
+-#include "common/cpuid.h"
+-
+-#include <openssl/opensslv.h>
+-
+-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+-#include <openssl/modes.h>
+-void AES_ctr128_encrypt(
+-		const unsigned char *in, 
+-		unsigned char *out,
+-		size_t length, 
+-		const AES_KEY *key,
+-		unsigned char ivec[AES_BLOCK_SIZE],
+-		unsigned char ecount_buf[AES_BLOCK_SIZE],
+-		unsigned int *num) {
+-	CRYPTO_ctr128_encrypt(in, out, length, key, ivec, ecount_buf, num, (block128_f)AES_encrypt);
+-}
+-#endif
+-
+-void tg_ssl_aes_ctr_crypt (tg_aes_ctx_t *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16], unsigned long long offset) {
+-  unsigned char iv_copy[16];
+-  memcpy (iv_copy, iv, 16);
+-  unsigned long long *p = (unsigned long long *) (iv_copy + 8);
+-  (*p) += offset >> 4;
+-  union {
+-    unsigned char c[16];
+-    unsigned long long d[2];
+-  } u;
+-  int i = offset & 15, l;
+-  if (i) {
+-    AES_encrypt (iv_copy, u.c, &ctx->u.key);
+-    (*p)++;
+-    l = i + size;
+-    if (l > 16) {
+-      l = 16;
+-    }
+-    size -= l - i;
+-    do {
+-      *out++ = (*in++) ^ u.c[i++];
+-    } while (i < l);
+-  }
+-  const unsigned long long *I = (const unsigned long long *) in;
+-  unsigned long long *O = (unsigned long long *) out;
+-  int n = size >> 4;
+-  while (--n >= 0) {
+-    AES_encrypt (iv_copy, (unsigned char *) u.d, &ctx->u.key);
+-    (*p)++;
+-    *O++ = (*I++) ^ u.d[0];
+-    *O++ = (*I++) ^ u.d[1];
+-  }
+-  l = size & 15;
+-  if (l) {
+-    AES_encrypt (iv_copy, u.c, &ctx->u.key);
+-    in = (const unsigned char *) I;
+-    out = (unsigned char *) O;
+-    i = 0;
+-    do {
+-      *out++ = (*in++) ^ u.c[i++];
+-    } while (i < l);
+-  }
+-}
+-
+-
+-static void tg_ssl_aes_cbc_encrypt (tg_aes_ctx_t *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16]) {
+-  AES_cbc_encrypt (in, out, size, &ctx->u.key, iv, AES_ENCRYPT);
+-}
+-
+-static void tg_ssl_aes_cbc_decrypt (tg_aes_ctx_t *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16]) {
+-  AES_cbc_encrypt (in, out, size, &ctx->u.key, iv, AES_DECRYPT);
+-}
+-
+-static void tg_ssl_aes_ige_encrypt (tg_aes_ctx_t *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[32]) {
+-  AES_ige_encrypt (in, out, size, &ctx->u.key, iv, AES_ENCRYPT);
+-}
+-
+-static void tg_ssl_aes_ige_decrypt (tg_aes_ctx_t *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[32]) {
+-  AES_ige_encrypt (in, out, size, &ctx->u.key, iv, AES_DECRYPT);
+-}
+ 
+-void tg_ssl_aes_ctr128_crypt (struct tg_aes_ctx *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16], unsigned char ecount_buf[16], unsigned int *num) {
+-  AES_ctr128_encrypt (in, out, size, &ctx->u.key, iv, ecount_buf, num);
+-}
+-
+-static const struct tg_aes_methods ssl_aes_encrypt_methods = {
+-  .cbc_crypt = tg_ssl_aes_cbc_encrypt,
+-  .ige_crypt = tg_ssl_aes_ige_encrypt,
+-  .ctr_crypt = tg_ssl_aes_ctr_crypt,
+-  .ctr128_crypt = tg_ssl_aes_ctr128_crypt
+-};
+-
+-void tg_aes_set_encrypt_key (tg_aes_ctx_t *ctx, unsigned char *key, int bits) {
+-  AES_set_encrypt_key (key, bits, &ctx->u.key);
+-  ctx->type = &ssl_aes_encrypt_methods;
+-}
++#include <assert.h>
+ 
+-static const struct tg_aes_methods ssl_aes_decrypt_methods = {
+-  .cbc_crypt = tg_ssl_aes_cbc_decrypt,
+-  .ige_crypt = tg_ssl_aes_ige_decrypt,
+-  .ctr_crypt = NULL,
+-  .ctr128_crypt = NULL
+-};
++EVP_CIPHER_CTX *evp_cipher_ctx_init (const EVP_CIPHER *cipher, unsigned char *key, unsigned char iv[16], int is_encrypt) {
++  EVP_CIPHER_CTX *evp_ctx = EVP_CIPHER_CTX_new();
++  assert(evp_ctx);
+ 
+-void tg_aes_set_decrypt_key (tg_aes_ctx_t *ctx, unsigned char *key, int bits) {
+-  AES_set_decrypt_key (key, bits, &ctx->u.key);
+-  ctx->type = &ssl_aes_decrypt_methods;
++  assert(EVP_CipherInit(evp_ctx, cipher, key, iv, is_encrypt) == 1);
++  assert(EVP_CIPHER_CTX_set_padding(evp_ctx, 0) == 1);
++  return evp_ctx;
+ }
+ 
+-void tg_aes_ctx_cleanup (tg_aes_ctx_t *ctx) {
+-  memset (ctx, 0, sizeof (tg_aes_ctx_t));
++void evp_crypt (EVP_CIPHER_CTX *evp_ctx, const void *in, void *out, int size) {
++  int len;
++  assert (EVP_CipherUpdate(evp_ctx, out, &len, in, size) == 1);
++  assert (len == size);
+ }
+diff --git a/crypto/aesni256.h b/crypto/aesni256.h
+index f2d1d17..95be6f2 100644
+--- a/crypto/aesni256.h
++++ b/crypto/aesni256.h
+@@ -23,30 +23,8 @@
+ 
+ #pragma once
+ 
+-#include <openssl/aes.h>
+-
+-struct aesni256_ctx {
+-  unsigned char a[256];
+-};
+-
+-//TODO: move cbc_crypt, ige_crypt, ctr_crypt to the virtual method table
+-struct tg_aes_ctx;
+-
+-struct tg_aes_methods {
+-  void (*cbc_crypt) (struct tg_aes_ctx *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16]);
+-  void (*ige_crypt) (struct tg_aes_ctx *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[32]);
+-  void (*ctr_crypt) (struct tg_aes_ctx *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16], unsigned long long offset);
+-  void (*ctr128_crypt) (struct tg_aes_ctx *ctx, const unsigned char *in, unsigned char *out, int size, unsigned char iv[16], unsigned char ecount_buf[16], unsigned int *num);
+-};
+-
+-typedef struct tg_aes_ctx {
+-  union {
+-    AES_KEY key;
+-    struct aesni256_ctx ctx;
+-  } u;
+-  const struct tg_aes_methods *type;
+-} tg_aes_ctx_t;
+-
+-void tg_aes_set_encrypt_key (tg_aes_ctx_t *ctx, unsigned char *key, int bits);
+-void tg_aes_set_decrypt_key (tg_aes_ctx_t *ctx, unsigned char *key, int bits);
+-void tg_aes_ctx_cleanup (tg_aes_ctx_t *ctx);
++#include <openssl/evp.h>
++
++EVP_CIPHER_CTX *evp_cipher_ctx_init (const EVP_CIPHER *cipher, unsigned char *key, unsigned char iv[16], int is_encrypt);
++
++void evp_crypt (EVP_CIPHER_CTX *evp_ctx, const void *in, void *out, int size);
+diff --git a/net/net-crypto-aes.c b/net/net-crypto-aes.c
+index b6bc155..accf24a 100644
+--- a/net/net-crypto-aes.c
++++ b/net/net-crypto-aes.c
+@@ -86,12 +86,8 @@ int aes_crypto_init (connection_job_t c, void *key_data, int key_data_len) {
+ 
+   MODULE_STAT->allocated_aes_crypto ++;
+   
+-  tg_aes_set_decrypt_key (&T->read_aeskey, D->read_key, 256);
+-  memcpy (T->read_iv, D->read_iv, 16);
+-  tg_aes_set_encrypt_key (&T->write_aeskey, D->write_key, 256);
+-  memcpy (T->write_iv, D->write_iv, 16);
+-  // T->read_pos = T->write_pos = 0;
+-  T->read_num = T->write_num = 0;
++  T->read_aeskey = evp_cipher_ctx_init (EVP_aes_256_cbc(), D->read_key, D->read_iv, 0);
++  T->write_aeskey = evp_cipher_ctx_init (EVP_aes_256_cbc(), D->write_key, D->write_iv, 1);
+   CONN_INFO(c)->crypto = T;
+   return 0;
+ }
+@@ -105,19 +101,19 @@ int aes_crypto_ctr128_init (connection_job_t c, void *key_data, int key_data_len
+ 
+   MODULE_STAT->allocated_aes_crypto ++;
+   
+-  tg_aes_set_encrypt_key (&T->read_aeskey, D->read_key, 256); // NB: *_encrypt_key here!
+-  memcpy (T->read_iv, D->read_iv, 16);
+-  tg_aes_set_encrypt_key (&T->write_aeskey, D->write_key, 256);
+-  memcpy (T->write_iv, D->write_iv, 16);
+-  // T->read_pos = T->write_pos = 0;
+-  T->read_num = T->write_num = 0;
++  T->read_aeskey = evp_cipher_ctx_init (EVP_aes_256_ctr(), D->read_key, D->read_iv, 1); // NB: is_encrypt == 1 here!
++  T->write_aeskey = evp_cipher_ctx_init (EVP_aes_256_ctr(), D->write_key, D->write_iv, 1);
+   CONN_INFO(c)->crypto = T;
+   return 0;
+ }
+ 
+ int aes_crypto_free (connection_job_t c) {
+-  if (CONN_INFO(c)->crypto) {
+-    free (CONN_INFO(c)->crypto);
++  struct aes_crypto *crypto = CONN_INFO(c)->crypto;
++  if (crypto) {
++    EVP_CIPHER_CTX_free (crypto->read_aeskey);
++    EVP_CIPHER_CTX_free (crypto->write_aeskey);
++
++    free (crypto);
+     CONN_INFO(c)->crypto = 0;
+     MODULE_STAT->allocated_aes_crypto --;
+   }
+diff --git a/net/net-crypto-aes.h b/net/net-crypto-aes.h
+index cdc123b..b6a1c3f 100644
+--- a/net/net-crypto-aes.h
++++ b/net/net-crypto-aes.h
+@@ -70,12 +70,8 @@ struct aes_key_data {
+ 
+ /* for c->crypto */
+ struct aes_crypto {
+-  unsigned char read_iv[16], write_iv[16];
+-  unsigned char read_ebuf[16], write_ebuf[16]; /* for AES-CTR modes */ 
+-  tg_aes_ctx_t read_aeskey __attribute__ ((aligned (16)));
+-  tg_aes_ctx_t write_aeskey __attribute__ ((aligned (16)));
+-  unsigned int read_num, write_num; /* for AES-CTR modes */
+-  // long long read_pos, write_pos; /* for AES-CTR modes */
++  EVP_CIPHER_CTX *read_aeskey;
++  EVP_CIPHER_CTX *write_aeskey;
+ };
+ 
+ extern int aes_initialized;
+diff --git a/net/net-msg.c b/net/net-msg.c
+index 71d2571..7cca1cf 100644
+--- a/net/net-msg.c
++++ b/net/net-msg.c
+@@ -1229,11 +1229,7 @@ struct rwm_encrypt_decrypt_tmp  {
+   int left;
+   int block_size;
+   struct raw_message *raw;
+-  struct tg_aes_ctx *ctx;
+-  void (*crypt)(struct tg_aes_ctx *, const void *, void *, int, unsigned char *, void *, void *);
+-  unsigned char *iv;
+-  void *extra;
+-  void *extra2;
++  EVP_CIPHER_CTX *evp_ctx;
+   char buf[16] __attribute__((aligned(16)));
+ };
+ 
+@@ -1261,12 +1257,12 @@ int rwm_process_encrypt_decrypt (struct rwm_encrypt_decrypt_tmp *x, const void *
+       data += to_fill;
+       x->bp = 0;     
+       if (x->buf_left >= bsize) {
+-        x->crypt (x->ctx, x->buf, res->last->part->data + res->last_offset, bsize, x->iv, x->extra, x->extra2);
++        evp_crypt (x->evp_ctx, x->buf, res->last->part->data + res->last_offset, bsize);
+         res->last->data_end += bsize;
+         res->last_offset += bsize;
+         x->buf_left -= bsize;
+       } else {
+-        x->crypt (x->ctx, x->buf, x->buf, bsize, x->iv, x->extra, x->extra2);
++        evp_crypt (x->evp_ctx, x->buf, x->buf, bsize);
+         memcpy (res->last->part->data + res->last_offset, x->buf, x->buf_left);
+         int t = x->buf_left;
+         res->last->data_end += t;
+@@ -1316,7 +1312,7 @@ int rwm_process_encrypt_decrypt (struct rwm_encrypt_decrypt_tmp *x, const void *
+     assert (x->buf_left + res->last_offset <= res->last->part->chunk->buffer_size);
+     if (len <= x->buf_left) {
+       assert (!(len & (bsize - 1)));
+-      x->crypt (x->ctx, data, (res->last->part->data + res->last_offset), len, x->iv, x->extra, x->extra2);
++      evp_crypt (x->evp_ctx, data, (res->last->part->data + res->last_offset), len);
+       res->last->data_end += len;
+       res->last_offset += len;
+       res->total_bytes += len;
+@@ -1324,7 +1320,7 @@ int rwm_process_encrypt_decrypt (struct rwm_encrypt_decrypt_tmp *x, const void *
+       return 0;
+     } else {
+       int t = x->buf_left & -bsize;
+-      x->crypt (x->ctx, data, res->last->part->data + res->last_offset, t, x->iv, x->extra, x->extra2);
++      evp_crypt (x->evp_ctx, data, res->last->part->data + res->last_offset, t);
+       res->last->data_end += t;
+       res->last_offset += t;
+       res->total_bytes += t;
+@@ -1336,7 +1332,7 @@ int rwm_process_encrypt_decrypt (struct rwm_encrypt_decrypt_tmp *x, const void *
+ }
+ 
+ 
+-int rwm_encrypt_decrypt_to (struct raw_message *raw, struct raw_message *res, int bytes, struct tg_aes_ctx *ctx, void (*crypt)(struct tg_aes_ctx *ctx, const void *src, void *dst, int l, unsigned char *iv, void *extra, void *extra2), unsigned char *iv, int block_size, void *extra, void *extra2) {
++int rwm_encrypt_decrypt_to (struct raw_message *raw, struct raw_message *res, int bytes, EVP_CIPHER_CTX *evp_ctx, int block_size) {
+   assert (bytes >= 0);
+   assert (block_size && !(block_size & (block_size - 1)));
+   if (bytes > raw->total_bytes) {
+@@ -1365,18 +1361,14 @@ int rwm_encrypt_decrypt_to (struct raw_message *raw, struct raw_message *res, in
+   }
+   struct rwm_encrypt_decrypt_tmp t;
+   t.bp = 0;
+-  t.crypt = crypt;
+   if (res->last->part->refcnt == 1) {
+     t.buf_left = res->last->part->chunk->buffer_size - res->last_offset;
+   } else {
+     t.buf_left = 0;
+   }
+   t.raw = res;
+-  t.ctx = ctx;
+-  t.iv = iv;
++  t.evp_ctx = evp_ctx;
+   t.left = bytes;
+-  t.extra = extra;
+-  t.extra2 = extra2;
+   t.block_size = block_size;
+   int r = rwm_process_and_advance (raw, bytes, (void *)rwm_process_encrypt_decrypt, &t);
+   if (locked) {
+diff --git a/net/net-msg.h b/net/net-msg.h
+index fb2c908..729584f 100644
+--- a/net/net-msg.h
++++ b/net/net-msg.h
+@@ -145,9 +145,7 @@ int rwm_process_from_offset (struct raw_message *raw, int bytes, int offset, int
+ int rwm_transform_from_offset (struct raw_message *raw, int bytes, int offset, int (*transform_block)(void *extra, void *data, int len), void *extra);
+ int rwm_process_and_advance (struct raw_message *raw, int bytes, int (*process_block)(void *extra, const void *data, int len), void *extra);
+ int rwm_sha1 (struct raw_message *raw, int bytes, unsigned char output[20]);
+-// int rwm_encrypt_decrypt (struct raw_message *raw, int bytes, tg_aes_ctx_t *ctx, unsigned char iv[32]);
+-// int rwm_encrypt_decrypt_cbc (struct raw_message *raw, int bytes, tg_aes_ctx_t *ctx, unsigned char iv[16]);
+-int rwm_encrypt_decrypt_to (struct raw_message *raw, struct raw_message *res, int bytes, tg_aes_ctx_t *ctx, void (*crypt)(tg_aes_ctx_t *ctx, const void *src, void *dst, int l, unsigned char *iv, void *extra, void *extra2), unsigned char *iv, int block_size, void *extra, void *extra2);
++int rwm_encrypt_decrypt_to (struct raw_message *raw, struct raw_message *res, int bytes, EVP_CIPHER_CTX *evp_ctx, int block_size);
+ 
+ void *rwm_get_block_ptr (struct raw_message *raw);
+ int rwm_get_block_ptr_bytes (struct raw_message *raw);
+diff --git a/net/net-tcp-connections.c b/net/net-tcp-connections.c
+index 909be1a..0f4ff8a 100644
+--- a/net/net-tcp-connections.c
++++ b/net/net-tcp-connections.c
+@@ -201,7 +201,7 @@ int cpu_tcp_aes_crypto_encrypt_output (connection_job_t C) /* {{{ */ {
+   int l = out->total_bytes;
+   l &= ~15;
+   if (l) {
+-    assert (rwm_encrypt_decrypt_to (&c->out, &c->out_p, l, &T->write_aeskey, (void *)T->write_aeskey.type->cbc_crypt, T->write_iv, 16, 0, 0) == l);
++    assert (rwm_encrypt_decrypt_to (&c->out, &c->out_p, l, T->write_aeskey, 16) == l);
+   }
+ 
+   return (-out->total_bytes) & 15;
+@@ -218,7 +218,7 @@ int cpu_tcp_aes_crypto_decrypt_input (connection_job_t C) /* {{{ */ {
+   int l = in->total_bytes;
+   l &= ~15;
+   if (l) {
+-    assert (rwm_encrypt_decrypt_to (&c->in_u, &c->in, l, &T->read_aeskey, (void *)T->read_aeskey.type->cbc_crypt, T->read_iv, 16, 0, 0) == l);
++    assert (rwm_encrypt_decrypt_to (&c->in_u, &c->in, l, T->read_aeskey, 16) == l);
+   }
+ 
+   return (-in->total_bytes) & 15;
+@@ -253,7 +253,7 @@ int cpu_tcp_aes_crypto_ctr128_encrypt_output (connection_job_t C) /* {{{ */ {
+       vkprintf (2, "Send TLS-packet of length %d\n", len);
+     }
+ 
+-    assert (rwm_encrypt_decrypt_to (&c->out, &c->out_p, len, &T->write_aeskey, (void *)T->write_aeskey.type->ctr128_crypt, T->write_iv, 1, T->write_ebuf, &T->write_num) == len);
++    assert (rwm_encrypt_decrypt_to (&c->out, &c->out_p, len, T->write_aeskey, 1) == len);
+   }
+ 
+   return 0;
+@@ -295,7 +295,7 @@ int cpu_tcp_aes_crypto_ctr128_decrypt_input (connection_job_t C) /* {{{ */ {
+       c->left_tls_packet_length -= len;
+     }
+     vkprintf (2, "Read %d bytes out of %d available\n", len, c->in_u.total_bytes);
+-    assert (rwm_encrypt_decrypt_to (&c->in_u, &c->in, len, &T->read_aeskey, (void *)T->read_aeskey.type->ctr128_crypt, T->read_iv, 1, T->read_ebuf, &T->read_num) == len);
++    assert (rwm_encrypt_decrypt_to (&c->in_u, &c->in, len, T->read_aeskey, 1) == len);
+   }
+ 
+   return 0;
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 60ab945..7a3859a 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -1091,7 +1091,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         assert (c->crypto);
+         struct aes_crypto *T = c->crypto;
+ 
+-        T->read_aeskey.type->ctr128_crypt (&T->read_aeskey, random_header, random_header, 64, T->read_iv, T->read_ebuf, &T->read_num);
++        evp_crypt (T->read_aeskey, random_header, random_header, 64);
+         unsigned tag = *(unsigned *)(random_header + 56);
+ 
+         if (tag == 0xdddddddd || tag == 0xeeeeeeee || tag == 0xefefefef) {
+
+commit df658b028a7d8cc44318937c2fe73f3f03840bc6
+Author: vvaltman <vvaltman@adm239>
+Date:   2019-07-10 13:18:28 +0000
+
+    proxy conn
+---
+ net/net-connections.c        | 77 +++++++++++++++++++++++------------------
+ net/net-connections.h        | 20 ++++++++++-
+ net/net-tcp-rpc-ext-server.c | 82 +++++++++++++++++++++++++++++++++++++++++---
+ 3 files changed, 139 insertions(+), 40 deletions(-)
+
+diff --git a/net/net-connections.c b/net/net-connections.c
+index a0d0553..16a79f1 100644
+--- a/net/net-connections.c
++++ b/net/net-connections.c
+@@ -493,14 +493,16 @@ int cpu_server_close_connection (connection_job_t C, int who) /* {{{ */ {
+   assert (c->io_conn);
+   job_signal (JOB_REF_PASS (c->io_conn), JS_ABORT);
+ 
+-  if (c->target) {   
++  if (c->basic_type == ct_outbound) {   
+     MODULE_STAT->outbound_connections --;
+ 
+     if (connection_is_active (c->flags)) {
+       MODULE_STAT->active_outbound_connections --;
+     }
+ 
+-    job_signal (JOB_REF_PASS (c->target), JS_RUN);
++    if (c->target) {
++      job_signal (JOB_REF_PASS (c->target), JS_RUN);
++    }
+   } else {
+     MODULE_STAT->inbound_connections --;
+ 
+@@ -544,7 +546,9 @@ int do_connection_job (job_t job, int op, struct job_thread *JT) /* {{{ */ {
+         __sync_fetch_and_and (&c->flags, ~C_READY_PENDING);
+         MODULE_STAT->active_outbound_connections ++;        
+         MODULE_STAT->active_connections ++;
+-        __sync_fetch_and_add (&CONN_TARGET_INFO(c->target)->active_outbound_connections, 1);
++        if (c->target) {
++          __sync_fetch_and_add (&CONN_TARGET_INFO(c->target)->active_outbound_connections, 1);
++        }
+         if (c->status == conn_connecting) {
+           if (!__sync_bool_compare_and_swap (&c->status, conn_connecting, conn_working)) {
+             assert (c->status == conn_error);
+@@ -587,7 +591,7 @@ int do_connection_job (job_t job, int op, struct job_thread *JT) /* {{{ */ {
+   updates stats
+   creates socket_connection
+ */
+-connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening_connection_job_t LCJ, unsigned peer, unsigned char peer_ipv6[16], int peer_port) /* {{{ */ {
++connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening_connection_job_t LCJ, int basic_type, conn_type_t *conn_type, void *conn_extra, unsigned peer, unsigned char peer_ipv6[16], int peer_port) /* {{{ */ {
+   if (cfd < 0) {
+     return NULL;
+   }
+@@ -648,12 +652,12 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+     assert (0);
+   }
+ 
+-  c->type = CT ? CT->type : LC->type;
+-  c->extra = CT ? CT->extra : LC->extra;
++  c->type = conn_type;
++  c->extra = conn_extra;
+   assert (c->type);
+   
+-  c->basic_type = CT ? ct_outbound : ct_inbound;
+-  c->status = CT ? conn_connecting : conn_working;
++  c->basic_type = basic_type;
++  c->status = (basic_type == ct_outbound) ? conn_connecting : conn_working;
+   
+   c->flags |= c->type->flags & C_EXTERNAL;
+   if (LC) {
+@@ -692,41 +696,58 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+   c->out_queue = alloc_mp_queue_w ();
+   //c->out_packet_queue = alloc_mp_queue_w ();
+   
+-  if (CT) {
++  if (basic_type == ct_outbound) {
+     vkprintf (1, "New connection %s:%d -> %s:%d\n", show_our_ip (C), c->our_port, show_remote_ip (C), c->remote_port);
+   } else {
+     vkprintf (1, "New connection %s:%d -> %s:%d\n", show_remote_ip (C), c->remote_port, show_our_ip (C), c->our_port);
+   }
+ 
+ 
+-  int (*func)(connection_job_t) = CT ? CT->type->init_outbound : LC->type->init_accepted;
++  int (*func)(connection_job_t) = (basic_type == ct_outbound) ? c->type->init_outbound : c->type->init_accepted;
+ 
+   vkprintf (3, "func = %p\n", func);
+   
+ 
+   if (func (C) >= 0) {
+-    if (CT) {
+-      job_incref (CTJ);
++    if (basic_type == ct_outbound) {
+ 
+       MODULE_STAT->outbound_connections ++;
+       MODULE_STAT->allocated_outbound_connections ++;
+       MODULE_STAT->outbound_connections_created ++;
+ 
+-      CT->outbound_connections ++;
++      if (CTJ) {
++        job_incref (CTJ);
++        CT->outbound_connections ++;
++      }
+     } else {
+       MODULE_STAT->inbound_connections_accepted ++;
+       MODULE_STAT->allocated_inbound_connections ++;
+       MODULE_STAT->inbound_connections ++;
+       MODULE_STAT->active_inbound_connections ++;
+       MODULE_STAT->active_connections ++;
++    
++      if (LCJ) {
++        c->listening = LC->fd;
++        c->listening_generation = LC->generation;
++        if (LC->flags & C_NOQACK) {
++          c->flags |= C_NOQACK;
++        }
+       
+-      c->listening = LC->fd;
+-      c->listening_generation = LC->generation;
+-      if (LC->flags & C_NOQACK) {
+-        c->flags |= C_NOQACK;
++        c->window_clamp = LC->window_clamp;
++        
++        if (LC->flags & C_SPECIAL) {
++          c->flags |= C_SPECIAL;
++          __sync_fetch_and_add (&active_special_connections, 1);
++
++          if (active_special_connections > max_special_connections) {
++            vkprintf (active_special_connections >= max_special_connections + 16 ? 0 : 1, "ERROR: forced to accept connection when special connections limit was reached (%d of %d)\n", active_special_connections, max_special_connections);
++          }
++          if (active_special_connections >= max_special_connections) {
++            vkprintf (2, "**Invoking epoll_remove(%d)\n", LC->fd);
++            epoll_remove (LC->fd);
++          }
++        }
+       }
+-      
+-      c->window_clamp = LC->window_clamp;
+       if (c->window_clamp) {
+         if (setsockopt (cfd, IPPROTO_TCP, TCP_WINDOW_CLAMP, &c->window_clamp, 4) < 0) {
+           vkprintf (0, "error while setting window size for socket %d to %d: %m\n", cfd, c->window_clamp);
+@@ -739,18 +760,6 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+         }
+       }
+       
+-      if (LC->flags & C_SPECIAL) {
+-        c->flags |= C_SPECIAL;
+-        __sync_fetch_and_add (&active_special_connections, 1);
+-        
+-        if (active_special_connections > max_special_connections) {
+-          vkprintf (active_special_connections >= max_special_connections + 16 ? 0 : 1, "ERROR: forced to accept connection when special connections limit was reached (%d of %d)\n", active_special_connections, max_special_connections);
+-        }
+-        if (active_special_connections >= max_special_connections) {
+-          vkprintf (2, "**Invoking epoll_remove(%d)\n", LC->fd);
+-          epoll_remove (LC->fd);
+-        }
+-      }
+     }
+ 
+     alloc_new_socket_connection (C);
+@@ -1279,10 +1288,10 @@ int net_accept_new_connections (listening_connection_job_t LCJ) /* {{{ */ {
+    
+     connection_job_t C;
+     if (peer.a4.sin_family == AF_INET) {
+-      C = alloc_new_connection (cfd, NULL, LCJ,
++      C = alloc_new_connection (cfd, NULL, LCJ, ct_inbound, LC->type, LC->extra,
+         ntohl (peer.a4.sin_addr.s_addr), NULL, ntohs (peer.a4.sin_port));
+     } else {
+-      C = alloc_new_connection (cfd, NULL, LCJ,
++      C = alloc_new_connection (cfd, NULL, LCJ, ct_inbound, LC->type, LC->extra,
+         0, peer.a6.sin6_addr.s6_addr, ntohs (peer.a6.sin6_port));
+     }
+     if (C) {
+@@ -1726,7 +1735,7 @@ int create_new_connections (conn_target_job_t CTJ) /* {{{ */ {
+         break;
+       }
+ 
+-      connection_job_t C = alloc_new_connection (cfd, CTJ, NULL,
++      connection_job_t C = alloc_new_connection (cfd, CTJ, NULL, ct_outbound, CT->type, CT->extra,
+           ntohl (CT->target.s_addr), CT->target_ipv6, CT->port);
+ 
+       if (C) {
+diff --git a/net/net-connections.h b/net/net-connections.h
+index d22fe7f..5a70335 100644
+--- a/net/net-connections.h
++++ b/net/net-connections.h
+@@ -195,6 +195,24 @@ struct conn_target_info {
+   int global_refcnt;
+ };
+ 
++struct pseudo_conn_target_info {
++  struct event_timer timer;
++  int pad1;
++  int pad2;
++
++  void *pad3;
++  conn_type_t *type;
++  void *extra;
++  struct in_addr target;
++  unsigned char target_ipv6[16];
++  int port;
++  int active_outbound_connections, outbound_connections;
++  int ready_outbound_connections;
++
++  connection_job_t in_conn;
++  connection_job_t out_conn;
++};
++
+ struct connection_info {
+   struct event_timer timer;
+   int fd;
+@@ -429,4 +447,4 @@ extern unsigned nat_info[MAX_NAT_INFO_RULES][2];
+ int net_add_nat_info (char *str);
+ unsigned nat_translate_ip (unsigned local_ip);
+ 
+-connection_job_t alloc_new_connection (int cfd, conn_target_job_t SS, connection_job_t LL, unsigned peer, unsigned char peer_ipv6[16], int peer_port);
++connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening_connection_job_t LCJ, int basic_type, conn_type_t *conn_type, void *conn_extra, unsigned peer, unsigned char peer_ipv6[16], int peer_port);
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 7a3859a..8b2a198 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -85,6 +85,52 @@ conn_type_t ct_tcp_rpc_ext_server = {
+   .crypto_needed_output_bytes = cpu_tcp_aes_crypto_ctr128_needed_output_bytes,
+ };
+ 
++int tcp_proxy_pass_parse_execute (connection_job_t C);
++int tcp_proxy_pass_close (connection_job_t C, int who);
++int tcp_proxy_pass_write_packet (connection_job_t c, struct raw_message *raw); 
++
++conn_type_t ct_proxy_pass = {
++  .magic = CONN_FUNC_MAGIC,
++  .flags = C_RAWMSG,
++  .title = "proxypass",
++  .init_accepted = server_failed,
++  .parse_execute = tcp_proxy_pass_parse_execute,
++  .close = tcp_proxy_pass_close,
++  .write_packet = tcp_proxy_pass_write_packet,
++  .connected = server_noop,
++};
++
++int tcp_proxy_pass_parse_execute (connection_job_t C) {
++  struct connection_info *c = CONN_INFO(C);
++  if (!c->extra) {
++    fail_connection (C, -1);
++    return 0;
++  }
++  job_t E = job_incref (c->extra);
++  struct connection_info *e = CONN_INFO(E);
++
++  struct raw_message *r = malloc (sizeof (*r));
++  rwm_move (r, &c->in);
++  mpq_push_w (e->out_queue, PTR_MOVE(r), 0);
++  job_signal (JOB_REF_PASS (E), JS_RUN);
++  return 0;
++}
++
++int tcp_proxy_pass_close (connection_job_t C, int who) {
++  struct connection_info *c = CONN_INFO(C);
++  if (c->extra) {
++    job_t E = PTR_MOVE (c->extra);
++    fail_connection (E, -23);
++    job_decref (JOB_REF_PASS (E));
++  }
++  return cpu_server_close_connection (C, who);
++}
++
++int tcp_proxy_pass_write_packet (connection_job_t C, struct raw_message *raw) {
++  rwm_union (&CONN_INFO(C)->out, raw);
++  return 0;
++}
++
+ int tcp_rpcs_default_execute (connection_job_t c, int op, struct raw_message *msg);
+ 
+ static unsigned char ext_secret[16][16];
+@@ -794,20 +840,46 @@ static int is_allowed_timestamp (int timestamp) {
+   return 0;
+ }
+ 
+-static void proxy_connection (connection_job_t C, const struct domain_info *info) {
++static int proxy_connection (connection_job_t C, const struct domain_info *info) {
+   const char zero[16] = {};
+   if (info->target.s_addr == 0 && !memcmp (info->target_ipv6, zero, 16)) {
+     vkprintf (0, "failed to proxy request to %s\n", info->domain);
+-    return;
++    fail_connection (C, -17);
++    return 0;
++  }
++
++  int cfd = -1;
++  if (info->target.s_addr) {
++    cfd = client_socket (info->target.s_addr, 443, 0);
++  } else {
++    cfd = client_socket_ipv6 (info->target_ipv6, 443, 0);
++  }
++
++  if (cfd < 0) {
++    fail_connection (C, -27);
++    return 0;
+   }
+ 
+-  // TODO proxy the connection to info->target.s_addr / info->target_ipv6
++  struct connection_info *c = CONN_INFO(C);
++  c->type->crypto_free (C);
++  job_incref (C); 
++  job_t EJ = alloc_new_connection (cfd, NULL, NULL, ct_outbound, &ct_proxy_pass, C, ntohl (*(int *)&info->target.s_addr), (void *)info->target_ipv6, 443); 
++
++  if (!EJ) {
++    job_decref_f (C);
++    fail_connection (C, -37);
++    return 0;
++  }
++
++  c->type = &ct_proxy_pass;
++  c->extra = PTR_MOVE(EJ);
++
++  return c->type->parse_execute (C);
+ }
+ 
+ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ #define RETURN_TLS_ERROR(info) \
+-  proxy_connection (C, info);  \
+-  return (-1 << 28);
++  return proxy_connection (C, info);  
+ 
+   struct tcp_rpc_data *D = TCP_RPC_DATA (C);
+   if (D->crypto_flags & RPCF_COMPACT_OFF) {
+
+commit 6d1ac2dab406c39e4006467c46cc25c67a140db8
+Author: vvaltman <vvaltman@adm239>
+Date:   2019-07-10 14:53:25 +0000
+
+    allow proxy pass
+---
+ Makefile                     |  2 +-
+ net/net-connections.c        |  2 +-
+ net/net-tcp-rpc-ext-server.c | 29 ++++++++++++++++++++++++-----
+ 3 files changed, 26 insertions(+), 7 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 67e6771..edd2a53 100644
+--- a/Makefile
++++ b/Makefile
+@@ -12,7 +12,7 @@ ifeq ($m, 64)
+ ARCH = -m64
+ endif
+ 
+-CFLAGS = $(ARCH) -O3 -std=gnu11 -Wall -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing -fno-strict-overflow -fwrapv -DAES=1 -DCOMMIT=\"${COMMIT}\" -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64
++CFLAGS = $(ARCH) -O2 -std=gnu11 -Wall -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing -fno-strict-overflow -fwrapv -DAES=1 -DCOMMIT=\"${COMMIT}\" -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64
+ LDFLAGS = $(ARCH) -ggdb -rdynamic -lm -lrt -lcrypto -lz -lpthread -lcrypto
+ 
+ LIB = ${OBJ}/lib
+diff --git a/net/net-connections.c b/net/net-connections.c
+index 16a79f1..c03d460 100644
+--- a/net/net-connections.c
++++ b/net/net-connections.c
+@@ -636,7 +636,7 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+   c->generation = new_conn_generation ();
+   
+   c->flags = 0;//SS ? C_WANTWR : C_WANTRD;
+-  if (LC) {
++  if (basic_type == ct_inbound) {
+     c->flags = C_CONNECTED;
+   }
+ 
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 8b2a198..420d216 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -87,6 +87,7 @@ conn_type_t ct_tcp_rpc_ext_server = {
+ 
+ int tcp_proxy_pass_parse_execute (connection_job_t C);
+ int tcp_proxy_pass_close (connection_job_t C, int who);
++int tcp_proxy_pass_connected (connection_job_t C);
+ int tcp_proxy_pass_write_packet (connection_job_t c, struct raw_message *raw); 
+ 
+ conn_type_t ct_proxy_pass = {
+@@ -95,11 +96,17 @@ conn_type_t ct_proxy_pass = {
+   .title = "proxypass",
+   .init_accepted = server_failed,
+   .parse_execute = tcp_proxy_pass_parse_execute,
++  .connected = tcp_proxy_pass_connected,
+   .close = tcp_proxy_pass_close,
+   .write_packet = tcp_proxy_pass_write_packet,
+   .connected = server_noop,
+ };
+ 
++int tcp_proxy_pass_connected (connection_job_t C) {
++  vkprintf (1, "proxy pass connected'n");
++  return 0;
++}
++
+ int tcp_proxy_pass_parse_execute (connection_job_t C) {
+   struct connection_info *c = CONN_INFO(C);
+   if (!c->extra) {
+@@ -111,12 +118,15 @@ int tcp_proxy_pass_parse_execute (connection_job_t C) {
+ 
+   struct raw_message *r = malloc (sizeof (*r));
+   rwm_move (r, &c->in);
++  rwm_init (&c->in, 0);
++  vkprintf (3, "proxying %d bytes to %s\n", r->total_bytes, show_remote_ip (E));
+   mpq_push_w (e->out_queue, PTR_MOVE(r), 0);
+   job_signal (JOB_REF_PASS (E), JS_RUN);
+   return 0;
+ }
+ 
+ int tcp_proxy_pass_close (connection_job_t C, int who) {
++  vkprintf (1, "closing proxy pass conn\n");
+   struct connection_info *c = CONN_INFO(C);
+   if (c->extra) {
+     job_t E = PTR_MOVE (c->extra);
+@@ -841,6 +851,9 @@ static int is_allowed_timestamp (int timestamp) {
+ }
+ 
+ static int proxy_connection (connection_job_t C, const struct domain_info *info) {
++  struct connection_info *c = CONN_INFO(C);
++  assert (check_conn_functions (&ct_proxy_pass, 0) >= 0);
++
+   const char zero[16] = {};
+   if (info->target.s_addr == 0 && !memcmp (info->target_ipv6, zero, 16)) {
+     vkprintf (0, "failed to proxy request to %s\n", info->domain);
+@@ -848,31 +861,37 @@ static int proxy_connection (connection_job_t C, const struct domain_info *info)
+     return 0;
+   }
+ 
++  int port = c->remote_port == 80 ? 80 : 443;
++
+   int cfd = -1;
+   if (info->target.s_addr) {
+-    cfd = client_socket (info->target.s_addr, 443, 0);
++    cfd = client_socket (info->target.s_addr, port, 0);
+   } else {
+-    cfd = client_socket_ipv6 (info->target_ipv6, 443, 0);
++    cfd = client_socket_ipv6 (info->target_ipv6, port, SM_IPV6);
+   }
+ 
+   if (cfd < 0) {
++    kprintf ("failed to create proxy pass conn: %d (%m)", errno);
+     fail_connection (C, -27);
+     return 0;
+   }
+ 
+-  struct connection_info *c = CONN_INFO(C);
+   c->type->crypto_free (C);
+   job_incref (C); 
+-  job_t EJ = alloc_new_connection (cfd, NULL, NULL, ct_outbound, &ct_proxy_pass, C, ntohl (*(int *)&info->target.s_addr), (void *)info->target_ipv6, 443); 
++  job_t EJ = alloc_new_connection (cfd, NULL, NULL, ct_outbound, &ct_proxy_pass, C, ntohl (*(int *)&info->target.s_addr), (void *)info->target_ipv6, port); 
+ 
+   if (!EJ) {
++    kprintf ("failed to create proxy pass conn (2)");
+     job_decref_f (C);
+     fail_connection (C, -37);
+     return 0;
+   }
+ 
+   c->type = &ct_proxy_pass;
+-  c->extra = PTR_MOVE(EJ);
++  c->extra = job_incref (EJ);
++      
++  assert (CONN_INFO(EJ)->io_conn);
++  unlock_job (JOB_REF_PASS (EJ));
+ 
+   return c->type->parse_execute (C);
+ }
+
+commit 04282c7eaff01b2b1ee9f55b809f3b731a1e9d24
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-11 21:15:31 +0300
+
+    Improve logging.Z
+---
+ mtproto/mtproto-proxy.c      |  2 +-
+ net/net-connections.c        | 20 +++++++++++---------
+ net/net-tcp-rpc-ext-server.c | 26 +++++++-------------------
+ net/net-tcp-rpc-ext-server.h |  1 -
+ 4 files changed, 19 insertions(+), 30 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index fc58afb..2eae806 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -2094,7 +2094,7 @@ void mtfront_pre_loop (void) {
+       assert (LC);
+       CONN_INFO(LC)->window_clamp = window_clamp;
+       if (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_WINDOW_CLAMP, &window_clamp, 4) < 0) {
+-	vkprintf (0, "error while setting window size for socket %d to %d: %m\n", http_sfd[i], window_clamp);
++	vkprintf (0, "error while setting window size for socket #%d to %d: %m\n", http_sfd[i], window_clamp);
+       }
+     }
+     // create_all_outbound_connections ();
+diff --git a/net/net-connections.c b/net/net-connections.c
+index c03d460..f6f81f5 100644
+--- a/net/net-connections.c
++++ b/net/net-connections.c
+@@ -602,7 +602,7 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+ 
+   unsigned flags;
+   if ((flags = fcntl (cfd, F_GETFL, 0) < 0) || fcntl (cfd, F_SETFL, flags | O_NONBLOCK) < 0) {
+-    kprintf ("cannot set O_NONBLOCK on accepted socket %d: %m\n", cfd);
++    kprintf ("cannot set O_NONBLOCK on accepted socket #%d: %m\n", cfd);
+     MODULE_STAT->accept_nonblock_set_failed ++;
+     close (cfd);
+     return NULL;
+@@ -697,9 +697,9 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+   //c->out_packet_queue = alloc_mp_queue_w ();
+   
+   if (basic_type == ct_outbound) {
+-    vkprintf (1, "New connection %s:%d -> %s:%d\n", show_our_ip (C), c->our_port, show_remote_ip (C), c->remote_port);
++    vkprintf (1, "New outbound connection #%d %s:%d -> %s:%d\n", c->fd, show_our_ip (C), c->our_port, show_remote_ip (C), c->remote_port);
+   } else {
+-    vkprintf (1, "New connection %s:%d -> %s:%d\n", show_remote_ip (C), c->remote_port, show_our_ip (C), c->our_port);
++    vkprintf (1, "New inbound connection #%d %s:%d -> %s:%d\n", c->fd, show_remote_ip (C), c->remote_port, show_our_ip (C), c->our_port);
+   }
+ 
+ 
+@@ -750,13 +750,13 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+       }
+       if (c->window_clamp) {
+         if (setsockopt (cfd, IPPROTO_TCP, TCP_WINDOW_CLAMP, &c->window_clamp, 4) < 0) {
+-          vkprintf (0, "error while setting window size for socket %d to %d: %m\n", cfd, c->window_clamp);
++          vkprintf (0, "error while setting window size for socket #%d to %d: %m\n", cfd, c->window_clamp);
+         } else {
+           int t1 = -1, t2 = -1;
+           socklen_t s1 = 4, s2 = 4;
+           getsockopt (cfd, IPPROTO_TCP, TCP_WINDOW_CLAMP, &t1, &s1);
+           getsockopt (cfd, SOL_SOCKET, SO_RCVBUF, &t2, &s2);
+-          vkprintf (2, "window clamp for socket %d is %d, receive buffer is %d\n", cfd, t1, t2);
++          vkprintf (2, "window clamp for socket #%d is %d, receive buffer is %d\n", cfd, t1, t2);
+         }
+       }
+       
+@@ -1132,7 +1132,7 @@ int net_server_socket_read_write_gateway (int fd, void *data, event_t *ev) /* {{
+       return EVA_REMOVE;
+     }
+     if (ev->epoll_ready & (EPOLLHUP | EPOLLERR | EPOLLRDHUP | EPOLLPRI)) {
+-      vkprintf (!(ev->epoll_ready & EPOLLPRI), "socket %d: disconnected (epoll_ready=%02x), cleaning\n", c->fd, ev->epoll_ready);
++      vkprintf (!(ev->epoll_ready & EPOLLPRI), "socket #%d: disconnected (epoll_ready=%02x), cleaning\n", c->fd, ev->epoll_ready);
+ 
+       job_signal (JOB_REF_CREATE_PASS (C), JS_ABORT);
+       return EVA_REMOVE;
+@@ -1720,12 +1720,14 @@ int create_new_connections (conn_target_job_t CTJ) /* {{{ */ {
+     }
+ 
+     while (CT->outbound_connections < need_c) {
++      int cfd = -1;
+       if (CT->target.s_addr) {
+-        vkprintf (1, "Creating NEW connection to %s:%d\n", inet_ntoa (CT->target), CT->port);
++        cfd = client_socket (CT->target.s_addr, CT->port, 0);
++        vkprintf (1, "Created NEW connection #%d to %s:%d\n", cfd, inet_ntoa (CT->target), CT->port);
+       } else {
+-        vkprintf (1, "Creating NEW ipv6 connection to [%s]:%d\n", show_ipv6 (CT->target_ipv6), CT->port);
++        cfd = client_socket_ipv6 (CT->target_ipv6, CT->port, SM_IPV6);
++        vkprintf (1, "Created NEW ipv6 connection #%d to [%s]:%d\n", cfd, show_ipv6 (CT->target_ipv6), CT->port);
+       }
+-      int cfd = CT->target.s_addr ? client_socket (CT->target.s_addr, CT->port, 0) : client_socket_ipv6 (CT->target_ipv6, CT->port, SM_IPV6);
+       if (cfd < 0) {
+         if (CT->target.s_addr) {
+           vkprintf (1, "error connecting to %s:%d: %m\n", inet_ntoa (CT->target), CT->port);
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 420d216..afb56be 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -103,7 +103,8 @@ conn_type_t ct_proxy_pass = {
+ };
+ 
+ int tcp_proxy_pass_connected (connection_job_t C) {
+-  vkprintf (1, "proxy pass connected'n");
++  struct connection_info *c = CONN_INFO(C);
++  vkprintf (1, "proxy pass connected #%d %s:%d -> %s:%d\n", c->fd, show_our_ip (C), c->our_port, show_remote_ip (C), c->remote_port);
+   return 0;
+ }
+ 
+@@ -119,15 +120,15 @@ int tcp_proxy_pass_parse_execute (connection_job_t C) {
+   struct raw_message *r = malloc (sizeof (*r));
+   rwm_move (r, &c->in);
+   rwm_init (&c->in, 0);
+-  vkprintf (3, "proxying %d bytes to %s\n", r->total_bytes, show_remote_ip (E));
++  vkprintf (3, "proxying %d bytes to %s:%d\n", r->total_bytes, show_remote_ip (E), e->remote_port);
+   mpq_push_w (e->out_queue, PTR_MOVE(r), 0);
+   job_signal (JOB_REF_PASS (E), JS_RUN);
+   return 0;
+ }
+ 
+ int tcp_proxy_pass_close (connection_job_t C, int who) {
+-  vkprintf (1, "closing proxy pass conn\n");
+   struct connection_info *c = CONN_INFO(C);
++  vkprintf (1, "closing proxy pass connection #%d %s:%d -> %s:%d\n", c->fd, show_our_ip (C), c->our_port, show_remote_ip (C), c->remote_port);
+   if (c->extra) {
+     job_t E = PTR_MOVE (c->extra);
+     fail_connection (E, -23);
+@@ -151,19 +152,6 @@ void tcp_rpcs_set_ext_secret (unsigned char secret[16]) {
+   memcpy (ext_secret[ext_secret_cnt ++], secret, 16);
+ }
+ 
+-/*
+-struct tcp_rpc_server_functions default_tcp_rpc_ext_server = {
+-  .execute = tcp_rpcs_default_execute,
+-  .check_ready = server_check_ready,
+-  .flush_packet = tcp_rpc_flush_packet,
+-  .rpc_wakeup = tcp_rpcs_do_wakeup,
+-  .rpc_alarm = tcp_rpcs_do_wakeup,
+-  .rpc_check_perm = tcp_rpcs_default_check_perm,
+-  .rpc_init_crypto = tcp_rpcs_init_crypto,
+-  .rpc_ready = server_noop,
+-};
+-*/
+-
+ static int allow_only_tls;
+ 
+ struct domain_info {
+@@ -861,7 +849,7 @@ static int proxy_connection (connection_job_t C, const struct domain_info *info)
+     return 0;
+   }
+ 
+-  int port = c->remote_port == 80 ? 80 : 443;
++  int port = c->our_port == 80 ? 80 : 443;
+ 
+   int cfd = -1;
+   if (info->target.s_addr) {
+@@ -871,7 +859,7 @@ static int proxy_connection (connection_job_t C, const struct domain_info *info)
+   }
+ 
+   if (cfd < 0) {
+-    kprintf ("failed to create proxy pass conn: %d (%m)", errno);
++    kprintf ("failed to create proxy pass connection: %d (%m)", errno);
+     fail_connection (C, -27);
+     return 0;
+   }
+@@ -881,7 +869,7 @@ static int proxy_connection (connection_job_t C, const struct domain_info *info)
+   job_t EJ = alloc_new_connection (cfd, NULL, NULL, ct_outbound, &ct_proxy_pass, C, ntohl (*(int *)&info->target.s_addr), (void *)info->target_ipv6, port); 
+ 
+   if (!EJ) {
+-    kprintf ("failed to create proxy pass conn (2)");
++    kprintf ("failed to create proxy pass connection (2)");
+     job_decref_f (C);
+     fail_connection (C, -37);
+     return 0;
+diff --git a/net/net-tcp-rpc-ext-server.h b/net/net-tcp-rpc-ext-server.h
+index f1a6740..b67f108 100644
+--- a/net/net-tcp-rpc-ext-server.h
++++ b/net/net-tcp-rpc-ext-server.h
+@@ -26,7 +26,6 @@
+ #include "net/net-connections.h"
+ 
+ extern conn_type_t ct_tcp_rpc_ext_server;
+-// extern struct tcp_rpc_server_functions default_tcp_rpc_server;
+ 
+ int tcp_rpcs_compact_parse_execute (connection_job_t c);
+ 
+
+commit 74095c52debbb2265b82e8c1115cf4f5d5ad24d8
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-11 21:22:58 +0300
+
+    Fix warnings.
+---
+ engine/engine.c     | 2 +-
+ net/net-crypto-dh.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/engine/engine.c b/engine/engine.c
+index 73c8745..8489f03 100644
+--- a/engine/engine.c
++++ b/engine/engine.c
+@@ -685,7 +685,7 @@ static void parse_option_engine_builtin (const char *name, int arg, int *var, in
+   assert (vasprintf (&h, help, ap) >= 0);
+   va_end (ap);
+ 
+-  parse_option_ex (name, arg, var, val, flags, f_parse_option_engine, h);
++  parse_option_ex (name, arg, var, val, flags, f_parse_option_engine, "%s", h);
+ 
+   free (h);
+ }
+diff --git a/net/net-crypto-dh.c b/net/net-crypto-dh.c
+index 97d158e..b9aaa17 100644
+--- a/net/net-crypto-dh.c
++++ b/net/net-crypto-dh.c
+@@ -147,7 +147,7 @@ void create_g_a (unsigned char g_a[256], unsigned char a[256]) {
+     rpc_BN_ctx = BN_CTX_new ();
+   }
+   do {
+-    assert (RAND_pseudo_bytes (a, 256) >= 0); /* if you write '>0', the assert will fail. It's very sad */
++    assert (RAND_bytes (a, 256) >= 0); /* if you write '>0', the assert will fail. It's very sad */
+ 
+     BIGNUM *dh_power = BN_new ();
+     assert (BN_bin2bn (a, 256, dh_power) == dh_power);
+
+commit e35c207e75776e9eeca4c961630c73a047db3b41
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-15 19:25:13 +0300
+
+    Choose cipher suite for ServerHello..
+---
+ net/net-tcp-rpc-ext-server.c | 22 ++++++++++++++++++++--
+ 1 file changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index afb56be..6220c4d 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -1048,6 +1048,23 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+           RETURN_TLS_ERROR(info);
+         }
+ 
++        int pos = 76;
++        int cipher_suites_length = read_length (client_hello, &pos);
++        if (pos + cipher_suites_length > read_len) {
++          vkprintf (1, "Too long cipher suites list of length %d\n", cipher_suites_length);
++          RETURN_TLS_ERROR(info);
++        }
++        while (cipher_suites_length >= 2 && (client_hello[pos] & 0x0F) == 0x0A && (client_hello[pos + 1] & 0x0F) == 0x0A) {
++          // skip grease
++          cipher_suites_length -= 2;
++          pos += 2;
++        }
++        if (cipher_suites_length <= 1 || client_hello[pos] != 0x13 || client_hello[pos + 1] < 0x01 || client_hello[pos + 1] > 0x03) {
++          vkprintf (1, "Can't find supported cipher suite\n");
++          RETURN_TLS_ERROR(info);
++        }
++        unsigned char cipher_suite_id = client_hello[pos + 1];
++
+         assert (rwm_skip_data (&c->in, len) == len);
+         c->flags |= C_IS_TLS;
+         c->left_tls_packet_length = -1;
+@@ -1061,10 +1078,11 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         memcpy (response_buffer, "\x16\x03\x03\x00\x7a\x02\x00\x00\x76\x03\x03", 11);
+         memset (response_buffer + 11, '\0', 32);
+         response_buffer[43] = '\x20';
+-        memcpy (response_buffer + 44, client_random, 32);
++        memcpy (response_buffer + 44, client_hello + 44, 32);
+         memcpy (response_buffer + 76, "\x13\x01\x00\x00\x2e", 5);
++        response_buffer[77] = cipher_suite_id;
+ 
+-        int pos = 81;
++        pos = 81;
+         int tls_server_extensions[3] = {0x33, 0x2b, -1};
+         if (info->is_reversed_extension_order) {
+           int t = tls_server_extensions[0];
+
+commit 0865708960b412b5206b70c1f37b9c0a42d73cbf
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-15 19:28:51 +0300
+
+    Return O3 optimization level.
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index edd2a53..67e6771 100644
+--- a/Makefile
++++ b/Makefile
+@@ -12,7 +12,7 @@ ifeq ($m, 64)
+ ARCH = -m64
+ endif
+ 
+-CFLAGS = $(ARCH) -O2 -std=gnu11 -Wall -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing -fno-strict-overflow -fwrapv -DAES=1 -DCOMMIT=\"${COMMIT}\" -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64
++CFLAGS = $(ARCH) -O3 -std=gnu11 -Wall -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing -fno-strict-overflow -fwrapv -DAES=1 -DCOMMIT=\"${COMMIT}\" -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64
+ LDFLAGS = $(ARCH) -ggdb -rdynamic -lm -lrt -lcrypto -lz -lpthread -lcrypto
+ 
+ LIB = ${OBJ}/lib
+
+commit b0fffa3b02df22163e43c6ca7169a0936db31dca
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-18 02:20:37 +0300
+
+    Do not change window clamp dy default in TLS-mode,
+---
+ mtproto/mtproto-proxy.c | 25 +++++++++++++++----------
+ 1 file changed, 15 insertions(+), 10 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index 2eae806..e7e2e26 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -107,11 +107,11 @@ const char FullVersionStr[] = VERSION_STR " compiled at " __DATE__ " " __TIME__
+ #define MAX_MTFRONT_NB			((NB_max * 3) >> 2)
+ #endif
+ 
+-double ping_interval = PING_INTERVAL;
+-int window_clamp = DEFAULT_WINDOW_CLAMP;
++static double ping_interval = PING_INTERVAL;
++static int window_clamp;
+ 
+ #define	PROXY_MODE_OUT	2
+-int proxy_mode;
++static int proxy_mode;
+ 
+ #define IS_PROXY_IN	0
+ #define IS_PROXY_OUT	1
+@@ -2085,16 +2085,21 @@ static int secret_count;
+ void mtfront_pre_loop (void) {
+   int i, enable_ipv6 = engine_check_ipv6_enabled () ? SM_IPV6 : 0;
+   tcp_maximize_buffers = 1;
++  if (window_clamp == 0 && domain_count == 0) {
++    window_clamp = DEFAULT_WINDOW_CLAMP;
++  }
+   if (!workers) {
+     for (i = 0; i < http_ports_num; i++) {
+       init_listening_tcpv6_connection (http_sfd[i], &ct_tcp_rpc_ext_server_mtfront, &ext_rpc_methods, enable_ipv6 | SM_LOWPRIO | SM_NOQACK | (max_special_connections ? SM_SPECIAL : 0));
+-      //     assert (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_MAXSEG, (int[]){1410}, sizeof (int)) >= 0);
+-      //     assert (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_NODELAY, (int[]){1}, sizeof (int)) >= 0);
+-      listening_connection_job_t LC = Events[http_sfd[i]].data;
+-      assert (LC);
+-      CONN_INFO(LC)->window_clamp = window_clamp;
+-      if (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_WINDOW_CLAMP, &window_clamp, 4) < 0) {
+-	vkprintf (0, "error while setting window size for socket #%d to %d: %m\n", http_sfd[i], window_clamp);
++      // assert (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_MAXSEG, (int[]){1410}, sizeof (int)) >= 0);
++      // assert (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_NODELAY, (int[]){1}, sizeof (int)) >= 0);
++      if (window_clamp) {
++        listening_connection_job_t LC = Events[http_sfd[i]].data;
++        assert (LC);
++        CONN_INFO(LC)->window_clamp = window_clamp;
++        if (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_WINDOW_CLAMP, &window_clamp, 4) < 0) {
++          vkprintf (0, "error while setting window size for socket #%d to %d: %m\n", http_sfd[i], window_clamp);
++        }
+       }
+     }
+     // create_all_outbound_connections ();
+
+commit e1acd1166444235631307de4cff0c65bc16a0015
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-18 03:38:58 +0300
+
+    Do not maximize TCP buffers in TLS-mode.
+---
+ mtproto/mtproto-proxy.c |  8 +++++---
+ net/net-connections.c   | 12 ------------
+ net/net-events.c        |  4 ----
+ 3 files changed, 5 insertions(+), 19 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index e7e2e26..e92a906 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -2084,9 +2084,11 @@ static int secret_count;
+ 
+ void mtfront_pre_loop (void) {
+   int i, enable_ipv6 = engine_check_ipv6_enabled () ? SM_IPV6 : 0;
+-  tcp_maximize_buffers = 1;
+-  if (window_clamp == 0 && domain_count == 0) {
+-    window_clamp = DEFAULT_WINDOW_CLAMP;
++  if (domain_count == 0) {
++    tcp_maximize_buffers = 1;
++    if (window_clamp == 0) {
++      window_clamp = DEFAULT_WINDOW_CLAMP;
++    }
+   }
+   if (!workers) {
+     for (i = 0; i < http_ports_num; i++) {
+diff --git a/net/net-connections.c b/net/net-connections.c
+index f6f81f5..d7a0cd7 100644
+--- a/net/net-connections.c
++++ b/net/net-connections.c
+@@ -333,17 +333,6 @@ static inline void cond_disable_qack (socket_connection_job_t C) {
+ }
+ /* }}} */
+ 
+-/* {{{ cork
+-static inline void cond_reset_cork (connection_job_t c) {
+-  if (c->flags & C_NOQACK) {
+-    vkprintf (2, "disable TCP_CORK for %d\n", c->fd);
+-    assert (setsockopt (c->fd, IPPROTO_TCP, TCP_CORK, (int[]){0}, sizeof (int)) >= 0);
+-    vkprintf (2, "enable TCP_CORK for %d\n", c->fd);
+-    assert (setsockopt (c->fd, IPPROTO_TCP, TCP_CORK, (int[]){1}, sizeof (int)) >= 0);
+-  }
+-}
+-}}} */
+-
+ 
+ 
+ /* {{{ CPU PART OF CONNECTION */ 
+@@ -759,7 +748,6 @@ connection_job_t alloc_new_connection (int cfd, conn_target_job_t CTJ, listening
+           vkprintf (2, "window clamp for socket #%d is %d, receive buffer is %d\n", cfd, t1, t2);
+         }
+       }
+-      
+     }
+ 
+     alloc_new_socket_connection (C);
+diff --git a/net/net-events.c b/net/net-events.c
+index 1a14377..7c9de4a 100644
+--- a/net/net-events.c
++++ b/net/net-events.c
+@@ -568,7 +568,6 @@ int server_socket (int port, struct in_addr in_addr, int backlog, int mode) {
+     maximize_sndbuf (socket_fd, 0);
+     maximize_rcvbuf (socket_fd, 0);
+     setsockopt (socket_fd, SOL_IP, IP_RECVERR, &flags, sizeof (flags));
+-  
+   } else {
+     setsockopt (socket_fd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof (flags));
+     if (tcp_maximize_buffers) {
+@@ -689,7 +688,6 @@ int client_socket (in_addr_t in_addr, int port, int mode) {
+   }
+ 
+   return socket_fd;
+-
+ }
+ 
+ int client_socket_ipv6 (const unsigned char in6_addr_ptr[16], int port, int mode) {
+@@ -731,7 +729,6 @@ int client_socket_ipv6 (const unsigned char in6_addr_ptr[16], int port, int mode
+   }
+ 
+   return socket_fd;
+-
+ }
+ 
+ unsigned get_my_ipv4 (void) {
+@@ -899,4 +896,3 @@ const char *show_ipv6 (const unsigned char ipv6[16]) {
+   ptr += conv_ipv6_internal ((const unsigned short *) ipv6, ptr) + 1;
+   return res;
+ }
+-
+
+commit e65047ce219cda44b342b52277be0e25c21d30cf
+Author: levlam <levlam@telegram.org>
+Date:   2019-07-18 04:24:30 +0300
+
+    Disable TCP keep-alive and lingering.
+---
+ mtproto/mtproto-proxy.c |  2 +-
+ net/net-events.c        | 21 +++++++++++++--------
+ 2 files changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index e92a906..28f386f 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -2092,7 +2092,7 @@ void mtfront_pre_loop (void) {
+   }
+   if (!workers) {
+     for (i = 0; i < http_ports_num; i++) {
+-      init_listening_tcpv6_connection (http_sfd[i], &ct_tcp_rpc_ext_server_mtfront, &ext_rpc_methods, enable_ipv6 | SM_LOWPRIO | SM_NOQACK | (max_special_connections ? SM_SPECIAL : 0));
++      init_listening_tcpv6_connection (http_sfd[i], &ct_tcp_rpc_ext_server_mtfront, &ext_rpc_methods, enable_ipv6 | SM_LOWPRIO | (domain_count == 0 ? SM_NOQACK : 0) | (max_special_connections ? SM_SPECIAL : 0));
+       // assert (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_MAXSEG, (int[]){1410}, sizeof (int)) >= 0);
+       // assert (setsockopt (http_sfd[i], IPPROTO_TCP, TCP_NODELAY, (int[]){1}, sizeof (int)) >= 0);
+       if (window_clamp) {
+diff --git a/net/net-events.c b/net/net-events.c
+index 7c9de4a..b776ef0 100644
+--- a/net/net-events.c
++++ b/net/net-events.c
+@@ -557,8 +557,9 @@ struct in_addr settings_addr;
+ 
+ int server_socket (int port, struct in_addr in_addr, int backlog, int mode) {
+   int socket_fd;
+-  struct linger ling = {0, 0};
++  // struct linger ling = {0, 0};
+   int flags = 1;
++  int enable_tcp_keep_alive = 0;
+ 
+   if ((socket_fd = new_socket (mode, 1)) == -1) {
+     return -1;
+@@ -574,16 +575,20 @@ int server_socket (int port, struct in_addr in_addr, int backlog, int mode) {
+       maximize_sndbuf (socket_fd, 0);
+       maximize_rcvbuf (socket_fd, 0);
+     }
+-    assert (setsockopt (socket_fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof (flags)) >= 0);
+     assert (flags == 1);
+-    setsockopt (socket_fd, SOL_SOCKET, SO_LINGER, &ling, sizeof (ling));
++    // setsockopt (socket_fd, SOL_SOCKET, SO_LINGER, &ling, sizeof (ling));
+     setsockopt (socket_fd, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof (flags));
+ 
+-    int x = 40;
+-    assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPIDLE, &x, sizeof (x)) >= 0);
+-    assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPINTVL, &x, sizeof (x)) >= 0);
+-    x = 5;
+-    assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPCNT, &x, sizeof (x)) >= 0);
++    if (enable_tcp_keep_alive) {
++      assert (flags == 1);
++      assert (setsockopt (socket_fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof (flags)) >= 0);
++
++      int x = 40;
++      assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPIDLE, &x, sizeof (x)) >= 0);
++      assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPINTVL, &x, sizeof (x)) >= 0);
++      x = 5;
++      assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPCNT, &x, sizeof (x)) >= 0);
++    }
+   }
+ 
+   if (mode & SM_REUSE) {
+
+commit 58db91509deb72c2d152f03a5ad057b590d06664
+Author: levlam <levlam@telegram.org>
+Date:   2019-08-23 04:50:26 +0300
+
+    Better private key generation.
+---
+ net/net-tcp-rpc-ext-server.c | 100 ++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 98 insertions(+), 2 deletions(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 6220c4d..3edb010 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -34,6 +34,7 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
++#include <openssl/bn.h>
+ #include <openssl/rand.h>
+ 
+ #include "common/kprintf.h"
+@@ -200,6 +201,95 @@ static int get_domain_server_hello_encrypted_size (const struct domain_info *inf
+ 
+ #define TLS_REQUEST_LENGTH 517
+ 
++static BIGNUM *get_y2 (BIGNUM *x, const BIGNUM *mod, BN_CTX *big_num_context) {
++  // returns y^2 = x^3 + 486662 * x^2 + x
++  BIGNUM *y = BN_dup (x);
++  assert (y != NULL);
++  BIGNUM *coef = BN_new();
++  assert (BN_set_word (coef, 486662) == 1);
++  assert (BN_mod_add (y, y, coef, mod, big_num_context) == 1);
++  assert (BN_mod_mul (y, y, x, mod, big_num_context) == 1);
++  assert (BN_one (coef) == 1);
++  assert (BN_mod_add (y, y, coef, mod, big_num_context) == 1);
++  assert (BN_mod_mul (y, y, x, mod, big_num_context) == 1);
++  BN_clear_free (coef);
++  return y;
++}
++
++static BIGNUM *get_double_x (BIGNUM *x, const BIGNUM *mod, BN_CTX *big_num_context) {
++  // returns x_2 = (x^2 - 1)^2/(4*y^2)
++  BIGNUM *denominator = get_y2 (x, mod, big_num_context);
++  assert (denominator != NULL);
++  BIGNUM *coef = BN_new();
++  assert (BN_set_word (coef, 4) == 1);
++  assert (BN_mod_mul (denominator, denominator, coef, mod, big_num_context) == 1);
++
++  BIGNUM *numerator = BN_new();
++  assert (numerator != NULL);
++  assert (BN_mod_mul (numerator, x, x, mod, big_num_context) == 1);
++  assert (BN_one (coef) == 1);
++  assert (BN_mod_sub (numerator, numerator, coef, mod, big_num_context) == 1);
++  assert (BN_mod_mul (numerator, numerator, numerator, mod, big_num_context) == 1);
++
++  assert (BN_mod_inverse (denominator, denominator, mod, big_num_context) == denominator);
++  assert (BN_mod_mul (numerator, numerator, denominator, mod, big_num_context) == 1);
++
++  BN_clear_free (coef);
++  BN_clear_free (denominator);
++  return numerator;
++}
++
++static void generate_public_key (unsigned char key[32]) {
++  BIGNUM *mod = NULL;
++  assert (BN_hex2bn (&mod, "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed") == 64);
++  BIGNUM *pow = NULL;
++  assert (BN_hex2bn (&pow, "3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6") == 64);
++  BN_CTX *big_num_context = BN_CTX_new();
++  assert (big_num_context != NULL);
++
++  BIGNUM *x = BN_new();
++  while (1) {
++    assert (RAND_bytes (key, 32) == 1);
++    key[31] &= 127;
++    BN_bin2bn (key, 32, x);
++    assert (x != NULL);
++    assert (BN_mod_mul (x, x, x, mod, big_num_context) == 1);
++
++    BIGNUM *y = get_y2 (x, mod, big_num_context);
++
++    BIGNUM *r = BN_new();
++    assert (BN_mod_exp (r, y, pow, mod, big_num_context) == 1);
++    BN_clear_free (y);
++    if (BN_is_one (r)) {
++      BN_clear_free (r);
++      break;
++    }
++    BN_clear_free (r);
++  }
++
++  int i;
++  for (i = 0; i < 3; i++) {
++    BIGNUM *x2 = get_double_x (x, mod, big_num_context);
++    BN_clear_free (x);
++    x = x2;
++  }
++
++  int num_size = BN_num_bytes (x);
++  assert (num_size <= 32);
++  memset (key, '\0', 32 - num_size);
++  assert (BN_bn2bin (x, key + (32 - num_size)) == num_size);
++  for (i = 0; i < 16; i++) {
++    unsigned char t = key[i];
++    key[i] = key[31 - i];
++    key[31 - i] = t;
++  }
++
++  BN_clear_free (x);
++  BN_CTX_free (big_num_context);
++  BN_clear_free (pow);
++  BN_clear_free (mod);
++}
++
+ static void add_string (unsigned char *str, int *pos, const char *data, int data_len) {
+   assert (*pos + data_len <= TLS_REQUEST_LENGTH);
+   memcpy (str + (*pos), data, data_len);
+@@ -226,6 +316,12 @@ static void add_grease (unsigned char *str, int *pos, const unsigned char *greas
+   (*pos) += 2;
+ }
+ 
++static void add_public_key (unsigned char *str, int *pos) {
++  assert (*pos + 32 <= TLS_REQUEST_LENGTH);
++  generate_public_key (str + (*pos));
++  (*pos) += 32;
++}
++
+ static unsigned char *create_request (const char *domain) {
+   unsigned char *result = malloc (TLS_REQUEST_LENGTH);
+   int pos = 0;
+@@ -270,7 +366,7 @@ static unsigned char *create_request (const char *domain) {
+                             "\x33\x00\x2b\x00\x29", 77);
+   add_grease (result, &pos, greases, 4);
+   add_string (result, &pos, "\x00\x01\x00\x00\x1d\x00\x20", 7);
+-  add_random (result, &pos, 32);
++  add_public_key (result, &pos);
+   add_string (result, &pos, "\x00\x2d\x00\x02\x01\x01\x00\x2b\x00\x0b\x0a", 11);
+   add_grease (result, &pos, greases, 6);
+   add_string (result, &pos, "\x03\x04\x03\x03\x03\x02\x03\x01\x00\x1b\x00\x03\x02\x00\x02", 15);
+@@ -1094,7 +1190,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+           if (tls_server_extensions[i] == 0x33) {
+             assert (pos + 40 <= response_size);
+             memcpy (response_buffer + pos, "\x00\x33\x00\x24\x00\x1d\x00\x20", 8);
+-            RAND_bytes (response_buffer + pos + 8, 32);
++            generate_public_key (response_buffer + pos + 8);
+             pos += 40;
+           } else if (tls_server_extensions[i] == 0x2b) {
+             assert (pos + 5 <= response_size);
+
+commit ce9933813dd1473e8158b45abf38fa45cbd3b84c
+Author: levlam <levlam@telegram.org>
+Date:   2019-09-11 23:06:55 +0300
+
+    Allow to use workers with TLS-transport.
+---
+ mtproto/mtproto-proxy.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index 28f386f..4d749e1 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -2244,7 +2244,7 @@ void mtfront_prepare_parse_options (void) {
+   parse_option ("window-clamp", required_argument, 0, 'W', "sets window clamp for client TCP connections");
+   parse_option ("http-ports", required_argument, 0, 'H', "comma-separated list of client (HTTP) ports to listen");
+   // parse_option ("outbound-connections-ps", required_argument, 0, 'o', "limits creation rate of outbound connections to mtproto-servers (default %d)", DEFAULT_OUTBOUND_CONNECTION_CREATION_RATE);
+-  parse_option ("slaves", required_argument, 0, 'M', "spawn several slave workers; not supported for TLS-transport mode");
++  parse_option ("slaves", required_argument, 0, 'M', "spawn several slave workers; not recommended for TLS-transport mode for better replay protection");
+   parse_option ("ping-interval", required_argument, 0, 'T', "sets ping interval in second for local TCP connections (default %.3lf)", PING_INTERVAL);
+ }
+ 
+@@ -2274,11 +2274,10 @@ void mtfront_pre_init (void) {
+     tcp_rpc_init_proxy_domains();
+ 
+     if (workers) {
+-      kprintf ("Workers can't be used when a domain for TLS transport is specified");
+-      workers = 0;
++      kprintf ("It is recommended to not use workers with TLS-transport");
+     }
+     if (secret_count == 0) {
+-      kprintf ("You must specify at least one mtproto-secret to use when using TLS transport");
++      kprintf ("You must specify at least one mtproto-secret to use when using TLS-transport");
+       exit (2);
+     }
+   }
+
+commit b93e44b8616346d9c278bcc214c7a7671e8883a6
+Author: levlam <levlam@telegram.org>
+Date:   2019-09-21 01:01:45 +0300
+
+    Enable default TCP keep-alive.
+---
+ net/net-events.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/net/net-events.c b/net/net-events.c
+index b776ef0..ba3e800 100644
+--- a/net/net-events.c
++++ b/net/net-events.c
+@@ -559,7 +559,7 @@ int server_socket (int port, struct in_addr in_addr, int backlog, int mode) {
+   int socket_fd;
+   // struct linger ling = {0, 0};
+   int flags = 1;
+-  int enable_tcp_keep_alive = 0;
++  int enable_often_tcp_keep_alive = 0;
+ 
+   if ((socket_fd = new_socket (mode, 1)) == -1) {
+     return -1;
+@@ -579,10 +579,9 @@ int server_socket (int port, struct in_addr in_addr, int backlog, int mode) {
+     // setsockopt (socket_fd, SOL_SOCKET, SO_LINGER, &ling, sizeof (ling));
+     setsockopt (socket_fd, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof (flags));
+ 
+-    if (enable_tcp_keep_alive) {
+-      assert (flags == 1);
+-      assert (setsockopt (socket_fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof (flags)) >= 0);
+-
++    assert (flags == 1);
++    assert (setsockopt (socket_fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof (flags)) >= 0);
++    if (enable_often_tcp_keep_alive) {
+       int x = 40;
+       assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPIDLE, &x, sizeof (x)) >= 0);
+       assert (setsockopt (socket_fd, IPPROTO_TCP, TCP_KEEPINTVL, &x, sizeof (x)) >= 0);
+
+commit d0c1257ca5ac399732bb331e8c0b345e484e2fcd
+Author: vvaltman <vvaltman@adm239>
+Date:   2019-09-22 14:19:19 +0000
+
+    ext-server: timeout on inbound connections
+---
+ net/net-tcp-rpc-ext-server.c | 26 ++++++++++++++++++++++++--
+ 1 file changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 3edb010..7258fc2 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -66,19 +66,21 @@
+  */
+ 
+ int tcp_rpcs_compact_parse_execute (connection_job_t c);
++int tcp_rpcs_ext_alarm (connection_job_t c);
++int tcp_rpcs_ext_init_accepted (connection_job_t c);
+ 
+ conn_type_t ct_tcp_rpc_ext_server = {
+   .magic = CONN_FUNC_MAGIC,
+   .flags = C_RAWMSG,
+   .title = "rpc_ext_server",
+-  .init_accepted = tcp_rpcs_init_accepted_nohs,
++  .init_accepted = tcp_rpcs_ext_init_accepted,
+   .parse_execute = tcp_rpcs_compact_parse_execute,
+   .close = tcp_rpcs_close_connection,
+   .flush = tcp_rpc_flush,
+   .write_packet = tcp_rpc_write_packet_compact,
+   .connected = server_failed,
+   .wakeup = tcp_rpcs_wakeup,
+-  .alarm = tcp_rpcs_alarm,
++  .alarm = tcp_rpcs_ext_alarm,
+   .crypto_init = aes_crypto_ctr128_init,
+   .crypto_free = aes_crypto_free,
+   .crypto_encrypt_output = cpu_tcp_aes_crypto_ctr128_encrypt_output,
+@@ -980,12 +982,29 @@ static int proxy_connection (connection_job_t C, const struct domain_info *info)
+   return c->type->parse_execute (C);
+ }
+ 
++int tcp_rpcs_ext_alarm (connection_job_t C) {
++  struct tcp_rpc_data *D = TCP_RPC_DATA (C);
++  if (D->in_packet_num == -3) {
++    return proxy_connection (C, default_domain_info);  
++  } else {
++    return 0;
++  }
++}
++
++int tcp_rpcs_ext_init_accepted (connection_job_t C) {
++  job_timer_insert (C, precise_now + 10);
++  return tcp_rpcs_init_accepted_nohs (C);
++}
++
+ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+ #define RETURN_TLS_ERROR(info) \
+   return proxy_connection (C, info);  
+ 
+   struct tcp_rpc_data *D = TCP_RPC_DATA (C);
+   if (D->crypto_flags & RPCF_COMPACT_OFF) {
++    if (D->in_packet_num != -3) {
++      job_timer_remove (C);
++    }
+     return tcp_rpcs_parse_execute (C);
+   }
+ 
+@@ -995,6 +1014,9 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+   vkprintf (4, "%s. in_total_bytes = %d\n", __func__, c->in.total_bytes);
+ 
+   while (1) {
++    if (D->in_packet_num != -3) {
++      job_timer_remove (C);
++    }
+     if (c->flags & C_ERROR) {
+       return NEED_MORE_BYTES;
+     }
+
+commit dc0c7f3de40530053189c572936ae4fd1567269b
+Author: levlam <levlam@telegram.org>
+Date:   2019-10-03 23:25:30 +0000
+
+    Check for existence of default domain before using it.
+---
+ net/net-tcp-rpc-ext-server.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index 7258fc2..b6e07d1 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -984,7 +984,7 @@ static int proxy_connection (connection_job_t C, const struct domain_info *info)
+ 
+ int tcp_rpcs_ext_alarm (connection_job_t C) {
+   struct tcp_rpc_data *D = TCP_RPC_DATA (C);
+-  if (D->in_packet_num == -3) {
++  if (D->in_packet_num == -3 && default_domain_info != NULL) {
+     return proxy_connection (C, default_domain_info);  
+   } else {
+     return 0;
+
+commit 34fe0e7e319d7fce896a62d4e03ee29c452a69ae
+Author: levlam <levlam@telegram.org>
+Date:   2025-11-04 00:58:36 +0300
+
+    Fix compilation errors and warnings.
+---
+ Makefile                | 2 +-
+ README.md               | 2 +-
+ common/resolver.h       | 2 +-
+ jobs/jobs.h             | 1 +
+ mtproto/mtproto-proxy.c | 1 -
+ net/net-stats.c         | 5 +----
+ vv/vv-tree.c            | 2 +-
+ 7 files changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 67e6771..0800e65 100644
+--- a/Makefile
++++ b/Makefile
+@@ -12,7 +12,7 @@ ifeq ($m, 64)
+ ARCH = -m64
+ endif
+ 
+-CFLAGS = $(ARCH) -O3 -std=gnu11 -Wall -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing -fno-strict-overflow -fwrapv -DAES=1 -DCOMMIT=\"${COMMIT}\" -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64
++CFLAGS = $(ARCH) -O3 -std=gnu11 -Wall -Wno-array-bounds -mpclmul -march=core2 -mfpmath=sse -mssse3 -fno-strict-aliasing -fno-strict-overflow -fwrapv -DAES=1 -DCOMMIT=\"${COMMIT}\" -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64
+ LDFLAGS = $(ARCH) -ggdb -rdynamic -lm -lrt -lcrypto -lz -lpthread -lcrypto
+ 
+ LIB = ${OBJ}/lib
+diff --git a/README.md b/README.md
+index 67ca9db..63bf965 100644
+--- a/README.md
++++ b/README.md
+@@ -46,7 +46,7 @@ head -c 16 /dev/urandom | xxd -ps
+ ./mtproto-proxy -u nobody -p 8888 -H 443 -S <secret> --aes-pwd proxy-secret proxy-multi.conf -M 1
+ ```
+ ... where:
+-- `nobody` is the username. `mtproto-proxy` calls `setuid()` to drop privilegies.
++- `nobody` is the username. `mtproto-proxy` calls `setuid()` to drop privileges.
+ - `443` is the port, used by clients to connect to the proxy.
+ - `8888` is the local port. You can use it to get statistics from `mtproto-proxy`. Like `wget localhost:8888/stats`. You can only get this stat via loopback.
+ - `<secret>` is the secret generated at step 3. Also you can set multiple secrets: `-S <secret1> -S <secret2>`.
+diff --git a/common/resolver.h b/common/resolver.h
+index 084cf08..966ddc8 100644
+--- a/common/resolver.h
++++ b/common/resolver.h
+@@ -27,7 +27,7 @@
+ extern "C" {
+ #endif
+ 
+-int kdb_hosts_loaded;
++extern int kdb_hosts_loaded;
+ int kdb_load_hosts (void);
+ 
+ struct hostent *kdb_gethostbyname (const char *name);
+diff --git a/jobs/jobs.h b/jobs/jobs.h
+index 56522e5..f249a0a 100644
+--- a/jobs/jobs.h
++++ b/jobs/jobs.h
+@@ -21,6 +21,7 @@
+ 
+ #pragma once
+ 
++#include <pthread.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <semaphore.h>
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index 4d749e1..dad762f 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -409,7 +409,6 @@ int worker_id, workers, slave_mode, parent_pid;
+ int pids[MAX_WORKERS];
+ 
+ long long get_queries;
+-long long http_queries;
+ int pending_http_queries;
+ 
+ long long active_rpcs, active_rpcs_created;
+diff --git a/net/net-stats.c b/net/net-stats.c
+index 0453d9b..ee2ceeb 100644
+--- a/net/net-stats.c
++++ b/net/net-stats.c
+@@ -45,15 +45,13 @@
+ #include "net/net-connections.h"
+ #include "net/net-config.h"
+ #include "vv/vv-io.h"
+-#include "pid.h"
++#include "common/pid.h"
+ #include "common/common-stats.h"
+ 
+ #include "net/net-msg-buffers.h"
+ 
+ #include "engine/engine.h"
+ 
+-struct process_id PID;
+-
+ extern int zheap_debug;
+ long long queries_allocated;
+ long long max_queries_allocated;
+@@ -66,7 +64,6 @@ int tl_rpc_op_stat __attribute__ ((weak));
+ int op_stat_write (stats_buffer_t *sb) __attribute__ ((weak));
+ int op_stat_write (stats_buffer_t *sb) { return 0; }
+ 
+-
+ int my_pid;
+ 
+ int connections_prepare_stat (stats_buffer_t *sb);
+diff --git a/vv/vv-tree.c b/vv/vv-tree.c
+index d7c4987..fa0eee3 100644
+--- a/vv/vv-tree.c
++++ b/vv/vv-tree.c
+@@ -21,7 +21,7 @@
+ 
+ #include <assert.h>
+       
+-long long total_vv_tree_nodes;
++extern long long total_vv_tree_nodes;
+ 
+ #define SUFFIX2(a,b) a ## b
+ #define SUFFIX(a,b) SUFFIX2(a,b)
+
+commit 0613f7616c7094725d71224b221b90c17b7e23ed
+Author: levlam <levlam@telegram.org>
+Date:   2025-11-04 01:18:44 +0300
+
+    Fix handling of long ClientHello.
+---
+ net/net-tcp-rpc-ext-server.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/net-tcp-rpc-ext-server.c b/net/net-tcp-rpc-ext-server.c
+index b6e07d1..ca38807 100644
+--- a/net/net-tcp-rpc-ext-server.c
++++ b/net/net-tcp-rpc-ext-server.c
+@@ -1105,7 +1105,7 @@ int tcp_rpcs_compact_parse_execute (connection_job_t C) {
+         assert (rwm_fetch_lookup (&c->in, &packet_len, 4) == 4);
+ 
+         c->left_tls_packet_length -= 64; // skip header length
+-      } else if (packet_len == *(int *)"\x16\x03\x01\x02" && ext_secret_cnt > 0 && allow_only_tls) {
++      } else if ((packet_len & 0xFFFFFF) == 0x010316 && (packet_len >> 24) >= 2 && ext_secret_cnt > 0 && allow_only_tls) {
+         unsigned char header[5];
+         assert (rwm_fetch_lookup (&c->in, header, 5) == 5);
+         min_len = 5 + 256 * header[3] + header[4];
+
+commit cafc3380a81671579ce366d0594b9a8e450827e9
+Author: levlam <levlam@telegram.org>
+Date:   2025-11-04 09:15:50 +0300
+
+    Increase version.
+---
+ mtproto/mtproto-proxy.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mtproto/mtproto-proxy.c b/mtproto/mtproto-proxy.c
+index dad762f..e28f36f 100644
+--- a/mtproto/mtproto-proxy.c
++++ b/mtproto/mtproto-proxy.c
+@@ -68,7 +68,7 @@
+ #define COMMIT "unknown"
+ #endif
+ 
+-#define VERSION_STR	"mtproxy-0.01"
++#define VERSION_STR	"mtproxy-0.02"
+ const char FullVersionStr[] = VERSION_STR " compiled at " __DATE__ " " __TIME__ " by gcc " __VERSION__ " "
+ #ifdef __LP64__
+   "64-bit"

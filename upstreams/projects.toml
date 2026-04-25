@@ -6,6 +6,20 @@ branch = "main"
 start_commit = "5d94a62a83073bc4aa378fb7e2198e15878e90da"
 
 [[projects]]
+name = "sing-box"
+path = "./sing-box"
+url = "https://github.com/SagerNet/sing-box.git"
+branch = "stable"
+start_commit = "93b7328"
+
+[[projects]]
+name = "hiddify-app"
+path = "./hiddify/hiddify-app"
+url = "https://github.com/hiddify/hiddify-app.git"
+branch = "main"
+start_commit = "379a672254450733455458e8c3a4d40c63a9c98d"
+
+[[projects]]
 name = "TrustTunnel"
 path = "./TrustTunnel/TrustTunnel"
 url = "https://github.com/TrustTunnel/TrustTunnel"
@@ -20,8 +34,24 @@ branch = "master"
 start_commit = "33e14f7"
 
 [[projects]]
+name = "TrustTunnelFlutterClient"
+path = "./TrustTunnel/TrustTunnelFlutterClient"
+url = "https://github.com/TrustTunnel/TrustTunnelFlutterClient.git"
+branch = "master"
+start_commit = "896e9e1"
+
+[[projects]]
 name = "telemt"
 path = "./telegram/telemt"
 url = "https://github.com/telemt/telemt.git"
 branch = "main"
 start_commit = "c47495d"
+
+[[projects]]
+name = "MTProxy"
+path = "./telegram/MTProxy"
+url = "https://github.com/TelegramMessenger/MTProxy.git"
+branch = "master"
+start_commit = "580909c"
+
+

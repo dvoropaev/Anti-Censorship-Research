@@ -1,0 +1,3 @@
+if ENV["fastfile_loaded"].nil?
+  raise "Use 'fastlane sync_certs_and_profiles' with parameters you need"
+end
