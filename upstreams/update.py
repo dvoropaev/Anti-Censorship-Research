@@ -50,30 +50,35 @@ def process_project(project: dict):
     url = project["url"]
     branch = project["branch"]
     start_commit = project["start_commit"]
+    recurse_submodules = project.get("recurse_submodules", False)
 
     print(f"\n=== {name} ===")
 
     with tempfile.TemporaryDirectory(prefix="upstream_") as tmp:
         repo_path = Path(tmp) / "repo"
 
-        run([
+        clone_cmd = [
             "git",
             "clone",
             "--branch", branch,
             "--single-branch",
-            "--recurse-submodules",
-            url,
-            str(repo_path),
-        ])
+        ]
 
-        # Если в репозитории есть сабмодули, подтягиваем их рекурсивно.
-        run([
-            "git",
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-        ], cwd=repo_path)
+        if recurse_submodules:
+            clone_cmd.append("--recurse-submodules")
+
+        clone_cmd.extend([url, str(repo_path)])
+        run(clone_cmd)
+
+        if recurse_submodules:
+            # Если в репозитории есть сабмодули, подтягиваем их рекурсивно.
+            run([
+                "git",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ], cwd=repo_path)
 
         CHANGELOG_DIR.mkdir(parents=True, exist_ok=True)
         log_file = CHANGELOG_DIR / f"{name}.log"
