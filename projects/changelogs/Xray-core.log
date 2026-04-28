@@ -101642,3 +101642,4397 @@ index ccd1437d..2ba9b9cb 100644
  )
  
  var (
+
+commit d837687368abd0deb2e1eda1bb758505657e4326
+Author: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Date:   2026-04-25 15:09:05 +0000
+
+    Bump golang.zx2c4.com/wireguard/windows from 0.6.1 to 1.0.1 (#5985)
+    
+    Bumps golang.zx2c4.com/wireguard/windows from 0.6.1 to 1.0.1.
+    
+    ---
+    updated-dependencies:
+    - dependency-name: golang.zx2c4.com/wireguard/windows
+      dependency-version: 1.0.1
+      dependency-type: direct:production
+      update-type: version-update:semver-major
+    ...
+    
+    Signed-off-by: dependabot[bot] <support@github.com>
+    Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+---
+ go.mod | 2 +-
+ go.sum | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/go.mod b/go.mod
+index b079fba3..ca438801 100644
+--- a/go.mod
++++ b/go.mod
+@@ -27,7 +27,7 @@ require (
+ 	golang.org/x/sys v0.43.0
+ 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2
+ 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
+-	golang.zx2c4.com/wireguard/windows v0.6.1
++	golang.zx2c4.com/wireguard/windows v1.0.1
+ 	google.golang.org/grpc v1.80.0
+ 	google.golang.org/protobuf v1.36.11
+ 	gvisor.dev/gvisor v0.0.0-20260122175437-89a5d21be8f0
+diff --git a/go.sum b/go.sum
+index f448783c..255f9868 100644
+--- a/go.sum
++++ b/go.sum
+@@ -131,8 +131,8 @@ golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 h1:B82qJJgjvYKsXS9jeu
+ golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2/go.mod h1:deeaetjYA+DHMHg+sMSMI58GrEteJUUzzw7en6TJQcI=
+ golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb h1:whnFRlWMcXI9d+ZbWg+4sHnLp52d5yiIPUxMBSt4X9A=
+ golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb/go.mod h1:rpwXGsirqLqN2L0JDJQlwOboGHmptD5ZD6T2VmcqhTw=
+-golang.zx2c4.com/wireguard/windows v0.6.1 h1:XMaKojH1Hs/raMrmnir4n35nTvzvWj7NmSYzHn2F4qU=
+-golang.zx2c4.com/wireguard/windows v0.6.1/go.mod h1:04aqInu5GYuTFvMuDw/rKBAF7mHrltW/3rekpfbbZDM=
++golang.zx2c4.com/wireguard/windows v1.0.1 h1:eOxiDVbywPC+ZQqvdCK7x+ZwWXKbYv50TtH8ysFIbw8=
++golang.zx2c4.com/wireguard/windows v1.0.1/go.mod h1:+fbT3FFdX4zzYDLwJh5+HPEcNN/3HyNdzhNSVsQM+zs=
+ gonum.org/v1/gonum v0.17.0 h1:VbpOemQlsSMrYmn7T2OUvQ4dqxQXU+ouZFQsZOx50z4=
+ gonum.org/v1/gonum v0.17.0/go.mod h1:El3tOrEuMpv2UdMrbNlKEh9vd86bmQ6vqIcDwxEOc1E=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 h1:sNrWoksmOyF5bvJUcnmbeAmQi8baNhqg5IWaI3llQqU=
+
+commit 7cf25970ded96df6ce3c6557c4e4deaac6f43989
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   2026-04-26 00:07:04 +0800
+
+    IPMatcher: Fix full CIDR issue (#5971)
+    
+    Fixes https://github.com/XTLS/Xray-core/issues/5977
+---
+ common/geodata/ip_matcher.go      | 11 ++++-
+ common/geodata/ip_matcher_test.go | 84 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 93 insertions(+), 2 deletions(-)
+
+diff --git a/common/geodata/ip_matcher.go b/common/geodata/ip_matcher.go
+index 315ce040..abacf109 100644
+--- a/common/geodata/ip_matcher.go
++++ b/common/geodata/ip_matcher.go
+@@ -915,24 +915,31 @@ func (f *IPSetFactory) createFrom(yield func(func(*CIDR)) error) (*IPSet, error)
+ 		return nil, errors.New("failed to build IPv6 set").Base(err)
+ 	}
+ 
++	var has4, has6 bool
+ 	var max4, max6 int
+ 
+ 	for _, p := range ipv4.Prefixes() {
++		has4 = true
+ 		if b := p.Bits(); b > max4 {
+ 			max4 = b
+ 		}
+ 	}
+ 	for _, p := range ipv6.Prefixes() {
++		has6 = true
+ 		if b := p.Bits(); b > max6 {
+ 			max6 = b
+ 		}
+ 	}
+ 
+-	if max4 == 0 {
++	if !has4 {
+ 		max4 = 0xff
++	} else if max4 == 0 {
++		max4 = 0xfe
+ 	}
+-	if max6 == 0 {
++	if !has6 {
+ 		max6 = 0xff
++	} else if max6 == 0 {
++		max6 = 0xfe
+ 	}
+ 
+ 	return &IPSet{ipv4: ipv4, ipv6: ipv6, max4: uint8(max4), max6: uint8(max6)}, nil
+diff --git a/common/geodata/ip_matcher_test.go b/common/geodata/ip_matcher_test.go
+index d1dc2de2..829c455d 100644
+--- a/common/geodata/ip_matcher_test.go
++++ b/common/geodata/ip_matcher_test.go
+@@ -97,6 +97,90 @@ func TestIPMatcher(t *testing.T) {
+ 	}
+ }
+ 
++func TestIPMatcherFullCIDR4(t *testing.T) {
++	matcher := buildIPMatcher(
++		"0.0.0.0/0",
++	)
++
++	testCases := []struct {
++		Input  string
++		Output bool
++	}{
++		{
++			Input:  "192.168.1.1",
++			Output: true,
++		},
++		{
++			Input:  "0.0.0.0",
++			Output: true,
++		},
++		{
++			Input:  "255.255.255.255",
++			Output: true,
++		},
++		{
++			Input:  "2001:cdba::3257:9652",
++			Output: false,
++		},
++		{
++			Input:  "::0",
++			Output: false,
++		},
++		{
++			Input:  "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
++			Output: false,
++		},
++	}
++
++	for _, test := range testCases {
++		if v := matcher.Match(xnet.ParseAddress(test.Input).IP()); v != test.Output {
++			t.Error("unexpected output: ", v, " for test case ", test)
++		}
++	}
++}
++
++func TestIPMatcherFullCIDR6(t *testing.T) {
++	matcher := buildIPMatcher(
++		"::0/0",
++	)
++
++	testCases := []struct {
++		Input  string
++		Output bool
++	}{
++		{
++			Input:  "192.168.1.1",
++			Output: false,
++		},
++		{
++			Input:  "0.0.0.0",
++			Output: false,
++		},
++		{
++			Input:  "255.255.255.255",
++			Output: false,
++		},
++		{
++			Input:  "2001:cdba::3257:9652",
++			Output: true,
++		},
++		{
++			Input:  "::0",
++			Output: true,
++		},
++		{
++			Input:  "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
++			Output: true,
++		},
++	}
++
++	for _, test := range testCases {
++		if v := matcher.Match(xnet.ParseAddress(test.Input).IP()); v != test.Output {
++			t.Error("unexpected output: ", v, " for test case ", test)
++		}
++	}
++}
++
+ func TestIPMatcherRegression(t *testing.T) {
+ 	matcher := buildIPMatcher(
+ 		"98.108.20.0/22",
+
+commit bc590bcb56f800fac7cd7408bfaeadb55eecc138
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   2026-04-26 00:15:37 +0800
+
+    Geodata: Reduce memory usage again (#5975)
+    
+    https://github.com/XTLS/Xray-core/pull/5975#issuecomment-4274779560
+---
+ app/dns/dns.go                                     | 49 ++++++-----
+ app/dns/hosts.go                                   | 25 +++---
+ common/geodata/domain_matcher.go                   | 78 +++++++++++++++---
+ common/geodata/domain_matcher_test.go              |  6 +-
+ common/geodata/ip_matcher.go                       |  2 +
+ common/geodata/strmatcher/anymatcher_linear.go     | 53 ++++++++++++
+ common/geodata/strmatcher/matchers.go              | 62 ++++++++++++++
+ common/geodata/strmatcher/matcherset_domain.go     | 79 ++++++++++++++++++
+ .../geodata/strmatcher/matcherset_domain_test.go   | 95 ++++++++++++++++++++++
+ common/geodata/strmatcher/matcherset_full.go       | 24 ++++++
+ common/geodata/strmatcher/matcherset_full_test.go  | 65 +++++++++++++++
+ common/geodata/strmatcher/matcherset_simple.go     | 22 +++++
+ .../geodata/strmatcher/matcherset_simple_test.go   | 69 ++++++++++++++++
+ common/geodata/strmatcher/matcherset_substr.go     | 24 ++++++
+ .../geodata/strmatcher/matcherset_substr_test.go   | 77 ++++++++++++++++++
+ common/geodata/strmatcher/strmatcher.go            | 20 ++++-
+ 16 files changed, 700 insertions(+), 50 deletions(-)
+
+diff --git a/app/dns/dns.go b/app/dns/dns.go
+index ec350e84..8b52a6a5 100644
+--- a/app/dns/dns.go
++++ b/app/dns/dns.go
+@@ -158,9 +158,12 @@ func New(ctx context.Context, config *Config) (*DNS, error) {
+ 		clients = append(clients, client)
+ 	}
+ 
+-	domainMatcher, err := geodata.DomainReg.BuildDomainMatcher(effectiveRules)
+-	if err != nil {
+-		return nil, err
++	var domainMatcher geodata.DomainMatcher
++	if len(effectiveRules) > 0 {
++		domainMatcher, err = geodata.DomainReg.BuildDomainMatcher(effectiveRules)
++		if err != nil {
++			return nil, err
++		}
+ 	}
+ 
+ 	// If there is no DNS client in config, add a `localhost` DNS client
+@@ -271,25 +274,27 @@ func (s *DNS) sortClients(domain string) []*Client {
+ 
+ 	// Priority domain matching
+ 	hasMatch := false
+-	matchSlice := s.domainMatcher.Match(strings.ToLower(domain))
+-	sort.Slice(matchSlice, func(i, j int) bool {
+-		return matchSlice[i] < matchSlice[j]
+-	})
+-	for _, match := range matchSlice {
+-		info := s.matcherInfos[match]
+-		client := s.clients[info.clientIdx]
+-		domainRule := info.domainRule
+-		domainRules = append(domainRules, fmt.Sprintf("%s(DNS idx:%d)", domainRule, info.clientIdx))
+-		if clientUsed[info.clientIdx] {
+-			continue
+-		}
+-		clientUsed[info.clientIdx] = true
+-		clients = append(clients, client)
+-		clientNames = append(clientNames, client.Name())
+-		hasMatch = true
+-		if client.finalQuery {
+-			logDecision(s.ctx, domain, domainRules, clientNames)
+-			return clients
++	if s.domainMatcher != nil {
++		matchSlice := s.domainMatcher.Match(strings.ToLower(domain))
++		sort.Slice(matchSlice, func(i, j int) bool {
++			return matchSlice[i] < matchSlice[j]
++		})
++		for _, match := range matchSlice {
++			info := s.matcherInfos[match]
++			client := s.clients[info.clientIdx]
++			domainRule := info.domainRule
++			domainRules = append(domainRules, fmt.Sprintf("%s(DNS idx:%d)", domainRule, info.clientIdx))
++			if clientUsed[info.clientIdx] {
++				continue
++			}
++			clientUsed[info.clientIdx] = true
++			clients = append(clients, client)
++			clientNames = append(clientNames, client.Name())
++			hasMatch = true
++			if client.finalQuery {
++				logDecision(s.ctx, domain, domainRules, clientNames)
++				return clients
++			}
+ 		}
+ 	}
+ 
+diff --git a/app/dns/hosts.go b/app/dns/hosts.go
+index c3546967..a17d1215 100644
+--- a/app/dns/hosts.go
++++ b/app/dns/hosts.go
+@@ -13,8 +13,8 @@ import (
+ 
+ // StaticHosts represents static domain-ip mapping in DNS server.
+ type StaticHosts struct {
+-	reps    [][]net.Address
+-	matcher geodata.DomainMatcher
++	responses [][]net.Address
++	matcher   geodata.DomainMatcher
+ }
+ 
+ // NewStaticHosts creates a new StaticHosts instance.
+@@ -45,21 +45,21 @@ func NewStaticHosts(hosts []*Config_HostMapping) (*StaticHosts, error) {
+ 				rep = append(rep, addr)
+ 			}
+ 		}
+-		// if len(rep) == 0 {
+-		// 	errors.LogError(context.Background(), "empty value in static hosts, ignore this rule: ", mapping.Domain)
+-		// 	continue
+-		// }
+ 		reps = append(reps, rep)
+ 		rules = append(rules, mapping.Domain)
+ 	}
+ 
++	if len(rules) == 0 {
++		return &StaticHosts{}, nil
++	}
++
+ 	matcher, err := geodata.DomainReg.BuildDomainMatcher(rules)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 	return &StaticHosts{
+-		reps:    reps,
+-		matcher: matcher,
++		responses: reps,
++		matcher:   matcher,
+ 	}, nil
+ }
+ 
+@@ -76,8 +76,8 @@ func filterIP(ips []net.Address, option dns.IPOption) []net.Address {
+ func (h *StaticHosts) lookupInternal(domain string) ([]net.Address, error) {
+ 	ips := make([]net.Address, 0)
+ 	found := false
+-	for _, ruleIdx := range h.matcher.Match(domain) {
+-		for _, rep := range h.reps[ruleIdx] {
++	for _, idx := range h.matcher.Match(domain) {
++		for _, rep := range h.responses[idx] {
+ 			if err, ok := rep.(dns.RCodeError); ok {
+ 				if uint16(err) == 0 {
+ 					return nil, dns.ErrEmptyResponse
+@@ -85,7 +85,7 @@ func (h *StaticHosts) lookupInternal(domain string) ([]net.Address, error) {
+ 				return nil, err
+ 			}
+ 		}
+-		ips = append(ips, h.reps[ruleIdx]...)
++		ips = append(ips, h.responses[idx]...)
+ 		found = true
+ 	}
+ 	if !found {
+@@ -122,5 +122,8 @@ func (h *StaticHosts) lookup(domain string, option dns.IPOption, maxDepth int) (
+ 
+ // Lookup returns IP addresses or proxied domain for the given domain, if exists in this StaticHosts.
+ func (h *StaticHosts) Lookup(domain string, option dns.IPOption) ([]net.Address, error) {
++	if h.matcher == nil {
++		return nil, nil
++	}
+ 	return h.lookup(domain, option, 5)
+ }
+diff --git a/common/geodata/domain_matcher.go b/common/geodata/domain_matcher.go
+index e5e854f9..be9e62bf 100644
+--- a/common/geodata/domain_matcher.go
++++ b/common/geodata/domain_matcher.go
+@@ -23,10 +23,54 @@ type DomainMatcherFactory interface {
+ 	BuildMatcher(rules []*DomainRule) (DomainMatcher, error)
+ }
+ 
+-type MphDomainMatcherFactory struct{}
++type MphDomainMatcherFactory struct {
++	sync.Mutex
++	shared map[string]strmatcher.MatcherGroup // TODO: cleanup
++}
++
++func buildDomainRulesKey(rules []*DomainRule) string {
++	var sb strings.Builder
++	cache := false
++	for _, r := range rules {
++		switch v := r.Value.(type) {
++		case *DomainRule_Custom:
++			sb.WriteString(v.Custom.Type.String())
++			sb.WriteString(":")
++			sb.WriteString(v.Custom.Value)
++			sb.WriteString(",")
++		case *DomainRule_Geosite:
++			cache = true
++			sb.WriteString(v.Geosite.File)
++			sb.WriteString(":")
++			sb.WriteString(v.Geosite.Code)
++			sb.WriteString("@")
++			sb.WriteString(v.Geosite.Attrs)
++			sb.WriteString(",")
++		default:
++			panic("unknown domain rule type")
++		}
++	}
++	if !cache {
++		return ""
++	}
++	return sb.String()
++}
+ 
+ // BuildMatcher implements DomainMatcherFactory.
+ func (f *MphDomainMatcherFactory) BuildMatcher(rules []*DomainRule) (DomainMatcher, error) {
++	if len(rules) == 0 {
++		return nil, errors.New("empty domain rule list")
++	}
++	key := buildDomainRulesKey(rules)
++	if key != "" {
++		f.Lock()
++		defer f.Unlock()
++		if g := f.shared[key]; g != nil {
++			errors.LogDebug(context.Background(), "geodata mph domain matcher cache HIT for ", len(rules), " rules")
++			return g, nil
++		}
++		errors.LogDebug(context.Background(), "geodata mph domain matcher cache MISS for ", len(rules), " rules")
++	}
+ 	g := strmatcher.NewMphValueMatcher()
+ 	for i, r := range rules {
+ 		switch v := r.Value.(type) {
+@@ -57,25 +101,30 @@ func (f *MphDomainMatcherFactory) BuildMatcher(rules []*DomainRule) (DomainMatch
+ 	if err := g.Build(); err != nil {
+ 		return nil, err
+ 	}
++	if key != "" {
++		f.shared[key] = g
++	}
+ 	return g, nil
+ }
+ 
+ type CompactDomainMatcherFactory struct {
+ 	sync.Mutex
+-	shared map[string]strmatcher.MatcherGroup // TODO: cleanup
++	shared map[string]strmatcher.MatcherSet // TODO: cleanup
+ }
+ 
+-func (f *CompactDomainMatcherFactory) getOrCreateFrom(rule *GeoSiteRule) (strmatcher.MatcherGroup, error) {
++func (f *CompactDomainMatcherFactory) getOrCreateFrom(rule *GeoSiteRule) (strmatcher.MatcherSet, error) {
+ 	key := rule.File + ":" + rule.Code + "@" + rule.Attrs
+ 
+ 	f.Lock()
+ 	defer f.Unlock()
+ 
+-	if m := f.shared[key]; m != nil {
+-		return m, nil
++	if s := f.shared[key]; s != nil {
++		errors.LogDebug(context.Background(), "geodata geosite matcher cache HIT ", key)
++		return s, nil
+ 	}
++	errors.LogDebug(context.Background(), "geodata geosite matcher cache MISS ", key)
+ 
+-	g := strmatcher.NewLinearValueMatcher()
++	s := strmatcher.NewLinearAnyMatcher()
+ 	domains, err := loadSiteWithAttrs(rule.File, rule.Code, rule.Attrs)
+ 	if err != nil {
+ 		return nil, err
+@@ -87,16 +136,19 @@ func (f *CompactDomainMatcherFactory) getOrCreateFrom(rule *GeoSiteRule) (strmat
+ 			errors.LogError(context.Background(), "ignore invalid geosite entry in ", rule.File, ":", rule.Code, " at index ", i, ", ", err)
+ 			continue
+ 		}
+-		g.Add(m, 0)
++		s.Add(m)
+ 	}
+-	f.shared[key] = g
+-	return g, err
++	f.shared[key] = s
++	return s, err
+ }
+ 
+ // BuildMatcher implements DomainMatcherFactory.
+ func (f *CompactDomainMatcherFactory) BuildMatcher(rules []*DomainRule) (DomainMatcher, error) {
++	if len(rules) == 0 {
++		return nil, errors.New("empty domain rule list")
++	}
+ 	compact := &CompactDomainMatcher{
+-		matchers: make([]strmatcher.MatcherGroup, 0, len(rules)),
++		matchers: make([]strmatcher.MatcherSet, 0, len(rules)),
+ 		values:   make([]uint32, 0, len(rules)),
+ 	}
+ 	for i, r := range rules {
+@@ -126,7 +178,7 @@ func (f *CompactDomainMatcherFactory) BuildMatcher(rules []*DomainRule) (DomainM
+ 
+ type CompactDomainMatcher struct {
+ 	custom   strmatcher.ValueMatcher
+-	matchers []strmatcher.MatcherGroup
++	matchers []strmatcher.MatcherSet
+ 	values   []uint32
+ }
+ 
+@@ -178,8 +230,8 @@ func parseDomain(d *Domain) (strmatcher.Matcher, error) {
+ func newDomainMatcherFactory() DomainMatcherFactory {
+ 	switch runtime.GOOS {
+ 	case "ios", "android":
+-		return &CompactDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherGroup)}
++		return &CompactDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherSet)}
+ 	default:
+-		return &MphDomainMatcherFactory{}
++		return &MphDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherGroup)}
+ 	}
+ }
+diff --git a/common/geodata/domain_matcher_test.go b/common/geodata/domain_matcher_test.go
+index 0506df09..83ae60ca 100644
+--- a/common/geodata/domain_matcher_test.go
++++ b/common/geodata/domain_matcher_test.go
+@@ -10,7 +10,7 @@ import (
+ )
+ 
+ func TestCompactDomainMatcher_PreservesCustomRuleIndices(t *testing.T) {
+-	factory := &CompactDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherGroup)}
++	factory := &CompactDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherSet)}
+ 	matcher, err := factory.BuildMatcher([]*DomainRule{
+ 		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Full, Value: "example.com"}}},
+ 		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Domain, Value: "example.com"}}},
+@@ -31,7 +31,7 @@ func TestCompactDomainMatcher_PreservesCustomRuleIndices(t *testing.T) {
+ func TestCompactDomainMatcher_PreservesMixedRuleIndices(t *testing.T) {
+ 	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
+ 
+-	factory := &CompactDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherGroup)}
++	factory := &CompactDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherSet)}
+ 	matcher, err := factory.BuildMatcher([]*DomainRule{
+ 		{Value: &DomainRule_Geosite{Geosite: &GeoSiteRule{File: DefaultGeoSiteDat, Code: "CN"}}},
+ 		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Full, Value: "163.com"}}},
+@@ -50,7 +50,7 @@ func TestCompactDomainMatcher_PreservesMixedRuleIndices(t *testing.T) {
+ }
+ 
+ func TestMphDomainMatcher_MatchReturnsDetachedSlice(t *testing.T) {
+-	matcher, err := (&MphDomainMatcherFactory{}).BuildMatcher([]*DomainRule{
++	matcher, err := (&MphDomainMatcherFactory{shared: make(map[string]strmatcher.MatcherGroup)}).BuildMatcher([]*DomainRule{
+ 		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Full, Value: "example.com"}}},
+ 		{Value: &DomainRule_Custom{Custom: &Domain{Type: Domain_Domain, Value: "example.com"}}},
+ 	})
+diff --git a/common/geodata/ip_matcher.go b/common/geodata/ip_matcher.go
+index abacf109..165f904e 100644
+--- a/common/geodata/ip_matcher.go
++++ b/common/geodata/ip_matcher.go
+@@ -816,8 +816,10 @@ func (f *IPSetFactory) GetOrCreateFromGeoIPRules(rules []*GeoIPRule) (*IPSet, er
+ 	defer f.Unlock()
+ 
+ 	if ipset := f.shared[key]; ipset != nil {
++		errors.LogDebug(context.Background(), "geodata geoip matcher cache HIT ", key)
+ 		return ipset, nil
+ 	}
++	errors.LogDebug(context.Background(), "geodata geoip matcher cache MISS ", key)
+ 
+ 	ipset, err := f.createFrom(func(add func(*CIDR)) error {
+ 		for _, r := range rules {
+diff --git a/common/geodata/strmatcher/anymatcher_linear.go b/common/geodata/strmatcher/anymatcher_linear.go
+new file mode 100644
+index 00000000..0f1e6bef
+--- /dev/null
++++ b/common/geodata/strmatcher/anymatcher_linear.go
+@@ -0,0 +1,53 @@
++package strmatcher
++
++// LinearAnyMatcher is an implementation of AnyMatcher.
++type LinearAnyMatcher struct {
++	full   *FullMatcherSet
++	domain *DomainMatcherSet
++	substr *SubstrMatcherSet
++	regex  *SimpleMatcherSet
++}
++
++func NewLinearAnyMatcher() *LinearAnyMatcher {
++	return new(LinearAnyMatcher)
++}
++
++// Add implements AnyMatcher.Add.
++func (s *LinearAnyMatcher) Add(matcher Matcher) {
++	switch matcher := matcher.(type) {
++	case FullMatcher:
++		if s.full == nil {
++			s.full = NewFullMatcherSet()
++		}
++		s.full.AddFullMatcher(matcher)
++	case DomainMatcher:
++		if s.domain == nil {
++			s.domain = NewDomainMatcherSet()
++		}
++		s.domain.AddDomainMatcher(matcher)
++	case SubstrMatcher:
++		if s.substr == nil {
++			s.substr = new(SubstrMatcherSet)
++		}
++		s.substr.AddSubstrMatcher(matcher)
++	default:
++		if s.regex == nil {
++			s.regex = new(SimpleMatcherSet)
++		}
++		s.regex.AddMatcher(matcher)
++	}
++}
++
++// MatchAny implements AnyMatcher.MatchAny.
++func (s *LinearAnyMatcher) MatchAny(input string) bool {
++	if s.full != nil && s.full.MatchAny(input) {
++		return true
++	}
++	if s.domain != nil && s.domain.MatchAny(input) {
++		return true
++	}
++	if s.substr != nil && s.substr.MatchAny(input) {
++		return true
++	}
++	return s.regex != nil && s.regex.MatchAny(input)
++}
+diff --git a/common/geodata/strmatcher/matchers.go b/common/geodata/strmatcher/matchers.go
+index fa288804..74360771 100644
+--- a/common/geodata/strmatcher/matchers.go
++++ b/common/geodata/strmatcher/matchers.go
+@@ -288,3 +288,65 @@ func CompositeMatchesReverse(matches [][]uint32) []uint32 {
+ 		return result
+ 	}
+ }
++
++// MatcherSetForAll is an interface indicating a MatcherSet could accept all types of matchers.
++type MatcherSetForAll interface {
++	AddMatcher(matcher Matcher)
++}
++
++// MatcherSetForFull is an interface indicating a MatcherSet could accept FullMatchers.
++type MatcherSetForFull interface {
++	AddFullMatcher(matcher FullMatcher)
++}
++
++// MatcherSetForDomain is an interface indicating a MatcherSet could accept DomainMatchers.
++type MatcherSetForDomain interface {
++	AddDomainMatcher(matcher DomainMatcher)
++}
++
++// MatcherSetForSubstr is an interface indicating a MatcherSet could accept SubstrMatchers.
++type MatcherSetForSubstr interface {
++	AddSubstrMatcher(matcher SubstrMatcher)
++}
++
++// MatcherSetForRegex is an interface indicating a MatcherSet could accept RegexMatchers.
++type MatcherSetForRegex interface {
++	AddRegexMatcher(matcher *RegexMatcher)
++}
++
++// AddMatcherToSet is a helper function to try to add a Matcher to any kind of MatcherSet.
++// It returns error if the MatcherSet does not accept the provided Matcher's type.
++// This function is provided to help writing code to test a MatcherSet.
++func AddMatcherToSet(s MatcherSet, matcher Matcher) error {
++	if s, ok := s.(IndexMatcher); ok {
++		s.Add(matcher)
++		return nil
++	}
++	if s, ok := s.(MatcherSetForAll); ok {
++		s.AddMatcher(matcher)
++		return nil
++	}
++	switch matcher := matcher.(type) {
++	case FullMatcher:
++		if s, ok := s.(MatcherSetForFull); ok {
++			s.AddFullMatcher(matcher)
++			return nil
++		}
++	case DomainMatcher:
++		if s, ok := s.(MatcherSetForDomain); ok {
++			s.AddDomainMatcher(matcher)
++			return nil
++		}
++	case SubstrMatcher:
++		if s, ok := s.(MatcherSetForSubstr); ok {
++			s.AddSubstrMatcher(matcher)
++			return nil
++		}
++	case *RegexMatcher:
++		if s, ok := s.(MatcherSetForRegex); ok {
++			s.AddRegexMatcher(matcher)
++			return nil
++		}
++	}
++	return errors.New("cannot add matcher to matcher set")
++}
+diff --git a/common/geodata/strmatcher/matcherset_domain.go b/common/geodata/strmatcher/matcherset_domain.go
+new file mode 100644
+index 00000000..1ad22a8e
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_domain.go
+@@ -0,0 +1,79 @@
++package strmatcher
++
++type trieNode2 struct {
++	matched  bool
++	children map[string]*trieNode2
++}
++
++// DomainMatcherSet is an implementation of MatcherSet.
++// It uses trie to optimize both memory consumption and lookup speed. Trie node is domain label based.
++type DomainMatcherSet struct {
++	root *trieNode2
++}
++
++func NewDomainMatcherSet() *DomainMatcherSet {
++	return &DomainMatcherSet{
++		root: new(trieNode2),
++	}
++}
++
++// AddDomainMatcher implements MatcherSetForDomain.AddDomainMatcher.
++func (s *DomainMatcherSet) AddDomainMatcher(matcher DomainMatcher) {
++	node := s.root
++	pattern := matcher.Pattern()
++	for i := len(pattern); i > 0; {
++		var part string
++		for j := i - 1; ; j-- {
++			if pattern[j] == '.' {
++				part = pattern[j+1 : i]
++				i = j
++				break
++			}
++			if j == 0 {
++				part = pattern[j:i]
++				i = j
++				break
++			}
++		}
++		if node.children == nil {
++			node.children = make(map[string]*trieNode2)
++		}
++		next := node.children[part]
++		if next == nil {
++			next = new(trieNode2)
++			node.children[part] = next
++		}
++		node = next
++	}
++
++	node.matched = true
++}
++
++// MatchAny implements MatcherSet.MatchAny.
++func (s *DomainMatcherSet) MatchAny(input string) bool {
++	node := s.root
++	for i := len(input); i > 0; {
++		for j := i - 1; ; j-- {
++			if input[j] == '.' {
++				node = node.children[input[j+1:i]]
++				i = j
++				break
++			}
++			if j == 0 {
++				node = node.children[input[j:i]]
++				i = j
++				break
++			}
++		}
++		if node == nil {
++			return false
++		}
++		if node.matched {
++			return true
++		}
++		if node.children == nil {
++			return false
++		}
++	}
++	return false
++}
+diff --git a/common/geodata/strmatcher/matcherset_domain_test.go b/common/geodata/strmatcher/matcherset_domain_test.go
+new file mode 100644
+index 00000000..e0ae2486
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_domain_test.go
+@@ -0,0 +1,95 @@
++package strmatcher_test
++
++import (
++	"reflect"
++	"testing"
++
++	. "github.com/xtls/xray-core/common/geodata/strmatcher"
++)
++
++func TestDomainMatcherSet(t *testing.T) {
++	patterns := []struct {
++		Pattern string
++	}{
++		{
++			Pattern: "example.com",
++		},
++		{
++			Pattern: "google.com",
++		},
++		{
++			Pattern: "x.a.com",
++		},
++		{
++			Pattern: "a.b.com",
++		},
++		{
++			Pattern: "c.a.b.com",
++		},
++		{
++			Pattern: "x.y.com",
++		},
++		{
++			Pattern: "x.y.com",
++		},
++	}
++	testCases := []struct {
++		Domain string
++		Result bool
++	}{
++		{
++			Domain: "x.example.com",
++			Result: true,
++		},
++		{
++			Domain: "y.com",
++			Result: false,
++		},
++		{
++			Domain: "a.b.com",
++			Result: true,
++		},
++		{
++			Domain: "c.a.b.com",
++			Result: true,
++		},
++		{
++			Domain: "c.a..b.com",
++			Result: false,
++		},
++		{
++			Domain: ".com",
++			Result: false,
++		},
++		{
++			Domain: "com",
++			Result: false,
++		},
++		{
++			Domain: "",
++			Result: false,
++		},
++		{
++			Domain: "x.y.com",
++			Result: true,
++		},
++	}
++	s := NewDomainMatcherSet()
++	for _, pattern := range patterns {
++		AddMatcherToSet(s, DomainMatcher(pattern.Pattern))
++	}
++	for _, testCase := range testCases {
++		r := s.MatchAny(testCase.Domain)
++		if !reflect.DeepEqual(r, testCase.Result) {
++			t.Error("Failed to match domain: ", testCase.Domain, ", expect ", testCase.Result, ", but got ", r)
++		}
++	}
++}
++
++func TestEmptyDomainMatcherSet(t *testing.T) {
++	s := NewDomainMatcherSet()
++	r := s.MatchAny("example.com")
++	if r {
++		t.Error("Expect false, but ", r)
++	}
++}
+diff --git a/common/geodata/strmatcher/matcherset_full.go b/common/geodata/strmatcher/matcherset_full.go
+new file mode 100644
+index 00000000..357bdbe1
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_full.go
+@@ -0,0 +1,24 @@
++package strmatcher
++
++// FullMatcherSet is an implementation of MatcherSet.
++// It uses a hash table to facilitate exact match lookup.
++type FullMatcherSet struct {
++	matchers map[string]struct{}
++}
++
++func NewFullMatcherSet() *FullMatcherSet {
++	return &FullMatcherSet{
++		matchers: make(map[string]struct{}),
++	}
++}
++
++// AddFullMatcher implements MatcherSetForFull.AddFullMatcher.
++func (s *FullMatcherSet) AddFullMatcher(matcher FullMatcher) {
++	s.matchers[matcher.Pattern()] = struct{}{}
++}
++
++// MatchAny implements MatcherSet.Any.
++func (s *FullMatcherSet) MatchAny(input string) bool {
++	_, found := s.matchers[input]
++	return found
++}
+diff --git a/common/geodata/strmatcher/matcherset_full_test.go b/common/geodata/strmatcher/matcherset_full_test.go
+new file mode 100644
+index 00000000..ea8d348c
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_full_test.go
+@@ -0,0 +1,65 @@
++package strmatcher_test
++
++import (
++	"reflect"
++	"testing"
++
++	. "github.com/xtls/xray-core/common/geodata/strmatcher"
++)
++
++func TestFullMatcherSet(t *testing.T) {
++	patterns := []struct {
++		Pattern string
++	}{
++		{
++			Pattern: "example.com",
++		},
++		{
++			Pattern: "google.com",
++		},
++		{
++			Pattern: "x.a.com",
++		},
++		{
++			Pattern: "x.y.com",
++		},
++		{
++			Pattern: "x.y.com",
++		},
++	}
++	testCases := []struct {
++		Domain string
++		Result bool
++	}{
++		{
++			Domain: "example.com",
++			Result: true,
++		},
++		{
++			Domain: "y.com",
++			Result: false,
++		},
++		{
++			Domain: "x.y.com",
++			Result: true,
++		},
++	}
++	s := NewFullMatcherSet()
++	for _, pattern := range patterns {
++		AddMatcherToSet(s, FullMatcher(pattern.Pattern))
++	}
++	for _, testCase := range testCases {
++		r := s.MatchAny(testCase.Domain)
++		if !reflect.DeepEqual(r, testCase.Result) {
++			t.Error("Failed to match domain: ", testCase.Domain, ", expect ", testCase.Result, ", but got ", r)
++		}
++	}
++}
++
++func TestEmptyFullMatcherSet(t *testing.T) {
++	s := NewFullMatcherSet()
++	r := s.MatchAny("example.com")
++	if r {
++		t.Error("Expect false, but ", r)
++	}
++}
+diff --git a/common/geodata/strmatcher/matcherset_simple.go b/common/geodata/strmatcher/matcherset_simple.go
+new file mode 100644
+index 00000000..2f885a64
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_simple.go
+@@ -0,0 +1,22 @@
++package strmatcher
++
++// SimpleMatcherSet is an implementation of MatcherSet.
++// It simply stores all matchers in an array and sequentially matches them.
++type SimpleMatcherSet struct {
++	matchers []Matcher
++}
++
++// AddMatcher implements MatcherSetForAll.AddMatcher.
++func (s *SimpleMatcherSet) AddMatcher(matcher Matcher) {
++	s.matchers = append(s.matchers, matcher)
++}
++
++// MatchAny implements MatcherSet.MatchAny.
++func (s *SimpleMatcherSet) MatchAny(input string) bool {
++	for _, m := range s.matchers {
++		if m.Match(input) {
++			return true
++		}
++	}
++	return false
++}
+diff --git a/common/geodata/strmatcher/matcherset_simple_test.go b/common/geodata/strmatcher/matcherset_simple_test.go
+new file mode 100644
+index 00000000..429bbe54
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_simple_test.go
+@@ -0,0 +1,69 @@
++package strmatcher_test
++
++import (
++	"reflect"
++	"testing"
++
++	"github.com/xtls/xray-core/common"
++	. "github.com/xtls/xray-core/common/geodata/strmatcher"
++)
++
++func TestSimpleMatcherSet(t *testing.T) {
++	patterns := []struct {
++		pattern string
++		mType   Type
++	}{
++		{
++			pattern: "example.com",
++			mType:   Domain,
++		},
++		{
++			pattern: "example.com",
++			mType:   Full,
++		},
++		{
++			pattern: "example.com",
++			mType:   Regex,
++		},
++	}
++	cases := []struct {
++		input  string
++		output bool
++	}{
++		{
++			input:  "www.example.com",
++			output: true,
++		},
++		{
++			input:  "example.com",
++			output: true,
++		},
++		{
++			input:  "www.e3ample.com",
++			output: false,
++		},
++		{
++			input:  "xample.com",
++			output: false,
++		},
++		{
++			input:  "xexample.com",
++			output: true,
++		},
++		{
++			input:  "examplexcom",
++			output: true,
++		},
++	}
++	matcherSet := &SimpleMatcherSet{}
++	for _, entry := range patterns {
++		matcher, err := entry.mType.New(entry.pattern)
++		common.Must(err)
++		common.Must(AddMatcherToSet(matcherSet, matcher))
++	}
++	for _, test := range cases {
++		if r := matcherSet.MatchAny(test.input); !reflect.DeepEqual(r, test.output) {
++			t.Error("unexpected output: ", r, " for test case ", test)
++		}
++	}
++}
+diff --git a/common/geodata/strmatcher/matcherset_substr.go b/common/geodata/strmatcher/matcherset_substr.go
+new file mode 100644
+index 00000000..58bfd6e3
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_substr.go
+@@ -0,0 +1,24 @@
++package strmatcher
++
++import "strings"
++
++// SubstrMatcherSet is implementation of MatcherSet,
++// It is simply implmeneted to comply with the priority specification of Substr matchers.
++type SubstrMatcherSet struct {
++	patterns []string
++}
++
++// AddSubstrMatcher implements MatcherSetForSubstr.AddSubstrMatcher.
++func (s *SubstrMatcherSet) AddSubstrMatcher(matcher SubstrMatcher) {
++	s.patterns = append(s.patterns, matcher.Pattern())
++}
++
++// MatchAny implements MatcherSet.MatchAny.
++func (s *SubstrMatcherSet) MatchAny(input string) bool {
++	for _, pattern := range s.patterns {
++		if strings.Contains(input, pattern) {
++			return true
++		}
++	}
++	return false
++}
+diff --git a/common/geodata/strmatcher/matcherset_substr_test.go b/common/geodata/strmatcher/matcherset_substr_test.go
+new file mode 100644
+index 00000000..de73138e
+--- /dev/null
++++ b/common/geodata/strmatcher/matcherset_substr_test.go
+@@ -0,0 +1,77 @@
++package strmatcher_test
++
++import (
++	"reflect"
++	"testing"
++
++	"github.com/xtls/xray-core/common"
++	. "github.com/xtls/xray-core/common/geodata/strmatcher"
++)
++
++func TestSubstrMatcherSet(t *testing.T) {
++	patterns := []struct {
++		pattern string
++		mType   Type
++	}{
++		{
++			pattern: "apis",
++			mType:   Substr,
++		},
++		{
++			pattern: "google",
++			mType:   Substr,
++		},
++		{
++			pattern: "apis",
++			mType:   Substr,
++		},
++	}
++	cases := []struct {
++		input  string
++		output bool
++	}{
++		{
++			input:  "google.com",
++			output: true,
++		},
++		{
++			input:  "apis.com",
++			output: true,
++		},
++		{
++			input:  "googleapis.com",
++			output: true,
++		},
++		{
++			input:  "fonts.googleapis.com",
++			output: true,
++		},
++		{
++			input:  "apis.googleapis.com",
++			output: true,
++		},
++		{
++			input:  "baidu.com",
++			output: false,
++		},
++		{
++			input:  "goog",
++			output: false,
++		},
++		{
++			input:  "api",
++			output: false,
++		},
++	}
++	matcherSet := &SubstrMatcherSet{}
++	for _, entry := range patterns {
++		matcher, err := entry.mType.New(entry.pattern)
++		common.Must(err)
++		common.Must(AddMatcherToSet(matcherSet, matcher))
++	}
++	for _, test := range cases {
++		if r := matcherSet.MatchAny(test.input); !reflect.DeepEqual(r, test.output) {
++			t.Error("unexpected output: ", r, " for test case ", test)
++		}
++	}
++}
+diff --git a/common/geodata/strmatcher/strmatcher.go b/common/geodata/strmatcher/strmatcher.go
+index 2cc6f252..dbd10a8e 100644
+--- a/common/geodata/strmatcher/strmatcher.go
++++ b/common/geodata/strmatcher/strmatcher.go
+@@ -15,7 +15,7 @@ const (
+ )
+ 
+ // Matcher is the interface to determine a string matches a pattern.
+-//   - This is a basic matcher to represent a certain kind of match semantic(full, substr, domain or regex).
++//   - This is a basic matcher to represent a certain kind of match semantic (full, substr, domain or regex).
+ type Matcher interface {
+ 	// Type returns the matcher's type.
+ 	Type() Type
+@@ -101,3 +101,21 @@ type ValueMatcher interface {
+ 	// MatchAny returns true as soon as one matching matcher is found.
+ 	MatchAny(input string) bool
+ }
++
++// MatcherSet is an advanced type of matcher to accept a bunch of basic Matchers (of certain type, not all matcher types).
++// For example:
++//   - FullMatcherSet accepts FullMatcher and uses a hash table to facilitate lookup.
++//   - DomainMatcherSet accepts DomainMatcher and uses a trie to optimize both memory consumption and lookup speed.
++type MatcherSet interface {
++	// MatchAny returns true as soon as one matching matcher is found.
++	MatchAny(input string) bool
++}
++
++// AnyMatcher is a lightweight matcher for callers that only need existence checks.
++type AnyMatcher interface {
++	// Add adds a new Matcher to AnyMatcher.
++	Add(matcher Matcher)
++
++	// MatchAny returns true as soon as one matching matcher is found.
++	MatchAny(input string) bool
++}
+
+commit 454c930d13624e8e01036fd7c070a542b3f8b992
+Author: 风扇滑翔翼 <Fangliding.fshxy@outlook.com>
+Date:   2026-04-26 00:48:49 +0800
+
+    Loopback outbound: Use DispatchLink() (#6005)
+    
+    https://github.com/XTLS/Xray-core/pull/6000
+    
+    Fixes https://github.com/XTLS/Xray-core/issues/5917
+---
+ proxy/loopback/loopback.go | 94 ++++++++--------------------------------------
+ 1 file changed, 15 insertions(+), 79 deletions(-)
+
+diff --git a/proxy/loopback/loopback.go b/proxy/loopback/loopback.go
+index 2f54fe74..cb2b7e9b 100644
+--- a/proxy/loopback/loopback.go
++++ b/proxy/loopback/loopback.go
+@@ -4,13 +4,8 @@ import (
+ 	"context"
+ 
+ 	"github.com/xtls/xray-core/common"
+-	"github.com/xtls/xray-core/common/buf"
+ 	"github.com/xtls/xray-core/common/errors"
+-	"github.com/xtls/xray-core/common/net"
+-	"github.com/xtls/xray-core/common/net/cnc"
+-	"github.com/xtls/xray-core/common/retry"
+ 	"github.com/xtls/xray-core/common/session"
+-	"github.com/xtls/xray-core/common/task"
+ 	"github.com/xtls/xray-core/core"
+ 	"github.com/xtls/xray-core/features/routing"
+ 	"github.com/xtls/xray-core/transport"
+@@ -32,83 +27,24 @@ func (l *Loopback) Process(ctx context.Context, link *transport.Link, _ internet
+ 	destination := ob.Target
+ 
+ 	errors.LogInfo(ctx, "opening connection to ", destination)
+-
+-	input := link.Reader
+-	output := link.Writer
+-
+-	var conn net.Conn
+-	err := retry.ExponentialBackoff(2, 100).On(func() error {
+-		dialDest := destination
+-
+-		content := new(session.Content)
+-		content.SkipDNSResolve = true
+-
+-		ctx = session.ContextWithContent(ctx, content)
+-
+-		inbound := &session.Inbound{}
+-		originInbound := session.InboundFromContext(ctx)
+-		if originInbound != nil {
+-			// get a shallow copy to avoid modifying the inbound tag in upstream context
+-			*inbound = *originInbound
+-		}
+-
+-		inbound.Tag = l.config.InboundTag
+-
+-		ctx = session.ContextWithInbound(ctx, inbound)
+-
+-		rawConn, err := l.dispatcherInstance.Dispatch(ctx, dialDest)
+-		if err != nil {
+-			return err
+-		}
+-
+-		var readerOpt cnc.ConnectionOption
+-		if dialDest.Network == net.Network_TCP {
+-			readerOpt = cnc.ConnectionOutputMulti(rawConn.Reader)
+-		} else {
+-			readerOpt = cnc.ConnectionOutputMultiUDP(rawConn.Reader)
+-		}
+-
+-		conn = cnc.NewConnection(cnc.ConnectionInputMulti(rawConn.Writer), readerOpt)
+-		return nil
+-	})
+-	if err != nil {
+-		return errors.New("failed to open connection to ", destination).Base(err)
+-	}
+-	defer conn.Close()
+-
+-	requestDone := func() error {
+-		var writer buf.Writer
+-		if destination.Network == net.Network_TCP {
+-			writer = buf.NewWriter(conn)
+-		} else {
+-			writer = &buf.SequentialWriter{Writer: conn}
+-		}
+-
+-		if err := buf.Copy(input, writer); err != nil {
+-			return errors.New("failed to process request").Base(err)
+-		}
+-
+-		return nil
++	content := new(session.Content)
++	content.SkipDNSResolve = true
++
++	ctx = session.ContextWithContent(ctx, content)
++	inbound := &session.Inbound{}
++	originInbound := session.InboundFromContext(ctx)
++	if originInbound != nil {
++		// get a shallow copy to avoid modifying the inbound tag in upstream context
++		*inbound = *originInbound
+ 	}
++	inbound.Tag = l.config.InboundTag
++	ctx = session.ContextWithInbound(ctx, inbound)
+ 
+-	responseDone := func() error {
+-		var reader buf.Reader
+-		if destination.Network == net.Network_TCP {
+-			reader = buf.NewReader(conn)
+-		} else {
+-			reader = buf.NewPacketReader(conn)
+-		}
+-		if err := buf.Copy(reader, output); err != nil {
+-			return errors.New("failed to process response").Base(err)
+-		}
+-
+-		return nil
+-	}
+-
+-	if err := task.Run(ctx, requestDone, task.OnSuccess(responseDone, task.Close(output))); err != nil {
+-		return errors.New("connection ends").Base(err)
++	err := l.dispatcherInstance.DispatchLink(ctx, destination, link)
++	if err != nil {
++		errors.New(ctx, "failed to process loopback connection").Base(err)
++		return err
+ 	}
+-
+ 	return nil
+ }
+ 
+
+commit 1a14ffcec6838ae03068824f44b497454370e58f
+Author: 7. Sun <jhao.sun@gmail.com>
+Date:   2026-04-25 18:08:23 +0100
+
+    Geodata strmatcher: Restore lenient Type.New(Domain) behavior (#5989)
+    
+    https://github.com/XTLS/Xray-core/pull/5989#issuecomment-4288238360
+    
+    Fixes https://github.com/XTLS/Xray-core/issues/5986#issuecomment-4288010800
+    
+    ---------
+    
+    Co-authored-by: Meow <197331664+Meo597@users.noreply.github.com>
+---
+ common/geodata/strmatcher/matchers.go | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/common/geodata/strmatcher/matchers.go b/common/geodata/strmatcher/matchers.go
+index 74360771..a9df9d6f 100644
+--- a/common/geodata/strmatcher/matchers.go
++++ b/common/geodata/strmatcher/matchers.go
+@@ -100,10 +100,6 @@ func (t Type) New(pattern string) (Matcher, error) {
+ 	case Substr:
+ 		return SubstrMatcher(pattern), nil
+ 	case Domain:
+-		pattern, err := ToDomain(pattern)
+-		if err != nil {
+-			return nil, err
+-		}
+ 		return DomainMatcher(pattern), nil
+ 	case Regex: // 1. regex matching is case-sensitive
+ 		regex, err := regexp.Compile(pattern)
+
+commit d1db1d6a27733b1bdc16bcce926eb430ed5efff4
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   2026-04-26 01:27:39 +0800
+
+    DNS outbound: Add `rules` (matches `qtype` and `domain`, then `action`) (#5981)
+    
+    https://github.com/XTLS/Xray-core/pull/5981#issuecomment-4279809648
+    
+    Example: https://github.com/XTLS/Xray-core/pull/5981#issuecomment-4283200236
+    
+    Closes https://github.com/XTLS/Xray-core/issues/5218
+---
+ infra/conf/dns_proxy.go      | 139 ++++++++++++++++++++++++++---
+ infra/conf/dns_proxy_test.go | 205 +++++++++++++++++++++++++++++++++++++++++++
+ proxy/dns/config.pb.go       | 203 +++++++++++++++++++++++++++++++++---------
+ proxy/dns/config.proto       |  23 +++--
+ proxy/dns/dns.go             | 144 ++++++++++++++++++++----------
+ proxy/dns/dns_test.go        | 124 ++++++++++++++++++++++++++
+ 6 files changed, 732 insertions(+), 106 deletions(-)
+
+diff --git a/infra/conf/dns_proxy.go b/infra/conf/dns_proxy.go
+index b223e502..50c535c8 100644
+--- a/infra/conf/dns_proxy.go
++++ b/infra/conf/dns_proxy.go
+@@ -1,19 +1,70 @@
+ package conf
+ 
+ import (
++	"strings"
++
+ 	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/geodata"
+ 	"github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/proxy/dns"
+ 	"google.golang.org/protobuf/proto"
+ )
+ 
++type DNSOutboundRuleConfig struct {
++	Action string      `json:"action"`
++	QType  *PortList   `json:"qtype"`
++	Domain *StringList `json:"domain"`
++}
++
++func (c *DNSOutboundRuleConfig) Build() (*dns.DNSRuleConfig, error) {
++	rule := &dns.DNSRuleConfig{}
++
++	switch strings.ToLower(c.Action) {
++	case "direct":
++		rule.Action = dns.RuleAction_Direct
++	case "drop":
++		rule.Action = dns.RuleAction_Drop
++	case "reject":
++		rule.Action = dns.RuleAction_Reject
++	case "hijack":
++		rule.Action = dns.RuleAction_Hijack
++	default:
++		return nil, errors.New("unknown action: ", c.Action)
++	}
++
++	if c.QType != nil {
++		for _, r := range c.QType.Range {
++			if r.From > r.To {
++				return nil, errors.New("invalid qtype range: ", r.String())
++			}
++			if r.To > 65535 {
++				return nil, errors.New("dns rule qtype out of range: ", r.String())
++			}
++			for qtype := r.From; qtype <= r.To; qtype++ {
++				rule.Qtype = append(rule.Qtype, int32(qtype))
++			}
++		}
++	}
++
++	if c.Domain != nil {
++		rules, err := geodata.ParseDomainRules(*c.Domain, geodata.Domain_Substr)
++		if err != nil {
++			return nil, err
++		}
++		rule.Domain = rules
++	}
++
++	return rule, nil
++}
++
+ type DNSOutboundConfig struct {
+-	Network    Network  `json:"network"`
+-	Address    *Address `json:"address"`
+-	Port       uint16   `json:"port"`
+-	UserLevel  uint32   `json:"userLevel"`
+-	NonIPQuery string   `json:"nonIPQuery"`
+-	BlockTypes []int32  `json:"blockTypes"`
++	Network    Network                  `json:"network"`
++	Address    *Address                 `json:"address"`
++	Port       uint16                   `json:"port"`
++	UserLevel  uint32                   `json:"userLevel"`
++	Rules      []*DNSOutboundRuleConfig `json:"rules"`
++	NonIPQuery *string                  `json:"nonIPQuery"` // todo: remove legacy
++	BlockTypes *[]int32                 `json:"blockTypes"` // todo: remove legacy
+ }
+ 
+ func (c *DNSOutboundConfig) Build() (proto.Message, error) {
+@@ -27,12 +78,78 @@ func (c *DNSOutboundConfig) Build() (proto.Message, error) {
+ 	if c.Address != nil {
+ 		config.Server.Address = c.Address.Build()
+ 	}
+-	switch c.NonIPQuery {
++
++	// todo: remove legacy
++	if c.NonIPQuery != nil || c.BlockTypes != nil {
++		if c.Rules != nil {
++			return nil, errors.New("legacy nonIPQuery and blockTypes cannot be mixed with rules")
++		}
++		errors.PrintDeprecatedFeatureWarning(`"nonIPQuery" and "blockTypes" in DNS outbound`, `"rules"`)
++		rules, err := c.buildLegacyDNSPolicy()
++		if err != nil {
++			return nil, err
++		}
++		config.Rule = rules
++		return config, nil
++	}
++
++	for _, r := range c.Rules {
++		rule, err := r.Build()
++		if err != nil {
++			return nil, err
++		}
++		config.Rule = append(config.Rule, rule)
++	}
++
++	return config, nil
++}
++
++// todo: remove legacy
++func (c *DNSOutboundConfig) buildLegacyDNSPolicy() ([]*dns.DNSRuleConfig, error) {
++	rules := make([]*dns.DNSRuleConfig, 0, 3)
++
++	mode := "reject"
++	if c.NonIPQuery != nil && *c.NonIPQuery != "" {
++		mode = *c.NonIPQuery
++	}
++	switch mode {
+ 	case "", "reject", "drop", "skip":
+ 	default:
+-		return nil, errors.New(`unknown "nonIPQuery": `, c.NonIPQuery)
++		return nil, errors.New("unknown nonIPQuery: ", mode)
+ 	}
+-	config.Non_IPQuery = c.NonIPQuery
+-	config.BlockTypes = c.BlockTypes
+-	return config, nil
++
++	if c.BlockTypes != nil && len(*c.BlockTypes) > 0 {
++		rule := &dns.DNSRuleConfig{Action: dns.RuleAction_Drop}
++		if mode == "reject" {
++			rule.Action = dns.RuleAction_Reject
++		}
++		for _, qtype := range *c.BlockTypes {
++			if qtype < 0 || qtype > 65535 {
++				return nil, errors.New("legacy blockTypes qtype out of range: ", qtype)
++			}
++			rule.Qtype = append(rule.Qtype, qtype)
++		}
++		rules = append(rules, rule)
++	}
++
++	{
++		rule := &dns.DNSRuleConfig{Action: dns.RuleAction_Hijack}
++		rule.Qtype = append(rule.Qtype, 1)
++		rule.Qtype = append(rule.Qtype, 28)
++		rules = append(rules, rule)
++	}
++
++	{
++		rule := &dns.DNSRuleConfig{Action: dns.RuleAction_Reject}
++		if mode == "reject" {
++			rule.Action = dns.RuleAction_Reject
++		} else if mode == "drop" {
++			rule.Action = dns.RuleAction_Drop
++		} else if mode == "skip" {
++			rule.Action = dns.RuleAction_Direct
++		}
++		rules = append(rules, rule)
++	}
++
++	return rules, nil
+ }
+diff --git a/infra/conf/dns_proxy_test.go b/infra/conf/dns_proxy_test.go
+index 805ac323..f5bcd3d5 100644
+--- a/infra/conf/dns_proxy_test.go
++++ b/infra/conf/dns_proxy_test.go
+@@ -1,8 +1,10 @@
+ package conf_test
+ 
+ import (
++	"strings"
+ 	"testing"
+ 
++	"github.com/xtls/xray-core/common/geodata"
+ 	"github.com/xtls/xray-core/common/net"
+ 	. "github.com/xtls/xray-core/infra/conf"
+ 	"github.com/xtls/xray-core/proxy/dns"
+@@ -29,5 +31,208 @@ func TestDnsProxyConfig(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			Input: `{
++				"rules": [{
++					"action": "direct",
++					"qtype": "1,3,23-24"
++				}, {
++					"action": "drop",
++					"qtype": 28,
++					"domain": ["domain:example.com", "full:example.com"]
++				}]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Direct,
++						Qtype:  []int32{1, 3, 23, 24},
++					},
++					{
++						Action: dns.RuleAction_Drop,
++						Qtype:  []int32{28},
++						Domain: []*geodata.DomainRule{
++							{
++								Value: &geodata.DomainRule_Custom{
++									Custom: &geodata.Domain{
++										Type:  geodata.Domain_Domain,
++										Value: "example.com",
++									},
++								},
++							},
++							{
++								Value: &geodata.DomainRule_Custom{
++									Custom: &geodata.Domain{
++										Type:  geodata.Domain_Full,
++										Value: "example.com",
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++		},
++		{
++			Input: `{
++				"rules": [{
++					"action": "reject",
++					"domain": "keyword:example"
++				}]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Reject,
++						Domain: []*geodata.DomainRule{
++							{
++								Value: &geodata.DomainRule_Custom{
++									Custom: &geodata.Domain{
++										Type:  geodata.Domain_Substr,
++										Value: "example",
++									},
++								},
++							},
++						},
++					},
++				},
++			},
++		},
++		{
++			Input: `{
++				"rules": [{
++					"action": "drop",
++					"qtype": 257
++				}]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Drop,
++						Qtype:  []int32{257},
++					},
++				},
++			},
++		},
+ 	})
+ }
++
++// todo: remove legacy
++func TestDnsProxyConfigLegacyCompatibility(t *testing.T) {
++	creator := func() Buildable {
++		return new(DNSOutboundConfig)
++	}
++
++	runMultiTestCase(t, []TestCase{
++		{
++			Input: `{
++				"blockTypes": []
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Hijack,
++						Qtype:  []int32{1, 28},
++					},
++					{
++						Action: dns.RuleAction_Reject,
++					},
++				},
++			},
++		},
++		{
++			Input: `{
++				"blockTypes": [1, 65]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Reject,
++						Qtype:  []int32{1, 65},
++					},
++					{
++						Action: dns.RuleAction_Hijack,
++						Qtype:  []int32{1, 28},
++					},
++					{
++						Action: dns.RuleAction_Reject,
++					},
++				},
++			},
++		},
++		{
++			Input: `{
++				"nonIPQuery": "drop",
++				"blockTypes": [1]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Drop,
++						Qtype:  []int32{1},
++					},
++					{
++						Action: dns.RuleAction_Hijack,
++						Qtype:  []int32{1, 28},
++					},
++					{
++						Action: dns.RuleAction_Drop,
++					},
++				},
++			},
++		},
++		{
++			Input: `{
++				"nonIPQuery": "skip",
++				"blockTypes": [65, 28]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &dns.Config{
++				Server: &net.Endpoint{},
++				Rule: []*dns.DNSRuleConfig{
++					{
++						Action: dns.RuleAction_Drop,
++						Qtype:  []int32{65, 28},
++					},
++					{
++						Action: dns.RuleAction_Hijack,
++						Qtype:  []int32{1, 28},
++					},
++					{
++						Action: dns.RuleAction_Direct,
++					},
++				},
++			},
++		},
++	})
++}
++
++// todo: remove legacy
++func TestDnsProxyConfigRejectsMixedLegacyAndNewFields(t *testing.T) {
++	creator := func() Buildable {
++		return new(DNSOutboundConfig)
++	}
++
++	_, err := loadJSON(creator)(`{
++		"rules": [{
++			"action": "direct",
++			"qtype": 65
++		}],
++		"blockTypes": [65]
++	}`)
++	if err == nil || !strings.Contains(err.Error(), `legacy nonIPQuery and blockTypes cannot be mixed with rules`) {
++		t.Fatal("expected mixed legacy/new config error, but got ", err)
++	}
++}
+diff --git a/proxy/dns/config.pb.go b/proxy/dns/config.pb.go
+index 436d3d38..836f0af9 100644
+--- a/proxy/dns/config.pb.go
++++ b/proxy/dns/config.pb.go
+@@ -7,6 +7,7 @@
+ package dns
+ 
+ import (
++	geodata "github.com/xtls/xray-core/common/geodata"
+ 	net "github.com/xtls/xray-core/common/net"
+ 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+ 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+@@ -22,32 +23,81 @@ const (
+ 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+ )
+ 
+-type Config struct {
+-	state protoimpl.MessageState `protogen:"open.v1"`
+-	// Server is the DNS server address. If specified, this address overrides the
+-	// original one.
+-	Server        *net.Endpoint `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+-	UserLevel     uint32        `protobuf:"varint,2,opt,name=user_level,json=userLevel,proto3" json:"user_level,omitempty"`
+-	Non_IPQuery   string        `protobuf:"bytes,3,opt,name=non_IP_query,json=nonIPQuery,proto3" json:"non_IP_query,omitempty"`
+-	BlockTypes    []int32       `protobuf:"varint,4,rep,packed,name=block_types,json=blockTypes,proto3" json:"block_types,omitempty"`
++type RuleAction int32
++
++const (
++	RuleAction_Direct RuleAction = 0
++	RuleAction_Drop   RuleAction = 1
++	RuleAction_Reject RuleAction = 2
++	RuleAction_Hijack RuleAction = 3
++)
++
++// Enum value maps for RuleAction.
++var (
++	RuleAction_name = map[int32]string{
++		0: "Direct",
++		1: "Drop",
++		2: "Reject",
++		3: "Hijack",
++	}
++	RuleAction_value = map[string]int32{
++		"Direct": 0,
++		"Drop":   1,
++		"Reject": 2,
++		"Hijack": 3,
++	}
++)
++
++func (x RuleAction) Enum() *RuleAction {
++	p := new(RuleAction)
++	*p = x
++	return p
++}
++
++func (x RuleAction) String() string {
++	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
++}
++
++func (RuleAction) Descriptor() protoreflect.EnumDescriptor {
++	return file_proxy_dns_config_proto_enumTypes[0].Descriptor()
++}
++
++func (RuleAction) Type() protoreflect.EnumType {
++	return &file_proxy_dns_config_proto_enumTypes[0]
++}
++
++func (x RuleAction) Number() protoreflect.EnumNumber {
++	return protoreflect.EnumNumber(x)
++}
++
++// Deprecated: Use RuleAction.Descriptor instead.
++func (RuleAction) EnumDescriptor() ([]byte, []int) {
++	return file_proxy_dns_config_proto_rawDescGZIP(), []int{0}
++}
++
++type DNSRuleConfig struct {
++	state         protoimpl.MessageState `protogen:"open.v1"`
++	Action        RuleAction             `protobuf:"varint,1,opt,name=action,proto3,enum=xray.proxy.dns.RuleAction" json:"action,omitempty"`
++	Qtype         []int32                `protobuf:"varint,2,rep,packed,name=qtype,proto3" json:"qtype,omitempty"`
++	Domain        []*geodata.DomainRule  `protobuf:"bytes,3,rep,name=domain,proto3" json:"domain,omitempty"`
+ 	unknownFields protoimpl.UnknownFields
+ 	sizeCache     protoimpl.SizeCache
+ }
+ 
+-func (x *Config) Reset() {
+-	*x = Config{}
++func (x *DNSRuleConfig) Reset() {
++	*x = DNSRuleConfig{}
+ 	mi := &file_proxy_dns_config_proto_msgTypes[0]
+ 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+ 	ms.StoreMessageInfo(mi)
+ }
+ 
+-func (x *Config) String() string {
++func (x *DNSRuleConfig) String() string {
+ 	return protoimpl.X.MessageStringOf(x)
+ }
+ 
+-func (*Config) ProtoMessage() {}
++func (*DNSRuleConfig) ProtoMessage() {}
+ 
+-func (x *Config) ProtoReflect() protoreflect.Message {
++func (x *DNSRuleConfig) ProtoReflect() protoreflect.Message {
+ 	mi := &file_proxy_dns_config_proto_msgTypes[0]
+ 	if x != nil {
+ 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+@@ -59,18 +109,71 @@ func (x *Config) ProtoReflect() protoreflect.Message {
+ 	return mi.MessageOf(x)
+ }
+ 
+-// Deprecated: Use Config.ProtoReflect.Descriptor instead.
+-func (*Config) Descriptor() ([]byte, []int) {
++// Deprecated: Use DNSRuleConfig.ProtoReflect.Descriptor instead.
++func (*DNSRuleConfig) Descriptor() ([]byte, []int) {
+ 	return file_proxy_dns_config_proto_rawDescGZIP(), []int{0}
+ }
+ 
+-func (x *Config) GetServer() *net.Endpoint {
++func (x *DNSRuleConfig) GetAction() RuleAction {
+ 	if x != nil {
+-		return x.Server
++		return x.Action
++	}
++	return RuleAction_Direct
++}
++
++func (x *DNSRuleConfig) GetQtype() []int32 {
++	if x != nil {
++		return x.Qtype
++	}
++	return nil
++}
++
++func (x *DNSRuleConfig) GetDomain() []*geodata.DomainRule {
++	if x != nil {
++		return x.Domain
+ 	}
+ 	return nil
+ }
+ 
++type Config struct {
++	state         protoimpl.MessageState `protogen:"open.v1"`
++	UserLevel     uint32                 `protobuf:"varint,1,opt,name=user_level,json=userLevel,proto3" json:"user_level,omitempty"`
++	Rule          []*DNSRuleConfig       `protobuf:"bytes,2,rep,name=rule,proto3" json:"rule,omitempty"`
++	Server        *net.Endpoint          `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
++	unknownFields protoimpl.UnknownFields
++	sizeCache     protoimpl.SizeCache
++}
++
++func (x *Config) Reset() {
++	*x = Config{}
++	mi := &file_proxy_dns_config_proto_msgTypes[1]
++	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++	ms.StoreMessageInfo(mi)
++}
++
++func (x *Config) String() string {
++	return protoimpl.X.MessageStringOf(x)
++}
++
++func (*Config) ProtoMessage() {}
++
++func (x *Config) ProtoReflect() protoreflect.Message {
++	mi := &file_proxy_dns_config_proto_msgTypes[1]
++	if x != nil {
++		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++		if ms.LoadMessageInfo() == nil {
++			ms.StoreMessageInfo(mi)
++		}
++		return ms
++	}
++	return mi.MessageOf(x)
++}
++
++// Deprecated: Use Config.ProtoReflect.Descriptor instead.
++func (*Config) Descriptor() ([]byte, []int) {
++	return file_proxy_dns_config_proto_rawDescGZIP(), []int{1}
++}
++
+ func (x *Config) GetUserLevel() uint32 {
+ 	if x != nil {
+ 		return x.UserLevel
+@@ -78,16 +181,16 @@ func (x *Config) GetUserLevel() uint32 {
+ 	return 0
+ }
+ 
+-func (x *Config) GetNon_IPQuery() string {
++func (x *Config) GetRule() []*DNSRuleConfig {
+ 	if x != nil {
+-		return x.Non_IPQuery
++		return x.Rule
+ 	}
+-	return ""
++	return nil
+ }
+ 
+-func (x *Config) GetBlockTypes() []int32 {
++func (x *Config) GetServer() *net.Endpoint {
+ 	if x != nil {
+-		return x.BlockTypes
++		return x.Server
+ 	}
+ 	return nil
+ }
+@@ -96,15 +199,25 @@ var File_proxy_dns_config_proto protoreflect.FileDescriptor
+ 
+ const file_proxy_dns_config_proto_rawDesc = "" +
+ 	"\n" +
+-	"\x16proxy/dns/config.proto\x12\x0exray.proxy.dns\x1a\x1ccommon/net/destination.proto\"\x9d\x01\n" +
+-	"\x06Config\x121\n" +
+-	"\x06server\x18\x01 \x01(\v2\x19.xray.common.net.EndpointR\x06server\x12\x1d\n" +
++	"\x16proxy/dns/config.proto\x12\x0exray.proxy.dns\x1a\x1ccommon/net/destination.proto\x1a\x1bcommon/geodata/geodat.proto\"\x92\x01\n" +
++	"\rDNSRuleConfig\x122\n" +
++	"\x06action\x18\x01 \x01(\x0e2\x1a.xray.proxy.dns.RuleActionR\x06action\x12\x14\n" +
++	"\x05qtype\x18\x02 \x03(\x05R\x05qtype\x127\n" +
++	"\x06domain\x18\x03 \x03(\v2\x1f.xray.common.geodata.DomainRuleR\x06domain\"\x8d\x01\n" +
++	"\x06Config\x12\x1d\n" +
++	"\n" +
++	"user_level\x18\x01 \x01(\rR\tuserLevel\x121\n" +
++	"\x04rule\x18\x02 \x03(\v2\x1d.xray.proxy.dns.DNSRuleConfigR\x04rule\x121\n" +
++	"\x06server\x18\x03 \x01(\v2\x19.xray.common.net.EndpointR\x06server*:\n" +
++	"\n" +
++	"RuleAction\x12\n" +
++	"\n" +
++	"\x06Direct\x10\x00\x12\b\n" +
++	"\x04Drop\x10\x01\x12\n" +
++	"\n" +
++	"\x06Reject\x10\x02\x12\n" +
+ 	"\n" +
+-	"user_level\x18\x02 \x01(\rR\tuserLevel\x12 \n" +
+-	"\fnon_IP_query\x18\x03 \x01(\tR\n" +
+-	"nonIPQuery\x12\x1f\n" +
+-	"\vblock_types\x18\x04 \x03(\x05R\n" +
+-	"blockTypesBL\n" +
++	"\x06Hijack\x10\x03BL\n" +
+ 	"\x12com.xray.proxy.dnsP\x01Z#github.com/xtls/xray-core/proxy/dns\xaa\x02\x0eXray.Proxy.Dnsb\x06proto3"
+ 
+ var (
+@@ -119,18 +232,25 @@ func file_proxy_dns_config_proto_rawDescGZIP() []byte {
+ 	return file_proxy_dns_config_proto_rawDescData
+ }
+ 
+-var file_proxy_dns_config_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
++var file_proxy_dns_config_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
++var file_proxy_dns_config_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+ var file_proxy_dns_config_proto_goTypes = []any{
+-	(*Config)(nil),       // 0: xray.proxy.dns.Config
+-	(*net.Endpoint)(nil), // 1: xray.common.net.Endpoint
++	(RuleAction)(0),            // 0: xray.proxy.dns.RuleAction
++	(*DNSRuleConfig)(nil),      // 1: xray.proxy.dns.DNSRuleConfig
++	(*Config)(nil),             // 2: xray.proxy.dns.Config
++	(*geodata.DomainRule)(nil), // 3: xray.common.geodata.DomainRule
++	(*net.Endpoint)(nil),       // 4: xray.common.net.Endpoint
+ }
+ var file_proxy_dns_config_proto_depIdxs = []int32{
+-	1, // 0: xray.proxy.dns.Config.server:type_name -> xray.common.net.Endpoint
+-	1, // [1:1] is the sub-list for method output_type
+-	1, // [1:1] is the sub-list for method input_type
+-	1, // [1:1] is the sub-list for extension type_name
+-	1, // [1:1] is the sub-list for extension extendee
+-	0, // [0:1] is the sub-list for field type_name
++	0, // 0: xray.proxy.dns.DNSRuleConfig.action:type_name -> xray.proxy.dns.RuleAction
++	3, // 1: xray.proxy.dns.DNSRuleConfig.domain:type_name -> xray.common.geodata.DomainRule
++	1, // 2: xray.proxy.dns.Config.rule:type_name -> xray.proxy.dns.DNSRuleConfig
++	4, // 3: xray.proxy.dns.Config.server:type_name -> xray.common.net.Endpoint
++	4, // [4:4] is the sub-list for method output_type
++	4, // [4:4] is the sub-list for method input_type
++	4, // [4:4] is the sub-list for extension type_name
++	4, // [4:4] is the sub-list for extension extendee
++	0, // [0:4] is the sub-list for field type_name
+ }
+ 
+ func init() { file_proxy_dns_config_proto_init() }
+@@ -143,13 +263,14 @@ func file_proxy_dns_config_proto_init() {
+ 		File: protoimpl.DescBuilder{
+ 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+ 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proxy_dns_config_proto_rawDesc), len(file_proxy_dns_config_proto_rawDesc)),
+-			NumEnums:      0,
+-			NumMessages:   1,
++			NumEnums:      1,
++			NumMessages:   2,
+ 			NumExtensions: 0,
+ 			NumServices:   0,
+ 		},
+ 		GoTypes:           file_proxy_dns_config_proto_goTypes,
+ 		DependencyIndexes: file_proxy_dns_config_proto_depIdxs,
++		EnumInfos:         file_proxy_dns_config_proto_enumTypes,
+ 		MessageInfos:      file_proxy_dns_config_proto_msgTypes,
+ 	}.Build()
+ 	File_proxy_dns_config_proto = out.File
+diff --git a/proxy/dns/config.proto b/proxy/dns/config.proto
+index af2aad8c..866812d6 100644
+--- a/proxy/dns/config.proto
++++ b/proxy/dns/config.proto
+@@ -7,12 +7,23 @@ option java_package = "com.xray.proxy.dns";
+ option java_multiple_files = true;
+ 
+ import "common/net/destination.proto";
++import "common/geodata/geodat.proto";
++
++enum RuleAction {
++  Direct = 0;
++  Drop = 1;
++  Reject = 2;
++  Hijack = 3;
++}
++
++message DNSRuleConfig {
++  RuleAction action = 1;
++  repeated int32 qtype = 2;
++  repeated xray.common.geodata.DomainRule domain = 3;
++}
+ 
+ message Config {
+-  // Server is the DNS server address. If specified, this address overrides the
+-  // original one.
+-  xray.common.net.Endpoint server = 1;
+-  uint32 user_level = 2;
+-  string non_IP_query = 3;
+-  repeated int32 block_types = 4;
++  uint32 user_level = 1;
++  repeated DNSRuleConfig rule = 2;
++  xray.common.net.Endpoint server = 3;
+ }
+diff --git a/proxy/dns/dns.go b/proxy/dns/dns.go
+index 9ae19cbe..1b240206 100644
+--- a/proxy/dns/dns.go
++++ b/proxy/dns/dns.go
+@@ -11,6 +11,7 @@ import (
+ 	"github.com/xtls/xray-core/common"
+ 	"github.com/xtls/xray-core/common/buf"
+ 	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/geodata"
+ 	"github.com/xtls/xray-core/common/net"
+ 	dns_proto "github.com/xtls/xray-core/common/protocol/dns"
+ 	"github.com/xtls/xray-core/common/session"
+@@ -40,6 +41,31 @@ func init() {
+ 	}))
+ }
+ 
++type DNSRule struct {
++	action  RuleAction
++	qTypes  []uint16
++	domains geodata.DomainMatcher
++}
++
++func (r *DNSRule) matchQType(qType uint16) bool {
++	if len(r.qTypes) == 0 {
++		return true
++	}
++	for _, t := range r.qTypes {
++		if t == qType {
++			return true
++		}
++	}
++	return false
++}
++
++func (r *DNSRule) Apply(qType uint16, domain string) bool {
++	if !r.matchQType(qType) {
++		return false
++	}
++	return r.domains == nil || r.domains.MatchAny(strings.TrimSuffix(strings.ToLower(domain), "."))
++}
++
+ type ownLinkVerifier interface {
+ 	IsOwnLink(ctx context.Context) bool
+ }
+@@ -50,8 +76,7 @@ type Handler struct {
+ 	ownLinkVerifier ownLinkVerifier
+ 	server          net.Destination
+ 	timeout         time.Duration
+-	nonIPQuery      string
+-	blockTypes      []int32
++	rules           []*DNSRule
+ }
+ 
+ func (h *Handler) Init(config *Config, dnsClient dns.Client, policyManager policy.Manager) error {
+@@ -65,11 +90,26 @@ func (h *Handler) Init(config *Config, dnsClient dns.Client, policyManager polic
+ 	if config.Server != nil {
+ 		h.server = config.Server.AsDestination()
+ 	}
+-	h.nonIPQuery = config.Non_IPQuery
+-	if h.nonIPQuery == "" {
+-		h.nonIPQuery = "reject"
++
++	h.rules = make([]*DNSRule, 0, len(config.Rule))
++	for _, r := range config.Rule {
++		rule := &DNSRule{
++			action: r.Action,
++			qTypes: make([]uint16, 0, len(r.Qtype)),
++		}
++		for _, t := range r.Qtype {
++			rule.qTypes = append(rule.qTypes, uint16(t))
++		}
++		if len(r.Domain) > 0 {
++			m, err := geodata.DomainReg.BuildDomainMatcher(r.Domain)
++			if err != nil {
++				return err
++			}
++			rule.domains = m
++		}
++		h.rules = append(h.rules, rule)
+ 	}
+-	h.blockTypes = config.BlockTypes
++
+ 	return nil
+ }
+ 
+@@ -77,30 +117,38 @@ func (h *Handler) isOwnLink(ctx context.Context) bool {
+ 	return h.ownLinkVerifier != nil && h.ownLinkVerifier.IsOwnLink(ctx)
+ }
+ 
+-func parseIPQuery(b []byte) (r bool, domain string, id uint16, qType dnsmessage.Type) {
++func parseQuery(b []byte) (id uint16, qType dnsmessage.Type, domain string, ok bool) {
+ 	var parser dnsmessage.Parser
+ 	header, err := parser.Start(b)
+ 	if err != nil {
+ 		errors.LogInfoInner(context.Background(), err, "parser start")
+ 		return
+ 	}
+-
+ 	id = header.ID
+ 	q, err := parser.Question()
+ 	if err != nil {
+ 		errors.LogInfoInner(context.Background(), err, "question")
+ 		return
+ 	}
+-	domain = q.Name.String()
+ 	qType = q.Type
+-	if qType != dnsmessage.TypeA && qType != dnsmessage.TypeAAAA {
+-		return
+-	}
+-
+-	r = true
++	domain = q.Name.String()
++	ok = true
+ 	return
+ }
+ 
++func (h *Handler) applyRules(qType dnsmessage.Type, domain string) RuleAction {
++	qCode := uint16(qType)
++	for _, r := range h.rules {
++		if r.Apply(qCode, domain) {
++			return r.action
++		}
++	}
++	if qType == dnsmessage.TypeA || qType == dnsmessage.TypeAAAA {
++		return RuleAction_Hijack
++	}
++	return RuleAction_Reject
++}
++
+ // Process implements proxy.Outbound.
+ func (h *Handler) Process(ctx context.Context, link *transport.Link, d internet.Dialer) error {
+ 	outbounds := session.OutboundsFromContext(ctx)
+@@ -183,51 +231,51 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, d internet.
+ 			if err == io.EOF {
+ 				return nil
+ 			}
+-
+ 			if err != nil {
+ 				return err
+ 			}
+ 
+ 			timer.Update()
+ 
+-			if !h.isOwnLink(ctx) {
+-				isIPQuery, domain, id, qType := parseIPQuery(b.Bytes())
+-				if len(h.blockTypes) > 0 {
+-					for _, blocktype := range h.blockTypes {
+-						if blocktype == int32(qType) {
+-							b.Release()
+-							errors.LogInfo(ctx, "blocked type ", qType, " query for domain ", domain)
+-							if h.nonIPQuery == "reject" {
+-								err := h.rejectNonIPQuery(id, qType, domain, writer)
+-								if err != nil {
+-									return err
+-								}
+-							}
+-							return nil
+-						}
+-					}
++			if h.isOwnLink(ctx) {
++				if err := connWriter.WriteMessage(b); err != nil {
++					return err
+ 				}
+-				if isIPQuery {
+-					b.Release()
+-					go h.handleIPQuery(id, qType, domain, writer, timer)
+-					continue
+-				}
+-				if h.nonIPQuery == "drop" {
+-					b.Release()
+-					continue
++				continue
++			}
++
++			id, qType, domain, ok := parseQuery(b.Bytes())
++			if !ok {
++				b.Release()
++				continue
++			}
++
++			switch h.applyRules(qType, domain) {
++			case RuleAction_Drop:
++				b.Release()
++				errors.LogInfo(ctx, "blocked type ", qType, " query for domain ", domain)
++			case RuleAction_Reject:
++				b.Release()
++				errors.LogInfo(ctx, "rejected type ", qType, " query for domain ", domain)
++				if err := h.rejectNonIPQuery(id, qType, domain, writer); err != nil {
++					return err
+ 				}
+-				if h.nonIPQuery == "reject" {
+-					b.Release()
+-					err := h.rejectNonIPQuery(id, qType, domain, writer)
+-					if err != nil {
++			case RuleAction_Hijack:
++				b.Release()
++				if qType != dnsmessage.TypeA && qType != dnsmessage.TypeAAAA {
++					errors.LogError(ctx, "can only hijack A/AAAA records")
++					if err := h.rejectNonIPQuery(id, qType, domain, writer); err != nil {
+ 						return err
+ 					}
+-					continue
++				} else {
++					go h.handleIPQuery(id, qType, domain, writer, timer)
+ 				}
+-			}
+-
+-			if err := connWriter.WriteMessage(b); err != nil {
+-				return err
++			case RuleAction_Direct:
++				if err := connWriter.WriteMessage(b); err != nil {
++					return err
++				}
++			default:
++				panic("unknown rule action")
+ 			}
+ 		}
+ 	}
+diff --git a/proxy/dns/dns_test.go b/proxy/dns/dns_test.go
+index 2a005d68..5df58c7b 100644
+--- a/proxy/dns/dns_test.go
++++ b/proxy/dns/dns_test.go
+@@ -14,6 +14,7 @@ import (
+ 	_ "github.com/xtls/xray-core/app/proxyman/inbound"
+ 	_ "github.com/xtls/xray-core/app/proxyman/outbound"
+ 	"github.com/xtls/xray-core/common"
++	"github.com/xtls/xray-core/common/geodata"
+ 	"github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/common/serial"
+ 	"github.com/xtls/xray-core/core"
+@@ -368,3 +369,126 @@ func TestUDP2TCPDNSTunnel(t *testing.T) {
+ 		t.Error(r)
+ 	}
+ }
++
++func TestDNSRules(t *testing.T) {
++	port := udp.PickPort()
++
++	dnsServer := dns.Server{
++		Addr:    "127.0.0.1:" + port.String(),
++		Net:     "udp",
++		Handler: &staticHandler{},
++	}
++	defer dnsServer.Shutdown()
++
++	go dnsServer.ListenAndServe()
++	time.Sleep(time.Second)
++
++	serverPort := udp.PickPort()
++	config := &core.Config{
++		App: []*serial.TypedMessage{
++			serial.ToTypedMessage(&dnsapp.Config{
++				NameServer: []*dnsapp.NameServer{
++					{
++						Address: &net.Endpoint{
++							Network: net.Network_UDP,
++							Address: &net.IPOrDomain{
++								Address: &net.IPOrDomain_Ip{
++									Ip: []byte{127, 0, 0, 1},
++								},
++							},
++							Port: uint32(port),
++						},
++					},
++				},
++			}),
++			serial.ToTypedMessage(&dispatcher.Config{}),
++			serial.ToTypedMessage(&proxyman.OutboundConfig{}),
++			serial.ToTypedMessage(&proxyman.InboundConfig{}),
++			serial.ToTypedMessage(&policy.Config{}),
++		},
++		Inbound: []*core.InboundHandlerConfig{
++			{
++				ProxySettings: serial.ToTypedMessage(&dokodemo.Config{
++					Address:  net.NewIPOrDomain(net.LocalHostIP),
++					Port:     uint32(port),
++					Networks: []net.Network{net.Network_UDP},
++				}),
++				ReceiverSettings: serial.ToTypedMessage(&proxyman.ReceiverConfig{
++					PortList: &net.PortList{Range: []*net.PortRange{net.SinglePortRange(serverPort)}},
++					Listen:   net.NewIPOrDomain(net.LocalHostIP),
++				}),
++			},
++		},
++		Outbound: []*core.OutboundHandlerConfig{
++			{
++				ProxySettings: serial.ToTypedMessage(&dns_proxy.Config{
++					Rule: []*dns_proxy.DNSRuleConfig{
++						{
++							Qtype: []int32{int32(dns.TypeA)},
++							Domain: []*geodata.DomainRule{
++								{
++									Value: &geodata.DomainRule_Custom{
++										Custom: &geodata.Domain{
++											Type:  geodata.Domain_Domain,
++											Value: "facebook.com",
++										},
++									},
++								},
++							},
++							Action: dns_proxy.RuleAction_Direct,
++						},
++						{
++							Qtype: []int32{int32(dns.TypeA)},
++							Domain: []*geodata.DomainRule{
++								{
++									Value: &geodata.DomainRule_Custom{
++										Custom: &geodata.Domain{
++											Type:  geodata.Domain_Full,
++											Value: "google.com",
++										},
++									},
++								},
++							},
++							Action: dns_proxy.RuleAction_Reject,
++						},
++					},
++				}),
++			},
++		},
++	}
++
++	v, err := core.New(config)
++	common.Must(err)
++	common.Must(v.Start())
++	defer v.Close()
++
++	{
++		m1 := new(dns.Msg)
++		m1.Id = dns.Id()
++		m1.RecursionDesired = true
++		m1.Question = []dns.Question{{Name: "google.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}}
++
++		c := new(dns.Client)
++		in, _, err := c.Exchange(m1, "127.0.0.1:"+strconv.Itoa(int(serverPort)))
++		common.Must(err)
++
++		if in.Rcode != dns.RcodeRefused {
++			t.Fatal("expected Refused, but got ", in.Rcode)
++		}
++	}
++
++	{
++		m1 := new(dns.Msg)
++		m1.Id = dns.Id()
++		m1.RecursionDesired = true
++		m1.Question = []dns.Question{{Name: "facebook.com.", Qtype: dns.TypeA, Qclass: dns.ClassINET}}
++
++		c := new(dns.Client)
++		in, _, err := c.Exchange(m1, "127.0.0.1:"+strconv.Itoa(int(serverPort)))
++		common.Must(err)
++
++		if in.Rcode != dns.RcodeSuccess {
++			t.Fatal("expected Success, but got ", in.Rcode)
++		}
++	}
++}
+
+commit d0f533f94af2adc2914c0d4c50d19523353b1e13
+Author: Exclude0122 <173652916+Exclude0122@users.noreply.github.com>
+Date:   2026-04-25 13:45:03 -0400
+
+    app/router/condition.go: Retrieve original target in net.FindProcess() when "IPIfNonMatch" is enabled (#5979)
+    
+    Fixes https://github.com/XTLS/Xray-core/issues/5980
+    
+    ---------
+    
+    Co-authored-by: 风扇滑翔翼 <Fangliding.fshxy@outlook.com>
+---
+ app/router/condition.go | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/app/router/condition.go b/app/router/condition.go
+index 1aae8323..b8a48259 100644
+--- a/app/router/condition.go
++++ b/app/router/condition.go
+@@ -12,6 +12,7 @@ import (
+ 	"github.com/xtls/xray-core/common/geodata"
+ 	"github.com/xtls/xray-core/common/net"
+ 	"github.com/xtls/xray-core/features/routing"
++	"github.com/xtls/xray-core/features/routing/dns"
+ )
+ 
+ type Condition interface {
+@@ -356,7 +357,13 @@ func (m *ProcessNameMatcher) Apply(ctx routing.Context) bool {
+ 
+ 	var dstIP string
+ 	var dstPort uint16 = 0
+-	if len(ctx.GetTargetIPs()) > 0 {
++
++	// do not use resolved IP because Android process lookup needs original dst ip
++	resolvableContext, ok := ctx.(*dns.ResolvableContext)
++	if ok && len(resolvableContext.Context.GetTargetIPs()) > 0 {
++		dstIP = resolvableContext.Context.GetTargetIPs()[0].String()
++		dstPort = uint16(resolvableContext.Context.GetTargetPort())
++	} else if len(ctx.GetTargetIPs()) > 0 {
+ 		dstIP = ctx.GetTargetIPs()[0].String()
+ 		dstPort = uint16(ctx.GetTargetPort())
+ 	}
+
+commit 85a8bf5f390fe450b28fe2f2374f1797db15c5e7
+Author: fish4terrisa-MSDSM <flyingfish.msdsm@gmail.com>
+Date:   2026-04-26 03:48:49 +0800
+
+    Browser Dialer: Allow being switched on runtime when Xray is used as a lib (#5978)
+    
+    https://github.com/XTLS/Xray-core/pull/5978#issuecomment-4279520473
+    
+    https://github.com/XTLS/Xray-core/pull/5978#issuecomment-4320401635
+---
+ transport/internet/browser_dialer/dialer.go | 57 ++++++++++++++++++++++-------
+ 1 file changed, 43 insertions(+), 14 deletions(-)
+
+diff --git a/transport/internet/browser_dialer/dialer.go b/transport/internet/browser_dialer/dialer.go
+index be2f137e..53955bc4 100644
+--- a/transport/internet/browser_dialer/dialer.go
++++ b/transport/internet/browser_dialer/dialer.go
+@@ -7,6 +7,7 @@ import (
+ 	"encoding/base64"
+ 	"encoding/json"
+ 	"net/http"
++	"sync"
+ 	"time"
+ 
+ 	"github.com/gorilla/websocket"
+@@ -26,6 +27,8 @@ type task struct {
+ }
+ 
+ var conns chan *websocket.Conn
++var server *http.Server
++var mu sync.Mutex
+ 
+ var upgrader = &websocket.Upgrader{
+ 	ReadBufferSize:   0,
+@@ -36,27 +39,48 @@ var upgrader = &websocket.Upgrader{
+ 	},
+ }
+ 
+-func init() {
++// Used by external projects when using xray as a go module
++func Reload() {
+ 	addr := platform.NewEnvFlag(platform.BrowserDialerAddress).GetValue(func() string { return "" })
++	mu.Lock()
++	defer mu.Unlock()
++
++	if server != nil {
++		server.Close()
++	}
++	if HasBrowserDialer() {
++		for len(conns) > 0 {
++			select {
++				case c := <-conns:
++					c.Close()
++				default:
++			}
++		}
++		conns = nil
++	}
+ 	if addr != "" {
+ 		token := uuid.New()
+ 		csrfToken := token.String()
+-		webpage = bytes.ReplaceAll(webpage, []byte("csrfToken"), []byte(csrfToken))
++		webpage := bytes.ReplaceAll(webpage, []byte("csrfToken"), []byte(csrfToken))
+ 		conns = make(chan *websocket.Conn, 256)
+-		go http.ListenAndServe(addr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+-			if r.URL.Path == "/websocket" {
+-				if r.URL.Query().Get("token") == csrfToken {
+-					if conn, err := upgrader.Upgrade(w, r, nil); err == nil {
+-						conns <- conn
+-					} else {
+-						errors.LogError(context.Background(), "Browser dialer http upgrade unexpected error")
++		server = &http.Server{
++			Addr: addr,
++			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if r.URL.Path == "/websocket" {
++					if r.URL.Query().Get("token") == csrfToken {
++						if conn, err := upgrader.Upgrade(w, r, nil); err == nil {
++							conns <- conn
++						} else {
++							errors.LogError(context.Background(), "Browser dialer http upgrade unexpected error")
++						}
+ 					}
++				} else {
++					w.Header().Set("Access-Control-Allow-Origin", "*");
++					w.Write(webpage)
+ 				}
+-			} else {
+-				w.Header().Set("Access-Control-Allow-Origin", "*");
+-				w.Write(webpage)
+-			}
+-		}))
++			}),
++		}
++		go server.ListenAndServe()
+ 	}
+ }
+ 
+@@ -194,3 +218,8 @@ func CheckOK(conn *websocket.Conn) error {
+ 
+ 	return nil
+ }
++
++func init() {
++	Reload()
++}
++
+
+commit fa07b34956daafa96fd945fd5562d8bfe4f6e91b
+Author: LjhAUMEM <llnu14702@gmail.com>
+Date:   2026-04-26 04:14:03 +0800
+
+    XDNS finalmask: Use single UDP socket for multiple `resolvers` for now (#5982)
+    
+    https://github.com/XTLS/Xray-core/pull/5982#issuecomment-4302271929
+    
+    Closes https://github.com/XTLS/Xray-core/pull/5976#issuecomment-4320460288
+---
+ features/dns/localdns/client.go             |  10 +-
+ proxy/wireguard/tun_linux.go                |   4 +-
+ transport/internet/finalmask/xdns/client.go | 192 +++++++++++-----------------
+ transport/internet/finalmask/xdns/config.go |  20 ++-
+ 4 files changed, 92 insertions(+), 134 deletions(-)
+
+diff --git a/features/dns/localdns/client.go b/features/dns/localdns/client.go
+index 5ba81859..b00febb3 100644
+--- a/features/dns/localdns/client.go
++++ b/features/dns/localdns/client.go
+@@ -80,13 +80,17 @@ func New() *Client {
+ 	d := &net.Dialer{
+ 		Timeout: time.Second * 16,
+ 		Control: func(network, address string, c syscall.RawConn) error {
++			var errs []error
+ 			for _, ctl := range internet.Controllers {
+ 				if err := ctl(network, address, c); err != nil {
+-					errors.LogInfoInner(context.Background(), err, "failed to apply external controller")
+-					return err
++					errs = append(errs, err)
+ 				}
+ 			}
+-			return nil
++			err := errors.Combine(errs...)
++			if err != nil {
++				errors.LogInfoInner(context.Background(), err, "failed to apply external controller")
++			}
++			return err
+ 		},
+ 	}
+ 
+diff --git a/proxy/wireguard/tun_linux.go b/proxy/wireguard/tun_linux.go
+index 068e21ee..b8a742e1 100644
+--- a/proxy/wireguard/tun_linux.go
++++ b/proxy/wireguard/tun_linux.go
+@@ -78,9 +78,9 @@ func (d *deviceNet) DialUDPAddrPort(laddr, raddr netip.AddrPort) (net.Conn, erro
+ 	var conn net.PacketConn
+ 	var err error
+ 	if raddr.Addr().Is4() {
+-		conn, err = d.lc.ListenPacket(context.Background(), "udp4", ":0")
++		conn, err = d.lc.ListenPacket(context.Background(), "udp", "0.0.0.0:0")
+ 	} else {
+-		conn, err = d.lc.ListenPacket(context.Background(), "udp6", ":0")
++		conn, err = d.lc.ListenPacket(context.Background(), "udp", "[::]:0")
+ 	}
+ 	if err != nil {
+ 		return nil, err
+diff --git a/transport/internet/finalmask/xdns/client.go b/transport/internet/finalmask/xdns/client.go
+index 6f8d9737..0c670c14 100644
+--- a/transport/internet/finalmask/xdns/client.go
++++ b/transport/internet/finalmask/xdns/client.go
+@@ -37,11 +37,11 @@ type packet struct {
+ }
+ 
+ type xdnsConnClient struct {
+-	conn          net.PacketConn
+-	resolverConns []net.PacketConn
++	net.PacketConn
++
+ 	resolverAddrs []*net.UDPAddr
+ 	resolverIdx   uint32
+-	resolverSend  []atomic.Uint32
++	resolverSend  map[string]*atomic.Uint32
+ 
+ 	clientID []byte
+ 	domains  []Name
+@@ -74,9 +74,8 @@ func NewConnClient(c *Config, raw net.PacketConn) (net.PacketConn, error) {
+ 		servers = append(servers, parts[1])
+ 	}
+ 
+-	var resolverConns []net.PacketConn
+ 	var resolverAddrs []*net.UDPAddr
+-	var resolverSend []atomic.Uint32
++	var resolverSend = make(map[string]*atomic.Uint32)
+ 	for _, rs := range servers {
+ 		h, p, err := net.SplitHostPort(rs)
+ 		if err != nil {
+@@ -90,27 +89,16 @@ func NewConnClient(c *Config, raw net.PacketConn) (net.PacketConn, error) {
+ 		if port == 0 {
+ 			return nil, errors.New("invalid port")
+ 		}
+-		var uc net.PacketConn
+-		if ip.To4() != nil {
+-			uc, err = net.ListenPacket("udp4", ":0")
+-		} else {
+-			uc, err = net.ListenPacket("udp6", ":0")
+-		}
+-		if err != nil {
+-			for _, rc := range resolverConns {
+-				rc.Close()
+-			}
+-			return nil, errors.New("failed to create resolver socket: ", err)
+-		}
+-		resolverConns = append(resolverConns, uc)
+-		resolverAddrs = append(resolverAddrs, &net.UDPAddr{IP: ip, Port: port})
++		addr := &net.UDPAddr{IP: ip, Port: port}
++		resolverAddrs = append(resolverAddrs, addr)
++		resolverSend[addr.String()] = &atomic.Uint32{}
+ 	}
+-	resolverSend = make([]atomic.Uint32, len(resolverConns))
+ 
+ 	conn := &xdnsConnClient{
+-		conn:          raw,
+-		resolverConns: resolverConns,
++		PacketConn: raw,
++
+ 		resolverAddrs: resolverAddrs,
++		resolverIdx:   0,
+ 		resolverSend:  resolverSend,
+ 
+ 		clientID: make([]byte, 8),
+@@ -130,69 +118,67 @@ func NewConnClient(c *Config, raw net.PacketConn) (net.PacketConn, error) {
+ }
+ 
+ func (c *xdnsConnClient) recvLoop() {
+-	var wg sync.WaitGroup
+-
+-	for i, rc := range c.resolverConns {
+-		wg.Add(1)
+-		go func() {
+-			defer wg.Done()
+-
+-			var buf [finalmask.UDPSize]byte
+-
+-			for {
+-				if c.closed {
+-					break
+-				}
+-
+-				n, addr, err := rc.ReadFrom(buf[:])
+-				if err != nil {
+-					if go_errors.Is(err, net.ErrClosed) {
+-						break
+-					}
+-					continue
+-				}
+-
+-				resp, err := MessageFromWireFormat(buf[:n])
+-				if err != nil {
+-					errors.LogDebug(context.Background(), addr, " xdns from wireformat err ", err)
+-					continue
+-				}
+-
+-				payload := dnsResponsePayload(&resp, c.domains)
+-
+-				r := bytes.NewReader(payload)
+-				anyPacket := false
+-				for {
+-					p, err := nextPacket(r)
+-					if err != nil {
+-						break
+-					}
+-					anyPacket = true
+-
+-					buf := make([]byte, len(p))
+-					copy(buf, p)
+-					select {
+-					case c.readQueue <- &packet{
+-						p:    buf,
+-						addr: addr,
+-					}:
+-					default:
+-						errors.LogDebug(context.Background(), addr, " mask read err queue full")
+-					}
+-				}
+-
+-				if anyPacket {
+-					c.resolverSend[i].Store(0)
+-					select {
+-					case c.pollChan <- struct{}{}:
+-					default:
+-					}
+-				}
++	var buf [finalmask.UDPSize]byte
++
++	for {
++		if c.closed {
++			break
++		}
++
++		n, addr, err := c.PacketConn.ReadFrom(buf[:])
++		if err != nil {
++			if go_errors.Is(err, net.ErrClosed) {
++				break
+ 			}
+-		}()
+-	}
++			continue
++		}
+ 
+-	wg.Wait()
++		if addr == nil {
++			continue
++		}
++
++		send := c.resolverSend[addr.String()]
++		if send == nil {
++			continue
++		}
++
++		resp, err := MessageFromWireFormat(buf[:n])
++		if err != nil {
++			errors.LogDebug(context.Background(), addr, " xdns from wireformat err ", err)
++			continue
++		}
++
++		payload := dnsResponsePayload(&resp, c.domains)
++
++		r := bytes.NewReader(payload)
++		anyPacket := false
++		for {
++			p, err := nextPacket(r)
++			if err != nil {
++				break
++			}
++			anyPacket = true
++
++			buf := make([]byte, len(p))
++			copy(buf, p)
++			select {
++			case c.readQueue <- &packet{
++				p:    buf,
++				addr: addr,
++			}:
++			default:
++				errors.LogDebug(context.Background(), addr, " mask read err queue full")
++			}
++		}
++
++		if anyPacket {
++			send.Store(0)
++			select {
++			case c.pollChan <- struct{}{}:
++			default:
++			}
++		}
++	}
+ 
+ 	errors.LogDebug(context.Background(), "xdns closed")
+ 
+@@ -254,15 +240,15 @@ func (c *xdnsConnClient) sendLoop() {
+ 		}
+ 
+ 		cur := c.resolverIdx
+-		curSend := c.resolverSend[c.resolverIdx].Add(1)
+-		_, _ = c.resolverConns[c.resolverIdx].WriteTo(p.p, c.resolverAddrs[c.resolverIdx])
++		curSend := c.resolverSend[c.resolverAddrs[cur].String()].Add(1)
++		_, _ = c.PacketConn.WriteTo(p.p, c.resolverAddrs[cur])
+ 		for {
+ 			c.resolverIdx += 1
+-			c.resolverIdx %= uint32(len(c.resolverConns))
++			c.resolverIdx %= uint32(len(c.resolverAddrs))
+ 			if c.resolverIdx == cur {
+ 				break
+ 			}
+-			if c.resolverSend[c.resolverIdx].Load() < curSend {
++			if c.resolverSend[c.resolverAddrs[c.resolverIdx].String()].Load() < curSend {
+ 				break
+ 			}
+ 		}
+@@ -290,7 +276,7 @@ func (c *xdnsConnClient) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+ 		return 0, io.ErrClosedPipe
+ 	}
+ 
+-	encoded, err := encode(p, c.clientID, c.domains[c.resolverIdx%uint32(len(c.resolverConns))])
++	encoded, err := encode(p, c.clientID, c.domains[c.resolverIdx%uint32(len(c.resolverAddrs))])
+ 	if err != nil {
+ 		errors.LogDebug(context.Background(), addr, " xdns wireformat err ", err, " ", len(p))
+ 		return 0, nil
+@@ -310,35 +296,7 @@ func (c *xdnsConnClient) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+ 
+ func (c *xdnsConnClient) Close() error {
+ 	c.closed = true
+-	for _, rc := range c.resolverConns {
+-		rc.Close()
+-	}
+-	return c.conn.Close()
+-}
+-
+-func (c *xdnsConnClient) LocalAddr() net.Addr {
+-	return c.conn.LocalAddr()
+-}
+-
+-func (c *xdnsConnClient) SetDeadline(t time.Time) error {
+-	for _, rc := range c.resolverConns {
+-		rc.SetDeadline(t)
+-	}
+-	return c.conn.SetDeadline(t)
+-}
+-
+-func (c *xdnsConnClient) SetReadDeadline(t time.Time) error {
+-	for _, rc := range c.resolverConns {
+-		rc.SetReadDeadline(t)
+-	}
+-	return c.conn.SetReadDeadline(t)
+-}
+-
+-func (c *xdnsConnClient) SetWriteDeadline(t time.Time) error {
+-	for _, rc := range c.resolverConns {
+-		rc.SetWriteDeadline(t)
+-	}
+-	return c.conn.SetWriteDeadline(t)
++	return c.PacketConn.Close()
+ }
+ 
+ func encode(p []byte, clientID []byte, domain Name) ([]byte, error) {
+diff --git a/transport/internet/finalmask/xdns/config.go b/transport/internet/finalmask/xdns/config.go
+index dbd78a28..bac0456e 100644
+--- a/transport/internet/finalmask/xdns/config.go
++++ b/transport/internet/finalmask/xdns/config.go
+@@ -2,27 +2,23 @@ package xdns
+ 
+ import (
+ 	"net"
+-
+-	"github.com/xtls/xray-core/common/errors"
+-	"github.com/xtls/xray-core/transport/internet"
+-	"github.com/xtls/xray-core/transport/internet/hysteria/udphop"
+ )
+ 
+ func (c *Config) UDP() {
+ }
+ 
+ func (c *Config) WrapPacketConnClient(raw net.PacketConn, level int, levelCount int) (net.PacketConn, error) {
+-	_, ok1 := raw.(*internet.FakePacketConn)
+-	_, ok2 := raw.(*udphop.UdpHopPacketConn)
+-	if level != 0 || ok1 || ok2 {
+-		return nil, errors.New("xdns requires being at the outermost level")
+-	}
++	// _, ok1 := raw.(*internet.FakePacketConn)
++	// _, ok2 := raw.(*udphop.UdpHopPacketConn)
++	// if level != 0 || ok1 || ok2 {
++	// 	return nil, errors.New("xdns requires being at the outermost level")
++	// }
+ 	return NewConnClient(c, raw)
+ }
+ 
+ func (c *Config) WrapPacketConnServer(raw net.PacketConn, level int, levelCount int) (net.PacketConn, error) {
+-	if level != 0 {
+-		return nil, errors.New("xdns requires being at the outermost level")
+-	}
++	// if level != 0 {
++	// 	return nil, errors.New("xdns requires being at the outermost level")
++	// }
+ 	return NewConnServer(c, raw)
+ }
+
+commit 3bc24a3d5d0fbdbec9f75d767d0d26a9340b14be
+Author: Meow <197331664+Meo597@users.noreply.github.com>
+Date:   2026-04-26 05:20:42 +0800
+
+    Geodata: Support automatically updating .dat files and hot reloading (#5992)
+    
+    https://github.com/XTLS/Xray-core/pull/5992#issuecomment-4320551920
+    
+    Usage: https://github.com/XTLS/Xray-core/pull/5992#issuecomment-4291168039
+---
+ .github/docker/Dockerfile               |   4 +-
+ .github/docker/Dockerfile.usa           |   4 +-
+ app/geodata/config.pb.go                | 198 +++++++++++++++++++++
+ app/geodata/config.proto                |  21 +++
+ app/geodata/download.go                 | 304 ++++++++++++++++++++++++++++++++
+ app/geodata/geodata.go                  | 134 ++++++++++++++
+ common/geodata/domain_registry.go       |  81 ++++++++-
+ common/geodata/ip_matcher.go            |   4 +
+ common/geodata/ip_registry.go           | 122 ++++++++++++-
+ common/platform/filesystem/file.go      |  42 ++++-
+ common/platform/filesystem/file_test.go |  32 ++++
+ go.mod                                  |   1 +
+ go.sum                                  |   2 +
+ infra/conf/geodata.go                   |  71 ++++++++
+ infra/conf/geodata_test.go              |  75 ++++++++
+ infra/conf/xray.go                      |  13 ++
+ main/distro/all/all.go                  |   1 +
+ 17 files changed, 1099 insertions(+), 10 deletions(-)
+
+diff --git a/.github/docker/Dockerfile b/.github/docker/Dockerfile
+index 867e671a..7694fadf 100644
+--- a/.github/docker/Dockerfile
++++ b/.github/docker/Dockerfile
+@@ -45,8 +45,8 @@ RUN mkdir -p /tmp/var/log/xray && touch \
+ FROM gcr.io/distroless/static:nonroot
+ 
+ COPY --from=build --chown=0:0 --chmod=755 /src/xray /usr/local/bin/xray
+-COPY --from=build --chown=0:0 --chmod=755 /tmp/empty /usr/local/share/xray
+-COPY --from=build --chown=0:0 --chmod=644 /tmp/geodat/*.dat /usr/local/share/xray/
++COPY --from=build --chown=65532:65532 --chmod=755 /tmp/empty /usr/local/share/xray
++COPY --from=build --chown=65532:65532 --chmod=644 /tmp/geodat/*.dat /usr/local/share/xray/
+ COPY --from=build --chown=0:0 --chmod=755 /tmp/empty /usr/local/etc/xray
+ COPY --from=build --chown=0:0 --chmod=644 /tmp/usr/local/etc/xray/*.json /usr/local/etc/xray/
+ COPY --from=build --chown=0:0 --chmod=755 /tmp/empty /var/log/xray
+diff --git a/.github/docker/Dockerfile.usa b/.github/docker/Dockerfile.usa
+index 80cc523a..6cd17128 100644
+--- a/.github/docker/Dockerfile.usa
++++ b/.github/docker/Dockerfile.usa
+@@ -54,8 +54,8 @@ RUN mkdir -p /tmp/var/log/xray && touch \
+ FROM --platform=linux/amd64 gcr.io/distroless/static:nonroot
+ 
+ COPY --from=build --chown=0:0 --chmod=755 /src/xray /usr/local/bin/xray
+-COPY --from=build --chown=0:0 --chmod=755 /tmp/empty /usr/local/share/xray
+-COPY --from=build --chown=0:0 --chmod=644 /tmp/geodat/*.dat /usr/local/share/xray/
++COPY --from=build --chown=65532:65532 --chmod=755 /tmp/empty /usr/local/share/xray
++COPY --from=build --chown=65532:65532 --chmod=644 /tmp/geodat/*.dat /usr/local/share/xray/
+ COPY --from=build --chown=0:0 --chmod=755 /tmp/empty /usr/local/etc/xray
+ COPY --from=build --chown=0:0 --chmod=644 /tmp/usr/local/etc/xray/*.json /usr/local/etc/xray/
+ COPY --from=build --chown=0:0 --chmod=755 /tmp/empty /var/log/xray
+diff --git a/app/geodata/config.pb.go b/app/geodata/config.pb.go
+new file mode 100644
+index 00000000..ae7f2b92
+--- /dev/null
++++ b/app/geodata/config.pb.go
+@@ -0,0 +1,198 @@
++// Code generated by protoc-gen-go. DO NOT EDIT.
++// versions:
++// 	protoc-gen-go v1.36.11
++// 	protoc        v6.33.5
++// source: app/geodata/config.proto
++
++package geodata
++
++import (
++	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
++	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
++	reflect "reflect"
++	sync "sync"
++	unsafe "unsafe"
++)
++
++const (
++	// Verify that this generated code is sufficiently up-to-date.
++	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
++	// Verify that runtime/protoimpl is sufficiently up-to-date.
++	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
++)
++
++type Asset struct {
++	state         protoimpl.MessageState `protogen:"open.v1"`
++	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
++	File          string                 `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
++	unknownFields protoimpl.UnknownFields
++	sizeCache     protoimpl.SizeCache
++}
++
++func (x *Asset) Reset() {
++	*x = Asset{}
++	mi := &file_app_geodata_config_proto_msgTypes[0]
++	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++	ms.StoreMessageInfo(mi)
++}
++
++func (x *Asset) String() string {
++	return protoimpl.X.MessageStringOf(x)
++}
++
++func (*Asset) ProtoMessage() {}
++
++func (x *Asset) ProtoReflect() protoreflect.Message {
++	mi := &file_app_geodata_config_proto_msgTypes[0]
++	if x != nil {
++		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++		if ms.LoadMessageInfo() == nil {
++			ms.StoreMessageInfo(mi)
++		}
++		return ms
++	}
++	return mi.MessageOf(x)
++}
++
++// Deprecated: Use Asset.ProtoReflect.Descriptor instead.
++func (*Asset) Descriptor() ([]byte, []int) {
++	return file_app_geodata_config_proto_rawDescGZIP(), []int{0}
++}
++
++func (x *Asset) GetUrl() string {
++	if x != nil {
++		return x.Url
++	}
++	return ""
++}
++
++func (x *Asset) GetFile() string {
++	if x != nil {
++		return x.File
++	}
++	return ""
++}
++
++type Config struct {
++	state         protoimpl.MessageState `protogen:"open.v1"`
++	Cron          string                 `protobuf:"bytes,1,opt,name=cron,proto3" json:"cron,omitempty"`
++	Outbound      string                 `protobuf:"bytes,2,opt,name=outbound,proto3" json:"outbound,omitempty"`
++	Assets        []*Asset               `protobuf:"bytes,3,rep,name=assets,proto3" json:"assets,omitempty"`
++	unknownFields protoimpl.UnknownFields
++	sizeCache     protoimpl.SizeCache
++}
++
++func (x *Config) Reset() {
++	*x = Config{}
++	mi := &file_app_geodata_config_proto_msgTypes[1]
++	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++	ms.StoreMessageInfo(mi)
++}
++
++func (x *Config) String() string {
++	return protoimpl.X.MessageStringOf(x)
++}
++
++func (*Config) ProtoMessage() {}
++
++func (x *Config) ProtoReflect() protoreflect.Message {
++	mi := &file_app_geodata_config_proto_msgTypes[1]
++	if x != nil {
++		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
++		if ms.LoadMessageInfo() == nil {
++			ms.StoreMessageInfo(mi)
++		}
++		return ms
++	}
++	return mi.MessageOf(x)
++}
++
++// Deprecated: Use Config.ProtoReflect.Descriptor instead.
++func (*Config) Descriptor() ([]byte, []int) {
++	return file_app_geodata_config_proto_rawDescGZIP(), []int{1}
++}
++
++func (x *Config) GetCron() string {
++	if x != nil {
++		return x.Cron
++	}
++	return ""
++}
++
++func (x *Config) GetOutbound() string {
++	if x != nil {
++		return x.Outbound
++	}
++	return ""
++}
++
++func (x *Config) GetAssets() []*Asset {
++	if x != nil {
++		return x.Assets
++	}
++	return nil
++}
++
++var File_app_geodata_config_proto protoreflect.FileDescriptor
++
++const file_app_geodata_config_proto_rawDesc = "" +
++	"\n" +
++	"\x18app/geodata/config.proto\x12\x10xray.app.geodata\"-\n" +
++	"\x05Asset\x12\x10\n" +
++	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
++	"\x04file\x18\x02 \x01(\tR\x04file\"i\n" +
++	"\x06Config\x12\x12\n" +
++	"\x04cron\x18\x01 \x01(\tR\x04cron\x12\x1a\n" +
++	"\boutbound\x18\x02 \x01(\tR\boutbound\x12/\n" +
++	"\x06assets\x18\x03 \x03(\v2\x17.xray.app.geodata.AssetR\x06assetsBR\n" +
++	"\x14com.xray.app.geodataP\x01Z%github.com/xtls/xray-core/app/geodata\xaa\x02\x10Xray.App.Geodatab\x06proto3"
++
++var (
++	file_app_geodata_config_proto_rawDescOnce sync.Once
++	file_app_geodata_config_proto_rawDescData []byte
++)
++
++func file_app_geodata_config_proto_rawDescGZIP() []byte {
++	file_app_geodata_config_proto_rawDescOnce.Do(func() {
++		file_app_geodata_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_app_geodata_config_proto_rawDesc), len(file_app_geodata_config_proto_rawDesc)))
++	})
++	return file_app_geodata_config_proto_rawDescData
++}
++
++var file_app_geodata_config_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
++var file_app_geodata_config_proto_goTypes = []any{
++	(*Asset)(nil),  // 0: xray.app.geodata.Asset
++	(*Config)(nil), // 1: xray.app.geodata.Config
++}
++var file_app_geodata_config_proto_depIdxs = []int32{
++	0, // 0: xray.app.geodata.Config.assets:type_name -> xray.app.geodata.Asset
++	1, // [1:1] is the sub-list for method output_type
++	1, // [1:1] is the sub-list for method input_type
++	1, // [1:1] is the sub-list for extension type_name
++	1, // [1:1] is the sub-list for extension extendee
++	0, // [0:1] is the sub-list for field type_name
++}
++
++func init() { file_app_geodata_config_proto_init() }
++func file_app_geodata_config_proto_init() {
++	if File_app_geodata_config_proto != nil {
++		return
++	}
++	type x struct{}
++	out := protoimpl.TypeBuilder{
++		File: protoimpl.DescBuilder{
++			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
++			RawDescriptor: unsafe.Slice(unsafe.StringData(file_app_geodata_config_proto_rawDesc), len(file_app_geodata_config_proto_rawDesc)),
++			NumEnums:      0,
++			NumMessages:   2,
++			NumExtensions: 0,
++			NumServices:   0,
++		},
++		GoTypes:           file_app_geodata_config_proto_goTypes,
++		DependencyIndexes: file_app_geodata_config_proto_depIdxs,
++		MessageInfos:      file_app_geodata_config_proto_msgTypes,
++	}.Build()
++	File_app_geodata_config_proto = out.File
++	file_app_geodata_config_proto_goTypes = nil
++	file_app_geodata_config_proto_depIdxs = nil
++}
+diff --git a/app/geodata/config.proto b/app/geodata/config.proto
+new file mode 100644
+index 00000000..0bcce2bf
+--- /dev/null
++++ b/app/geodata/config.proto
+@@ -0,0 +1,21 @@
++syntax = "proto3";
++
++package xray.app.geodata;
++option csharp_namespace = "Xray.App.Geodata";
++option go_package = "github.com/xtls/xray-core/app/geodata";
++option java_package = "com.xray.app.geodata";
++option java_multiple_files = true;
++
++message Asset {
++  string url = 1;
++
++  string file = 2;
++}
++
++message Config {
++  string cron = 1;
++
++  string outbound = 2;
++
++  repeated Asset assets = 3;
++}
+diff --git a/app/geodata/download.go b/app/geodata/download.go
+new file mode 100644
+index 00000000..cc1498a0
+--- /dev/null
++++ b/app/geodata/download.go
+@@ -0,0 +1,304 @@
++package geodata
++
++import (
++	"context"
++	go_errors "errors"
++	"io"
++	"net/http"
++	"os"
++	"path/filepath"
++	"time"
++
++	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/common/platform/filesystem"
++	"github.com/xtls/xray-core/common/task"
++	"github.com/xtls/xray-core/common/utils"
++	"github.com/xtls/xray-core/features/routing"
++	"github.com/xtls/xray-core/transport/internet/tagged"
++)
++
++const idleTimeout = 30 * time.Second
++
++type stage struct {
++	target string
++	temp   string
++}
++
++type downloader struct {
++	ctx    context.Context
++	client *http.Client
++}
++
++type idleConn struct {
++	net.Conn
++}
++
++func (c *idleConn) Read(b []byte) (int, error) {
++	t := time.AfterFunc(idleTimeout, func() {
++		_ = c.Close()
++	})
++
++	n, err := c.Conn.Read(b)
++	if !t.Stop() {
++		_ = c.Close()
++		return n, errors.New("connection idle timeout")
++	}
++	return n, err
++}
++
++func (c *idleConn) Write(b []byte) (int, error) {
++	return c.Conn.Write(b)
++}
++
++func newDownloader(ctx context.Context, dispatcher routing.Dispatcher, outbound string) *downloader {
++	return &downloader{
++		ctx:    ctx,
++		client: newClient(ctx, dispatcher, outbound),
++	}
++}
++
++func newClient(baseCtx context.Context, dispatcher routing.Dispatcher, outbound string) *http.Client {
++	return &http.Client{
++		Transport: &http.Transport{
++			Proxy:             nil,
++			DisableKeepAlives: true,
++			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
++				var conn net.Conn
++				err := task.Run(ctx, func() error {
++					if tagged.Dialer == nil {
++						return errors.New("tagged dialer is not initialized")
++					}
++					dest, err := net.ParseDestination(network + ":" + address)
++					if err != nil {
++						return errors.New("cannot understand address").Base(err)
++					}
++					c, err := tagged.Dialer(baseCtx, dispatcher, dest, outbound)
++					if err != nil {
++						return errors.New("cannot dial remote address ", dest).Base(err)
++					}
++					conn = c
++					return nil
++				})
++				if err != nil {
++					return nil, errors.New("cannot finish connection").Base(err)
++				}
++				return &idleConn{
++					Conn: conn,
++				}, nil
++			},
++			TLSHandshakeTimeout:   idleTimeout,
++			ResponseHeaderTimeout: idleTimeout,
++		},
++		CheckRedirect: func(req *http.Request, via []*http.Request) error {
++			if req.URL.Scheme != "https" {
++				return errors.New("redirected to non-https URL: ", req.URL.String())
++			}
++			if len(via) >= 10 {
++				return errors.New("stopped after 10 redirects")
++			}
++			return nil
++		},
++	}
++}
++
++func (d *downloader) download(assets []*Asset) ([]stage, error) {
++	staged := make([]stage, 0, len(assets))
++	for _, asset := range assets {
++		stage, err := d.downloadOne(asset)
++		if err != nil {
++			clean(staged)
++			return nil, err
++		}
++		staged = append(staged, stage)
++	}
++	return staged, nil
++}
++
++func (d *downloader) downloadOne(asset *Asset) (stage, error) {
++	target, err := filesystem.ResolveAsset(asset.File)
++	if err != nil {
++		return stage{}, err
++	}
++	errors.LogInfo(d.ctx, "downloading geodata asset from ", asset.Url, " to ", target)
++
++	temp, err := tempFile(target, ".tmp")
++	if err != nil {
++		return stage{}, err
++	}
++	tempName := temp.Name()
++	keepTemp := false
++	defer func() {
++		if !keepTemp {
++			os.Remove(tempName)
++		}
++	}()
++
++	if err := d.fetch(asset.Url, temp); err != nil {
++		temp.Close()
++		return stage{}, err
++	}
++	if err := temp.Chmod(0o644); err != nil {
++		temp.Close()
++		return stage{}, err
++	}
++	if err := temp.Close(); err != nil {
++		return stage{}, err
++	}
++
++	keepTemp = true
++	return stage{
++		target: target,
++		temp:   tempName,
++	}, nil
++}
++
++func (d *downloader) fetch(rawURL string, writer io.Writer) error {
++	req, err := http.NewRequestWithContext(d.ctx, http.MethodGet, rawURL, nil)
++	if err != nil {
++		return err
++	}
++	utils.TryDefaultHeadersWith(req.Header, "nav")
++
++	resp, err := d.client.Do(req)
++	if err != nil {
++		return err
++	}
++	defer resp.Body.Close()
++
++	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
++		io.Copy(io.Discard, resp.Body)
++		return errors.New("unexpected status code: ", resp.StatusCode)
++	}
++
++	n, err := io.Copy(writer, resp.Body)
++	if err != nil {
++		return err
++	}
++	if n == 0 {
++		return errors.New("empty response body")
++	}
++	return nil
++}
++
++func clean(assets []stage) {
++	for _, asset := range assets {
++		if asset.temp != "" {
++			os.Remove(asset.temp)
++		}
++	}
++}
++
++type tx struct {
++	swaps []swap
++}
++
++type swap struct {
++	target      string
++	backup      string
++	hadOriginal bool
++}
++
++func swapAll(assets []stage) (*tx, error) {
++	t := &tx{}
++	for _, asset := range assets {
++		s, err := swapOne(asset)
++		if err != nil {
++			return nil, errors.Combine(err, t.rollback())
++		}
++		t.swaps = append(t.swaps, s)
++	}
++	return t, nil
++}
++
++func swapOne(asset stage) (swap, error) {
++	backup, err := backupFile(asset.target)
++	if err != nil {
++		return swap{}, err
++	}
++
++	s := swap{
++		target: asset.target,
++		backup: backup,
++	}
++	if err := os.Rename(asset.target, backup); err != nil {
++		if !go_errors.Is(err, os.ErrNotExist) {
++			return swap{}, err
++		}
++		if err := os.Remove(backup); err != nil && !go_errors.Is(err, os.ErrNotExist) {
++			return swap{}, err
++		}
++	} else {
++		s.hadOriginal = true
++	}
++
++	if err := os.Rename(asset.temp, asset.target); err != nil {
++		if s.hadOriginal {
++			if restoreErr := os.Rename(backup, asset.target); restoreErr != nil {
++				return swap{}, errors.Combine(err, restoreErr)
++			}
++		}
++		return swap{}, err
++	}
++
++	return s, nil
++}
++
++func (t *tx) rollback() error {
++	var errs []error
++	for i := len(t.swaps) - 1; i >= 0; i-- {
++		if err := t.swaps[i].rollback(); err != nil {
++			errs = append(errs, err)
++		}
++	}
++	return errors.Combine(errs...)
++}
++
++func (s swap) rollback() error {
++	var errs []error
++	if err := os.Remove(s.target); err != nil && !go_errors.Is(err, os.ErrNotExist) {
++		errs = append(errs, err)
++	}
++	if s.hadOriginal {
++		if err := os.Rename(s.backup, s.target); err != nil {
++			errs = append(errs, err)
++		}
++	} else if err := os.Remove(s.backup); err != nil && !go_errors.Is(err, os.ErrNotExist) {
++		errs = append(errs, err)
++	}
++	return errors.Combine(errs...)
++}
++
++func (t *tx) commit() error {
++	var errs []error
++	for _, swap := range t.swaps {
++		if err := os.Remove(swap.backup); err != nil && !go_errors.Is(err, os.ErrNotExist) {
++			errs = append(errs, err)
++		}
++	}
++	return errors.Combine(errs...)
++}
++
++func tempFile(target string, suffix string) (*os.File, error) {
++	dir := filepath.Dir(target)
++	if err := os.MkdirAll(dir, 0o755); err != nil {
++		return nil, err
++	}
++	return os.CreateTemp(dir, "."+filepath.Base(target)+".*"+suffix)
++}
++
++func backupFile(target string) (string, error) {
++	file, err := tempFile(target, ".bak")
++	if err != nil {
++		return "", err
++	}
++	name := file.Name()
++	if err := file.Close(); err != nil {
++		os.Remove(name)
++		return "", err
++	}
++	if err := os.Remove(name); err != nil {
++		return "", err
++	}
++	return name, nil
++}
+diff --git a/app/geodata/geodata.go b/app/geodata/geodata.go
+new file mode 100644
+index 00000000..5b0111a8
+--- /dev/null
++++ b/app/geodata/geodata.go
+@@ -0,0 +1,134 @@
++package geodata
++
++import (
++	"context"
++	"sync"
++
++	"github.com/robfig/cron/v3"
++	"github.com/xtls/xray-core/common"
++	"github.com/xtls/xray-core/common/errors"
++	commongeodata "github.com/xtls/xray-core/common/geodata"
++	"github.com/xtls/xray-core/core"
++	"github.com/xtls/xray-core/features/routing"
++)
++
++type Instance struct {
++	assets     []*Asset
++	downloader *downloader
++	tasker     *cron.Cron
++
++	mu      sync.Mutex
++	running bool
++}
++
++func New(ctx context.Context, config *Config) (*Instance, error) {
++	if config.Cron == "" {
++		return &Instance{}, nil
++	}
++
++	g := &Instance{
++		assets: config.Assets,
++	}
++
++	if len(g.assets) > 0 {
++		var dispatcher routing.Dispatcher
++		if err := core.RequireFeatures(ctx, func(d routing.Dispatcher) {
++			dispatcher = d
++		}); err != nil {
++			return nil, errors.New("failed to get dispatcher for geodata downloader").Base(err)
++		}
++		g.downloader = newDownloader(ctx, dispatcher, config.Outbound)
++	}
++
++	g.tasker = cron.New(
++		cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)),
++		cron.WithLogger(cron.DiscardLogger),
++	)
++	if _, err := g.tasker.AddFunc(config.Cron, g.execute); err != nil {
++		return nil, errors.New("invalid geodata cron").Base(err)
++	}
++	errors.LogInfo(ctx, "scheduled geodata reload with cron: ", config.Cron)
++
++	return g, nil
++}
++
++func (g *Instance) execute() {
++	var err error
++	if g.downloader != nil {
++		err = g.reloadWithUpdate()
++	} else {
++		err = reload()
++	}
++	if err != nil {
++		errors.LogErrorInner(context.Background(), err, "scheduled geodata reload failed")
++	}
++}
++
++func (g *Instance) reloadWithUpdate() error {
++	staged, err := g.downloader.download(g.assets)
++	if err != nil {
++		return err
++	}
++	defer clean(staged)
++
++	tx, err := swapAll(staged)
++	if err != nil {
++		return err
++	}
++
++	if err := reload(); err != nil {
++		errors.LogErrorInner(context.Background(), err, "failed to reload geodata after downloading assets, rolling back")
++		rollbackErr := tx.rollback()
++		return errors.Combine(err, rollbackErr)
++	}
++
++	return tx.commit()
++}
++
++func reload() error {
++	return errors.Combine(commongeodata.IPReg.Reload(), commongeodata.DomainReg.Reload())
++}
++
++func (g *Instance) Type() interface{} {
++	return (*Instance)(nil)
++}
++
++func (g *Instance) Start() error {
++	g.mu.Lock()
++	defer g.mu.Unlock()
++
++	if g.running {
++		return nil
++	}
++
++	if g.tasker != nil {
++		g.tasker.Start()
++	}
++
++	g.running = true
++
++	return nil
++}
++
++func (g *Instance) Close() error {
++	g.mu.Lock()
++	defer g.mu.Unlock()
++
++	if !g.running {
++		return nil
++	}
++
++	if g.tasker != nil {
++		<-g.tasker.Stop().Done()
++	}
++
++	g.running = false
++
++	return nil
++}
++
++func init() {
++	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, cfg interface{}) (interface{}, error) {
++		return New(ctx, cfg.(*Config))
++	}))
++}
+diff --git a/common/geodata/domain_registry.go b/common/geodata/domain_registry.go
+index 0736c1ed..7b6c6527 100644
+--- a/common/geodata/domain_registry.go
++++ b/common/geodata/domain_registry.go
+@@ -1,11 +1,59 @@
+ package geodata
+ 
++import (
++	"context"
++	"sync"
++	"sync/atomic"
++
++	"github.com/xtls/xray-core/common/errors"
++)
++
+ type DomainRegistry struct {
+-	factory DomainMatcherFactory
++	mu       sync.Mutex
++	factory  DomainMatcherFactory
++	matchers []*DynamicDomainMatcher
+ }
+ 
+ func (r *DomainRegistry) BuildDomainMatcher(rules []*DomainRule) (DomainMatcher, error) {
+-	return r.factory.BuildMatcher(rules)
++	r.mu.Lock()
++	defer r.mu.Unlock()
++
++	m, err := r.factory.BuildMatcher(rules)
++	if err != nil {
++		return nil, err
++	}
++
++	d := NewDynamicDomainMatcher(rules, m)
++	r.matchers = append(r.matchers, d)
++	return d, nil
++}
++
++func (r *DomainRegistry) Reload() error {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++
++	errors.LogInfo(context.Background(), "reloading GeoSite data for ", len(r.matchers), " domain matcher(s)")
++
++	factory := newDomainMatcherFactory()
++	type reloadEntry struct {
++		dynamic *DynamicDomainMatcher
++		matcher DomainMatcher
++	}
++	reloaded := make([]reloadEntry, len(r.matchers))
++	for i, d := range r.matchers {
++		m, err := factory.BuildMatcher(d.rules)
++		if err != nil {
++			errors.LogErrorInner(context.Background(), err, "failed to reload GeoSite data for domain matcher ", i)
++			return err
++		}
++		reloaded[i] = reloadEntry{dynamic: d, matcher: m}
++	}
++	for _, entry := range reloaded {
++		entry.dynamic.Reload(entry.matcher)
++	}
++	r.factory = factory
++	errors.LogInfo(context.Background(), "reloaded GeoSite data for ", len(r.matchers), " domain matcher(s)")
++	return nil
+ }
+ 
+ func newDomainRegistry() *DomainRegistry {
+@@ -15,3 +63,32 @@ func newDomainRegistry() *DomainRegistry {
+ }
+ 
+ var DomainReg = newDomainRegistry()
++
++type domainMatcherState struct {
++	matcher DomainMatcher
++}
++
++type DynamicDomainMatcher struct {
++	rules []*DomainRule
++	state atomic.Pointer[domainMatcherState]
++}
++
++// Match implements DomainMatcher.
++func (d *DynamicDomainMatcher) Match(input string) []uint32 {
++	return d.state.Load().matcher.Match(input)
++}
++
++// MatchAny implements DomainMatcher.
++func (d *DynamicDomainMatcher) MatchAny(input string) bool {
++	return d.state.Load().matcher.MatchAny(input)
++}
++
++func (d *DynamicDomainMatcher) Reload(newMatcher DomainMatcher) {
++	d.state.Store(&domainMatcherState{matcher: newMatcher})
++}
++
++func NewDynamicDomainMatcher(rules []*DomainRule, matcher DomainMatcher) *DynamicDomainMatcher {
++	d := &DynamicDomainMatcher{rules: rules}
++	d.Reload(matcher)
++	return d
++}
+diff --git a/common/geodata/ip_matcher.go b/common/geodata/ip_matcher.go
+index 165f904e..1eba5dbf 100644
+--- a/common/geodata/ip_matcher.go
++++ b/common/geodata/ip_matcher.go
+@@ -1016,3 +1016,7 @@ func buildOptimizedIPMatcher(f *IPSetFactory, rules []*IPRule) (IPMatcher, error
+ 		return &HeuristicMultiIPMatcher{matchers: subs}, nil
+ 	}
+ }
++
++func newIPSetFactory() *IPSetFactory {
++	return &IPSetFactory{shared: make(map[string]*IPSet)}
++}
+diff --git a/common/geodata/ip_registry.go b/common/geodata/ip_registry.go
+index fab4a778..21fbdf9e 100644
+--- a/common/geodata/ip_registry.go
++++ b/common/geodata/ip_registry.go
+@@ -1,17 +1,135 @@
+ package geodata
+ 
++import (
++	"context"
++	"sync"
++	"sync/atomic"
++
++	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/net"
++)
++
+ type IPRegistry struct {
++	mu           sync.Mutex
+ 	ipsetFactory *IPSetFactory
++	matchers     []*DynamicIPMatcher
+ }
+ 
+ func (r *IPRegistry) BuildIPMatcher(rules []*IPRule) (IPMatcher, error) {
+-	return buildOptimizedIPMatcher(r.ipsetFactory, rules)
++	r.mu.Lock()
++	defer r.mu.Unlock()
++
++	m, err := buildOptimizedIPMatcher(r.ipsetFactory, rules)
++	if err != nil {
++		return nil, err
++	}
++
++	d := NewDynamicIPMatcher(rules, m)
++	r.matchers = append(r.matchers, d)
++	return d, nil
++}
++
++func (r *IPRegistry) Reload() error {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++
++	errors.LogInfo(context.Background(), "reloading GeoIP data for ", len(r.matchers), " IP matcher(s)")
++
++	factory := newIPSetFactory()
++	type reloadEntry struct {
++		dynamic *DynamicIPMatcher
++		matcher IPMatcher
++	}
++	reloaded := make([]reloadEntry, len(r.matchers))
++	for i, d := range r.matchers {
++		m, err := buildOptimizedIPMatcher(factory, d.rules)
++		if err != nil {
++			errors.LogErrorInner(context.Background(), err, "failed to reload GeoIP data for IP matcher ", i)
++			return err
++		}
++		reloaded[i] = reloadEntry{dynamic: d, matcher: m}
++	}
++	for _, entry := range reloaded {
++		entry.dynamic.Reload(entry.matcher)
++	}
++	r.ipsetFactory = factory
++	errors.LogInfo(context.Background(), "reloaded GeoIP data for ", len(r.matchers), " IP matcher(s)")
++	return nil
+ }
+ 
+ func newIPRegistry() *IPRegistry {
+ 	return &IPRegistry{
+-		ipsetFactory: &IPSetFactory{shared: make(map[string]*IPSet)},
++		ipsetFactory: newIPSetFactory(),
+ 	}
+ }
+ 
+ var IPReg = newIPRegistry()
++
++type ipMatcherState struct {
++	matcher IPMatcher
++}
++
++type DynamicIPMatcher struct {
++	rules      []*IPRule
++	state      atomic.Pointer[ipMatcherState]
++	mu         sync.Mutex
++	reverse    bool
++	reverseSet bool
++}
++
++// Match implements IPMatcher.
++func (d *DynamicIPMatcher) Match(ip net.IP) bool {
++	return d.state.Load().matcher.Match(ip)
++}
++
++// AnyMatch implements IPMatcher.
++func (d *DynamicIPMatcher) AnyMatch(ips []net.IP) bool {
++	return d.state.Load().matcher.AnyMatch(ips)
++}
++
++// Matches implements IPMatcher.
++func (d *DynamicIPMatcher) Matches(ips []net.IP) bool {
++	return d.state.Load().matcher.Matches(ips)
++}
++
++// FilterIPs implements IPMatcher.
++func (d *DynamicIPMatcher) FilterIPs(ips []net.IP) (matched []net.IP, unmatched []net.IP) {
++	return d.state.Load().matcher.FilterIPs(ips)
++}
++
++// ToggleReverse implements IPMatcher.
++func (d *DynamicIPMatcher) ToggleReverse() {
++	d.mu.Lock()
++	defer d.mu.Unlock()
++
++	d.reverse = !d.reverse
++	d.state.Load().matcher.ToggleReverse()
++}
++
++// SetReverse implements IPMatcher.
++func (d *DynamicIPMatcher) SetReverse(reverse bool) {
++	d.mu.Lock()
++	defer d.mu.Unlock()
++
++	d.reverse = reverse
++	d.reverseSet = true
++	d.state.Load().matcher.SetReverse(reverse)
++}
++
++func (d *DynamicIPMatcher) Reload(newMatcher IPMatcher) {
++	d.mu.Lock()
++	defer d.mu.Unlock()
++
++	if d.reverseSet {
++		newMatcher.SetReverse(d.reverse)
++	} else if d.reverse {
++		newMatcher.ToggleReverse()
++	}
++	d.state.Store(&ipMatcherState{matcher: newMatcher})
++}
++
++func NewDynamicIPMatcher(rules []*IPRule, matcher IPMatcher) *DynamicIPMatcher {
++	d := &DynamicIPMatcher{rules: rules}
++	d.Reload(matcher)
++	return d
++}
+diff --git a/common/platform/filesystem/file.go b/common/platform/filesystem/file.go
+index f36838ce..d9d1d39f 100644
+--- a/common/platform/filesystem/file.go
++++ b/common/platform/filesystem/file.go
+@@ -1,6 +1,7 @@
+ package filesystem
+ 
+ import (
++	"errors"
+ 	"io"
+ 	"os"
+ 	"path/filepath"
+@@ -26,11 +27,48 @@ func ReadFile(path string) ([]byte, error) {
+ }
+ 
+ func ReadAsset(file string) ([]byte, error) {
+-	return ReadFile(platform.GetAssetLocation(file))
++	path, _, err := getAssetFileLocation(file)
++	if err != nil {
++		return nil, err
++	}
++	return ReadFile(path)
+ }
+ 
+ func OpenAsset(file string) (io.ReadCloser, error) {
+-	return NewFileReader(platform.GetAssetLocation(file))
++	path, _, err := getAssetFileLocation(file)
++	if err != nil {
++		return nil, err
++	}
++	return NewFileReader(path)
++}
++
++func StatAsset(file string) (os.FileInfo, error) {
++	_, info, err := getAssetFileLocation(file)
++	return info, err
++}
++
++func ResolveAsset(file string) (string, error) {
++	path, _, err := getAssetFileLocation(file)
++	return path, err
++}
++
++func getAssetFileLocation(file string) (string, os.FileInfo, error) {
++	if !filepath.IsLocal(file) || file == "." {
++		return "", nil, errors.New("asset path must stay in asset directory")
++	}
++	local, err := filepath.Localize(file)
++	if err != nil {
++		return "", nil, err
++	}
++	path := platform.GetAssetLocation(local)
++	info, err := os.Stat(path)
++	if err != nil {
++		return "", nil, err
++	}
++	if !info.Mode().IsRegular() {
++		return "", nil, errors.New("asset is not a regular file")
++	}
++	return path, info, nil
+ }
+ 
+ func ReadCert(file string) ([]byte, error) {
+diff --git a/common/platform/filesystem/file_test.go b/common/platform/filesystem/file_test.go
+new file mode 100644
+index 00000000..17da6e04
+--- /dev/null
++++ b/common/platform/filesystem/file_test.go
+@@ -0,0 +1,32 @@
++package filesystem_test
++
++import (
++	"path/filepath"
++	"testing"
++
++	. "github.com/xtls/xray-core/common/platform/filesystem"
++)
++
++func TestStatAssetRejectsInvalidPath(t *testing.T) {
++	for _, file := range []string{
++		"",
++		".",
++		"..",
++		"../geoip.dat",
++		"nested/..",
++		"nested/../geoip.dat",
++		"nested//geoip.dat",
++		"/geoip.dat",
++		"/tmp/geoip.dat",
++		`C:\geoip.dat`,
++		`C:geoip.dat`,
++		`\\server\share\geoip.dat`,
++		`nested\geoip.dat`,
++		`nested\..\geoip.dat`,
++		filepath.Join(t.TempDir(), "geoip.dat"),
++	} {
++		if _, err := StatAsset(file); err == nil {
++			t.Fatalf("expected error for %q", file)
++		}
++	}
++}
+diff --git a/go.mod b/go.mod
+index ca438801..5fe853cb 100644
+--- a/go.mod
++++ b/go.mod
+@@ -14,6 +14,7 @@ require (
+ 	github.com/pelletier/go-toml v1.9.5
+ 	github.com/pires/go-proxyproto v0.12.0
+ 	github.com/refraction-networking/utls v1.8.3-0.20260301010127-aa6edf4b11af
++	github.com/robfig/cron/v3 v3.0.0
+ 	github.com/sagernet/sing v0.5.1
+ 	github.com/sagernet/sing-shadowsocks v0.2.7
+ 	github.com/stretchr/testify v1.11.1
+diff --git a/go.sum b/go.sum
+index 255f9868..f31fed52 100644
+--- a/go.sum
++++ b/go.sum
+@@ -53,6 +53,8 @@ github.com/quic-go/qpack v0.6.0 h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=
+ github.com/quic-go/qpack v0.6.0/go.mod h1:lUpLKChi8njB4ty2bFLX2x4gzDqXwUpaO1DP9qMDZII=
+ github.com/refraction-networking/utls v1.8.3-0.20260301010127-aa6edf4b11af h1:er2acxbi3N1nvEq6HXHUAR1nTWEJmQfqiGR8EVT9rfs=
+ github.com/refraction-networking/utls v1.8.3-0.20260301010127-aa6edf4b11af/go.mod h1:jkSOEkLqn+S/jtpEHPOsVv/4V4EVnelwbMQl4vCWXAM=
++github.com/robfig/cron/v3 v3.0.0 h1:kQ6Cb7aHOHTSzNVNEhmp8EcWKLb4CbiMW9h9VyIhO4E=
++github.com/robfig/cron/v3 v3.0.0/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
+ github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
+ github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
+ github.com/sagernet/sing v0.5.1 h1:mhL/MZVq0TjuvHcpYcFtmSD1BFOxZ/+8ofbNZcg1k1Y=
+diff --git a/infra/conf/geodata.go b/infra/conf/geodata.go
+new file mode 100644
+index 00000000..3e80967a
+--- /dev/null
++++ b/infra/conf/geodata.go
+@@ -0,0 +1,71 @@
++package conf
++
++import (
++	"net/url"
++
++	"github.com/robfig/cron/v3"
++	"github.com/xtls/xray-core/app/geodata"
++	"github.com/xtls/xray-core/common/errors"
++	"github.com/xtls/xray-core/common/platform/filesystem"
++	"google.golang.org/protobuf/proto"
++)
++
++type GeodataAssetConfig struct {
++	URL  string `json:"url"`
++	File string `json:"file"`
++}
++
++func (c *GeodataAssetConfig) Build() (*geodata.Asset, error) {
++	if err := validateHTTPS(c.URL); err != nil {
++		return nil, errors.New("invalid geodata asset url: ", c.URL).Base(err)
++	}
++	if _, err := filesystem.StatAsset(c.File); err != nil {
++		return nil, errors.New("invalid geodata asset file: ", c.File).Base(err)
++	}
++	return &geodata.Asset{
++		Url:  c.URL,
++		File: c.File,
++	}, nil
++}
++
++func validateHTTPS(s string) error {
++	u, err := url.ParseRequestURI(s)
++	if err != nil {
++		return err
++	}
++	if u.Scheme != "https" || u.Host == "" {
++		return errors.New("scheme must be https")
++	}
++	return nil
++}
++
++type GeodataConfig struct {
++	Cron     *string               `json:"cron"`
++	Outbound string                `json:"outbound"`
++	Assets   []*GeodataAssetConfig `json:"assets"`
++}
++
++func (c *GeodataConfig) Build() (proto.Message, error) {
++	config := &geodata.Config{}
++
++	if c.Cron != nil {
++		if _, err := cron.ParseStandard(*c.Cron); err != nil {
++			return nil, errors.New("invalid geodata cron").Base(err)
++		}
++		config.Cron = *c.Cron
++	}
++
++	config.Outbound = c.Outbound
++
++	assets := make([]*geodata.Asset, 0, len(c.Assets))
++	for _, asset := range c.Assets {
++		built, err := asset.Build()
++		if err != nil {
++			return nil, err
++		}
++		assets = append(assets, built)
++	}
++	config.Assets = assets
++
++	return config, nil
++}
+diff --git a/infra/conf/geodata_test.go b/infra/conf/geodata_test.go
+new file mode 100644
+index 00000000..d75d0452
+--- /dev/null
++++ b/infra/conf/geodata_test.go
+@@ -0,0 +1,75 @@
++package conf_test
++
++import (
++	"path/filepath"
++	"testing"
++
++	"github.com/xtls/xray-core/app/geodata"
++	. "github.com/xtls/xray-core/infra/conf"
++)
++
++func TestGeodataConfig(t *testing.T) {
++	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
++
++	creator := func() Buildable {
++		return new(GeodataConfig)
++	}
++
++	runMultiTestCase(t, []TestCase{
++		{
++			Input: `{
++				"cron": "0 4 * * *",
++				"outbound": "proxy",
++				"assets": [
++					{"url": "https://example.com/geoip.dat", "file": "geoip.dat"},
++					{"url": "https://example.com/geosite.dat", "file": "geosite.dat"}
++				]
++			}`,
++			Parser: loadJSON(creator),
++			Output: &geodata.Config{
++				Cron:     "0 4 * * *",
++				Outbound: "proxy",
++				Assets: []*geodata.Asset{
++					{Url: "https://example.com/geoip.dat", File: "geoip.dat"},
++					{Url: "https://example.com/geosite.dat", File: "geosite.dat"},
++				},
++			},
++		},
++	})
++}
++
++func TestGeodataAssetConfig(t *testing.T) {
++	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
++
++	if _, err := (&GeodataAssetConfig{
++		URL:  "https://example.com/geoip.dat",
++		File: "geoip.dat",
++	}).Build(); err != nil {
++		t.Fatal(err)
++	}
++
++	if _, err := (&GeodataAssetConfig{
++		URL:  "https://example.com/geoip.dat",
++		File: "missing.dat",
++	}).Build(); err == nil {
++		t.Fatal("expected error")
++	}
++}
++
++func TestGeodataAssetConfigInvalidURL(t *testing.T) {
++	t.Setenv("xray.location.asset", filepath.Join("..", "..", "resources"))
++
++	for _, rawURL := range []string{
++		"",
++		"http://example.com/geoip.dat",
++		"ftp://example.com/geoip.dat",
++		"https:///geoip.dat",
++	} {
++		if _, err := (&GeodataAssetConfig{
++			URL:  rawURL,
++			File: "geoip.dat",
++		}).Build(); err == nil {
++			t.Fatalf("expected error for %q", rawURL)
++		}
++	}
++}
+diff --git a/infra/conf/xray.go b/infra/conf/xray.go
+index fceda67f..9d68a7e9 100644
+--- a/infra/conf/xray.go
++++ b/infra/conf/xray.go
+@@ -361,6 +361,7 @@ type Config struct {
+ 	Observatory      *ObservatoryConfig      `json:"observatory"`
+ 	BurstObservatory *BurstObservatoryConfig `json:"burstObservatory"`
+ 	Version          *VersionConfig          `json:"version"`
++	Geodata          *GeodataConfig          `json:"geodata"`
+ }
+ 
+ func (c *Config) findInboundTag(tag string) int {
+@@ -433,6 +434,10 @@ func (c *Config) Override(o *Config, fn string) {
+ 		c.Version = o.Version
+ 	}
+ 
++	if o.Geodata != nil {
++		c.Geodata = o.Geodata
++	}
++
+ 	// update the Inbound in slice if the only one in override config has same tag
+ 	if len(o.InboundConfigs) > 0 {
+ 		for i := range o.InboundConfigs {
+@@ -581,6 +586,14 @@ func (c *Config) Build() (*core.Config, error) {
+ 		config.App = append(config.App, serial.ToTypedMessage(r))
+ 	}
+ 
++	if c.Geodata != nil {
++		r, err := c.Geodata.Build()
++		if err != nil {
++			return nil, errors.New("failed to build geodata configuration").Base(err)
++		}
++		config.App = append(config.App, serial.ToTypedMessage(r))
++	}
++
+ 	var inbounds []InboundDetourConfig
+ 
+ 	if len(c.InboundConfigs) > 0 {
+diff --git a/main/distro/all/all.go b/main/distro/all/all.go
+index 11b58d92..accb7b07 100644
+--- a/main/distro/all/all.go
++++ b/main/distro/all/all.go
+@@ -20,6 +20,7 @@ import (
+ 	// Other optional features.
+ 	_ "github.com/xtls/xray-core/app/dns"
+ 	_ "github.com/xtls/xray-core/app/dns/fakedns"
++	_ "github.com/xtls/xray-core/app/geodata"
+ 	_ "github.com/xtls/xray-core/app/log"
+ 	_ "github.com/xtls/xray-core/app/metrics"
+ 	_ "github.com/xtls/xray-core/app/policy"
+
+commit cd4d0baacd53e35dee78ed38bfd145a9408d4398
+Author: RPRX <63339210+RPRX@users.noreply.github.com>
+Date:   2026-04-25 23:03:19 +0000
+
+    Xray-core: Mark "legacy reverse" as removed to avoid confusions
+    
+    https://github.com/XTLS/Xray-core/issues/5973#issuecomment-4273582111
+    
+    https://github.com/XTLS/Xray-core/pull/5947#issuecomment-4273415252
+---
+ infra/conf/xray.go       | 1 +
+ proxy/freedom/freedom.go | 5 ++---
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/infra/conf/xray.go b/infra/conf/xray.go
+index 9d68a7e9..d01dac2b 100644
+--- a/infra/conf/xray.go
++++ b/infra/conf/xray.go
+@@ -547,6 +547,7 @@ func (c *Config) Build() (*core.Config, error) {
+ 	}
+ 
+ 	if c.Reverse != nil {
++		return nil, errors.PrintRemovedFeatureError(`"legacy reverse"`, `"VLESS Reverse Proxy"`)
+ 		r, err := c.Reverse.Build()
+ 		if err != nil {
+ 			return nil, errors.New("failed to build reverse configuration").Base(err)
+diff --git a/proxy/freedom/freedom.go b/proxy/freedom/freedom.go
+index bc05d04a..aeb54c9c 100644
+--- a/proxy/freedom/freedom.go
++++ b/proxy/freedom/freedom.go
+@@ -348,20 +348,19 @@ type PacketReader struct {
+ 
+ func (r *PacketReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
+ 	b := buf.New()
++	b.Resize(0, buf.Size)
+ 	for {
+-		b.Resize(0, buf.Size)
+ 		n, d, err := r.PacketConnWrapper.ReadFrom(b.Bytes())
+ 		if err != nil {
+ 			b.Release()
+ 			return nil, err
+ 		}
+-		b.Resize(0, int32(n))
+-
+ 		udpAddr := d.(*net.UDPAddr)
+ 		sourceAddr := net.IPAddress(udpAddr.IP)
+ 		if isBlockedAddress(r.BlockedIPMatcher, sourceAddr) {
+ 			continue
+ 		}
++		b.Resize(0, int32(n))
+ 
+ 		// if udp dest addr is changed, we are unable to get the correct src addr
+ 		// so we don't attach src info to udp packet, break cone behavior, assuming the dial dest is the expected scr addr
+
+commit b4f08981becb71eaa995fa98ed2098ade92566bb
+Author: RPRX <63339210+RPRX@users.noreply.github.com>
+Date:   2026-04-25 23:16:35 +0000
+
+    v26.4.25
+    
+    Announcement of NFTs by Project X: https://github.com/XTLS/Xray-core/discussions/3633
+    Project X NFT: https://opensea.io/assets/ethereum/0x5ee362866001613093361eb8569d59c4141b76d1/1
+    
+    VLESS Post-Quantum Encryption: https://github.com/XTLS/Xray-core/pull/5067
+    VLESS NFT: https://opensea.io/collection/vless
+    
+    XHTTP: Beyond REALITY: https://github.com/XTLS/Xray-core/discussions/4113
+    REALITY NFT: https://opensea.io/assets/ethereum/0x5ee362866001613093361eb8569d59c4141b76d1/2
+---
+ core/core.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/core.go b/core/core.go
+index 2ba9b9cb..ea4995d9 100644
+--- a/core/core.go
++++ b/core/core.go
+@@ -20,7 +20,7 @@ import (
+ var (
+ 	Version_x byte = 26
+ 	Version_y byte = 4
+-	Version_z byte = 17
++	Version_z byte = 25
+ )
+ 
+ var (

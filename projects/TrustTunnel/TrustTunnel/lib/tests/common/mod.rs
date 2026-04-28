@@ -341,7 +341,12 @@ impl Http3Session {
         Self::flush_quic_data(&socket, &mut quic_conn);
 
         while !quic_conn.is_established() {
-            let _ = tokio::time::timeout(quic_conn.timeout().unwrap(), socket.readable()).await;
+            if tokio::time::timeout(quic_conn.timeout().unwrap(), socket.readable())
+                .await
+                .is_err()
+            {
+                quic_conn.on_timeout();
+            }
 
             Self::read_out_socket(&socket, &mut quic_conn);
             Self::flush_quic_data(&socket, &mut quic_conn);
@@ -436,11 +441,15 @@ impl Http3Session {
                     Ok(n) => chunk.advance(n),
                     Err(h3::Error::Done) => {
                         Self::flush_quic_data(&self.socket, &mut self.quic_conn);
-                        let _ = tokio::time::timeout(
+                        if tokio::time::timeout(
                             self.quic_conn.timeout().unwrap(),
                             self.socket.readable(),
                         )
-                        .await;
+                        .await
+                        .is_err()
+                        {
+                            self.quic_conn.on_timeout();
+                        }
                     }
                     Err(e) => panic!("{}", e),
                 }
@@ -490,11 +499,15 @@ impl Http3Session {
                                 Ok(_) => break,
                                 Err(h3::Error::Done) => {
                                     Self::flush_quic_data(&self.socket, &mut self.quic_conn);
-                                    let _ = tokio::time::timeout(
+                                    if tokio::time::timeout(
                                         self.quic_conn.timeout().unwrap(),
                                         self.socket.readable(),
                                     )
-                                    .await;
+                                    .await
+                                    .is_err()
+                                    {
+                                        self.quic_conn.on_timeout();
+                                    }
                                     Self::read_out_socket(&self.socket, &mut self.quic_conn);
                                 }
                                 // If stream/connection already closed, that's fine
@@ -559,11 +572,15 @@ impl Http3Session {
                     Ok(n) => chunk = &chunk[n..],
                     Err(h3::Error::Done) => {
                         Self::flush_quic_data(&self.socket, &mut self.quic_conn);
-                        let _ = tokio::time::timeout(
+                        if tokio::time::timeout(
                             self.quic_conn.timeout().unwrap(),
                             self.socket.readable(),
                         )
-                        .await;
+                        .await
+                        .is_err()
+                        {
+                            self.quic_conn.on_timeout();
+                        }
                     }
                     Err(e) => panic!("{}", e),
                 }
@@ -584,11 +601,15 @@ impl Http3Session {
                     Ok(_) => break,
                     Err(h3::Error::Done) => {
                         Self::flush_quic_data(&self.socket, &mut self.quic_conn);
-                        let _ = tokio::time::timeout(
+                        if tokio::time::timeout(
                             self.quic_conn.timeout().unwrap(),
                             self.socket.readable(),
                         )
-                        .await;
+                        .await
+                        .is_err()
+                        {
+                            self.quic_conn.on_timeout();
+                        }
                         Self::read_out_socket(&self.socket, &mut self.quic_conn);
                     }
                     // If stream/connection already closed
@@ -620,8 +641,12 @@ impl Http3Session {
 
             Self::flush_quic_data(&self.socket, &mut self.quic_conn);
 
-            let _ = tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
-                .await;
+            if tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
+                .await
+                .is_err()
+            {
+                self.quic_conn.on_timeout();
+            }
 
             Self::read_out_socket(&self.socket, &mut self.quic_conn);
 
@@ -666,8 +691,12 @@ impl Http3Session {
             }
 
             Self::flush_quic_data(&self.socket, &mut self.quic_conn);
-            let _ = tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
-                .await;
+            if tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
+                .await
+                .is_err()
+            {
+                self.quic_conn.on_timeout();
+            }
             Self::read_out_socket(&self.socket, &mut self.quic_conn);
 
             if self.quic_conn.is_closed() {

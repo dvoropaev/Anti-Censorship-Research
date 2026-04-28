@@ -22,7 +22,6 @@
     - [Endpoint setup](#endpoint-setup)
         - [Install the endpoint](#install-the-endpoint)
         - [Updating the endpoint](#updating-the-endpoint)
-        - [TrustTunnel Flutter Client 1.0 Warning](#trusttunnel-flutter-client-10-warning)
         - [Endpoint configuration wizard](#endpoint-configuration-wizard)
         - [Let's Encrypt certificate lifecycle](#lets-encrypt-certificate-lifecycle)
         - [Running endpoint](#running-endpoint)
@@ -145,15 +144,6 @@ directory (`/opt/trusttunnel` by default, or the directory you specified with `-
 > ```bash
 > sudo systemctl start trusttunnel
 > ```
-
-#### TrustTunnel Flutter Client 1.0 Warning
-
-> [!WARNING]
-> TrustTunnel Flutter Client **doesn't support** self-signed certificates **yet**.
-> If you want to use the TrustTunnel Flutter Client, you should have a valid
-> certificate issued by a publicly trusted Certificate Authority (CA) associated
-> with a registered domain for the IP address of the endpoint. Otherwise,
-> the TrustTunnel Flutter Client will be unable to connect to the endpoint.
 
 #### Endpoint configuration wizard
 
@@ -454,7 +444,10 @@ Administrator privileges are required to set up routes and the TUN interface.
 
 [TrustTunnel Flutter Client][trusttunnel-flutter-client] —
 iOS, Android (macOS, Windows — coming soon).
-Available on [App Store][app-store] and [Play Store][play-store].
+Available on [App Store][app-store]* and [Play Store][play-store].
+
+> [!NOTE]
+> \* In some countries, the iOS app is not available in the App Store. You may need an Apple ID from another country to download it. [Learn how to change your App Store country](https://change-appstore-country.com/).
 
 ### Community
 

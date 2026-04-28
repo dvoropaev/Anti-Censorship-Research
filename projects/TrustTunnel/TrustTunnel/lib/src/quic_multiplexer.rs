@@ -77,6 +77,8 @@ enum MultiplexerMessage {
 /// Messages sent by [`QuicSocket`]s to [`QuicMultiplexer`]
 enum SocketMessage {
     Close(quiche::ConnectionId<'static>),
+    /// Tell the multiplexer to re-read [`quiche::Connection::timeout`] for this connection.
+    RefreshDeadline(quiche::ConnectionId<'static>),
 }
 
 struct HandshakingConnection {
@@ -204,7 +206,6 @@ impl QuicMultiplexer {
     fn read_udp_socket(&mut self) -> io::Result<Option<QuicSocket>> {
         struct Entry {
             conn: Arc<std::sync::Mutex<QuicConnection>>,
-            peer: SocketAddr,
             socket_tx: Option<mpsc::Sender<MultiplexerMessage>>,
             messages: BTreeSet<MultiplexerMessage>,
         }
@@ -234,7 +235,6 @@ impl QuicMultiplexer {
                         Some(Either::Left(s)) => {
                             pending.entry(header.dcid).or_insert_with(|| Entry {
                                 conn: s.quic_conn.clone(),
-                                peer,
                                 socket_tx: Default::default(),
                                 messages: Default::default(),
                             });
@@ -244,7 +244,6 @@ impl QuicMultiplexer {
                         Some(Either::Right(x)) => {
                             let entry = pending.entry(header.dcid).or_insert_with(|| Entry {
                                 conn: x.quic,
-                                peer,
                                 socket_tx: None,
                                 messages: Default::default(),
                             });
@@ -286,8 +285,7 @@ impl QuicMultiplexer {
                 self.update_connection_deadline(conn_id, timeout);
             }
 
-            if let Err(e) = flush_pending_data(&mut quic_conn, &self.socket, &entry.peer, &self.id)
-            {
+            if let Err(e) = flush_pending_data(&mut quic_conn, &self.socket, &self.id) {
                 log_id!(debug, self.id, "Failed to flush QUIC connection: {}", e);
             }
         }
@@ -668,9 +666,7 @@ impl QuicMultiplexer {
     ) {
         let deadline = Instant::now() + duration;
         self.deadlines.insert(conn_id, deadline);
-        if self.closest_deadline.is_none_or(|x| x > deadline) {
-            self.closest_deadline = Some(deadline);
-        }
+        self.closest_deadline = self.deadlines.values().min().copied();
     }
 
     fn process_timeouts(&mut self) {
@@ -686,23 +682,58 @@ impl QuicMultiplexer {
         for conn_id in timedout {
             self.deadlines.remove(&conn_id);
 
-            match self.connections.get_mut(&conn_id) {
-                None => log_id!(
-                    debug,
-                    self.id,
-                    "Expired connection not found: {:?}",
-                    conn_id
-                ),
-                Some(Connection::Handshake(conn)) => conn.quic_conn.lock().unwrap().on_timeout(),
-                Some(Connection::Established(conn)) => conn.quic_conn.lock().unwrap().on_timeout(),
+            let quic_conn_arc = match self.connections.get(&conn_id) {
+                None => {
+                    log_id!(
+                        debug,
+                        self.id,
+                        "Expired connection not found: {:?}",
+                        conn_id
+                    );
+                    continue;
+                }
+                Some(Connection::Handshake(conn)) => conn.quic_conn.clone(),
+                Some(Connection::Established(conn)) => conn.quic_conn.clone(),
+            };
+
+            let new_timeout = {
+                let mut quic_conn = quic_conn_arc.lock().unwrap();
+                quic_conn.on_timeout();
+                if let Err(e) = flush_pending_data(&mut quic_conn, &self.socket, &self.id) {
+                    log_id!(debug, self.id, "Failed to flush after on_timeout: {}", e);
+                }
+                quic_conn.timeout()
+            };
+
+            if let Some(timeout) = new_timeout {
+                self.update_connection_deadline(conn_id, timeout);
             }
         }
+
+        self.closest_deadline = self.deadlines.values().min().copied();
     }
 
     fn on_socket_message(&mut self, message: SocketMessage) -> io::Result<()> {
         match message {
             SocketMessage::Close(conn_id) => {
                 self.connections.remove(&conn_id);
+                Ok(())
+            }
+            SocketMessage::RefreshDeadline(conn_id) => {
+                let quic_conn = match self.connections.get(&conn_id) {
+                    Some(Connection::Handshake(c)) => c.quic_conn.clone(),
+                    Some(Connection::Established(c)) => c.quic_conn.clone(),
+                    None => return Ok(()),
+                };
+                let timeout = quic_conn.lock().unwrap().timeout();
+                match timeout {
+                    Some(d) => self.update_connection_deadline(conn_id, d),
+                    None => {
+                        if self.deadlines.remove(&conn_id).is_some() {
+                            self.closest_deadline = self.deadlines.values().min().copied();
+                        }
+                    }
+                }
                 Ok(())
             }
         }
@@ -965,12 +996,18 @@ impl QuicSocket {
     }
 
     fn flush_pending_data(&self) -> io::Result<()> {
-        flush_pending_data(
-            &mut self.quic_conn.lock().unwrap(),
-            &self.udp_socket,
-            &self.peer,
-            &self.id,
-        )
+        let (result, conn_id) = {
+            let mut quic_conn = self.quic_conn.lock().unwrap();
+            let r = flush_pending_data(&mut quic_conn, &self.udp_socket, &self.id);
+            (r, quic_conn.source_id().into_owned())
+        };
+        // Notify the multiplexer that the loss-detection timer may have changed
+        let _ = self
+            .mux_tx
+            .lock()
+            .unwrap()
+            .try_send(SocketMessage::RefreshDeadline(conn_id));
+        result
     }
 
     fn poll_h3_connection(&self) -> h3::Result<(u64, h3::Event)> {
@@ -1092,13 +1129,12 @@ impl HandshakingConnection {
 fn flush_pending_data(
     quic_conn: &mut quiche::Connection,
     udp_socket: &UdpSocket,
-    peer: &SocketAddr,
     id: &log_utils::IdChain<u64>,
 ) -> io::Result<()> {
     let mut out = [0; net_utils::MAX_UDP_PAYLOAD_SIZE];
     loop {
         match quic_conn.send(&mut out) {
-            Ok((n, _)) => udp_socket_send_to(udp_socket, &out[..n], peer, id)?,
+            Ok((n, info)) => udp_socket_send_to(udp_socket, &out[..n], &info.to, id)?,
             Err(quiche::Error::Done) => break,
             Err(e) => return Err(io::Error::new(ErrorKind::Other, e.to_string())),
         }

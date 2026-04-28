@@ -19972,3 +19972,630 @@ index 879351a..415c02c 100644
  authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
  edition = "2021"
  
+
+commit 3e1514f7c7ff4e8f9c0af0933926400a13725f42
+Author: Aleksei Zhavoronkov <a.zhavoronkov@adguard.com>
+Date:   2026-04-27 08:00:44 +0000
+
+    Pull request 197: Fix H3 tests on Linux
+    
+    Squashed commit of the following:
+    
+    commit 48d9c29974987510d6a3b95d1d16aee1a1ee48fe
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Tue Apr 21 13:09:14 2026 +0300
+    
+        Refresh quic conn deadline on flush
+    
+    commit 2895ec6b5405d67780ccae6ad94bb205b0774c60
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 14:03:05 2026 +0300
+    
+        Revert "trace log"
+    
+        This reverts commit e51d86f0d807f2f6360ccc6e9910b13eb10b41d9.
+    
+    commit 71428bfaa127a5c6413ed52cdeb75ec832a106f3
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 14:03:04 2026 +0300
+    
+        Revert "hypothesis testing"
+    
+        This reverts commit 603f743d4309a17e21d2cd9176a88374add83404.
+    
+    commit 9ed2bd63a46d2b1b1da1c479703312562558c6e8
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 14:03:03 2026 +0300
+    
+        Revert "add more aggressive logging"
+    
+        This reverts commit a3eb5d093a4573784ea95ed1cfd63d4f35557618.
+    
+    commit ecc867e464c40fbad2878a5c59ba48170c011d3d
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 14:03:00 2026 +0300
+    
+        Revert "log even more"
+    
+        This reverts commit bcdc945620bfa10873168c6797bd334e9384d9dc.
+    
+    commit b2226b51dd06f97f4957b7ba9f2fe8993f0f190a
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 11:53:55 2026 +0300
+    
+        try fix
+    
+    commit bcdc945620bfa10873168c6797bd334e9384d9dc
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 11:27:01 2026 +0300
+    
+        log even more
+    
+    commit a3eb5d093a4573784ea95ed1cfd63d4f35557618
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 11:02:16 2026 +0300
+    
+        add more aggressive logging
+    
+    commit 603f743d4309a17e21d2cd9176a88374add83404
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 10:08:33 2026 +0300
+    
+        hypothesis testing
+    
+    commit e51d86f0d807f2f6360ccc6e9910b13eb10b41d9
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Mon Apr 20 09:05:15 2026 +0300
+    
+        trace log
+    
+    commit d1e5b9874fb60a5fb8ec7127abab149ee95ad8fe
+    Author: Zhavoronkov Aleksei <a.zhavoronkov@adguard.com>
+    Date:   Sun Apr 19 22:46:14 2026 +0300
+    
+        Fix H3 tests on Linux
+    
+        Loss-recovery on_timeout() was never invoked when the loss-detection deadline elapsed without a packet arriving,
+        so lost packets were never retransmitted and large H3 transfers stalled until the server idle timeout.
+        Removed H3 tests from MacOS-only section.
+---
+ lib/src/quic_multiplexer.rs | 86 ++++++++++++++++++++++++++++++++-------------
+ lib/tests/common/mod.rs     | 55 ++++++++++++++++++++++-------
+ lib/tests/reverse_proxy.rs  | 32 +++++++++--------
+ 3 files changed, 121 insertions(+), 52 deletions(-)
+
+diff --git a/lib/src/quic_multiplexer.rs b/lib/src/quic_multiplexer.rs
+index 6e9679a..63f3097 100644
+--- a/lib/src/quic_multiplexer.rs
++++ b/lib/src/quic_multiplexer.rs
+@@ -77,6 +77,8 @@ enum MultiplexerMessage {
+ /// Messages sent by [`QuicSocket`]s to [`QuicMultiplexer`]
+ enum SocketMessage {
+     Close(quiche::ConnectionId<'static>),
++    /// Tell the multiplexer to re-read [`quiche::Connection::timeout`] for this connection.
++    RefreshDeadline(quiche::ConnectionId<'static>),
+ }
+ 
+ struct HandshakingConnection {
+@@ -204,7 +206,6 @@ impl QuicMultiplexer {
+     fn read_udp_socket(&mut self) -> io::Result<Option<QuicSocket>> {
+         struct Entry {
+             conn: Arc<std::sync::Mutex<QuicConnection>>,
+-            peer: SocketAddr,
+             socket_tx: Option<mpsc::Sender<MultiplexerMessage>>,
+             messages: BTreeSet<MultiplexerMessage>,
+         }
+@@ -234,7 +235,6 @@ impl QuicMultiplexer {
+                         Some(Either::Left(s)) => {
+                             pending.entry(header.dcid).or_insert_with(|| Entry {
+                                 conn: s.quic_conn.clone(),
+-                                peer,
+                                 socket_tx: Default::default(),
+                                 messages: Default::default(),
+                             });
+@@ -244,7 +244,6 @@ impl QuicMultiplexer {
+                         Some(Either::Right(x)) => {
+                             let entry = pending.entry(header.dcid).or_insert_with(|| Entry {
+                                 conn: x.quic,
+-                                peer,
+                                 socket_tx: None,
+                                 messages: Default::default(),
+                             });
+@@ -286,8 +285,7 @@ impl QuicMultiplexer {
+                 self.update_connection_deadline(conn_id, timeout);
+             }
+ 
+-            if let Err(e) = flush_pending_data(&mut quic_conn, &self.socket, &entry.peer, &self.id)
+-            {
++            if let Err(e) = flush_pending_data(&mut quic_conn, &self.socket, &self.id) {
+                 log_id!(debug, self.id, "Failed to flush QUIC connection: {}", e);
+             }
+         }
+@@ -668,9 +666,7 @@ impl QuicMultiplexer {
+     ) {
+         let deadline = Instant::now() + duration;
+         self.deadlines.insert(conn_id, deadline);
+-        if self.closest_deadline.is_none_or(|x| x > deadline) {
+-            self.closest_deadline = Some(deadline);
+-        }
++        self.closest_deadline = self.deadlines.values().min().copied();
+     }
+ 
+     fn process_timeouts(&mut self) {
+@@ -686,17 +682,35 @@ impl QuicMultiplexer {
+         for conn_id in timedout {
+             self.deadlines.remove(&conn_id);
+ 
+-            match self.connections.get_mut(&conn_id) {
+-                None => log_id!(
+-                    debug,
+-                    self.id,
+-                    "Expired connection not found: {:?}",
+-                    conn_id
+-                ),
+-                Some(Connection::Handshake(conn)) => conn.quic_conn.lock().unwrap().on_timeout(),
+-                Some(Connection::Established(conn)) => conn.quic_conn.lock().unwrap().on_timeout(),
++            let quic_conn_arc = match self.connections.get(&conn_id) {
++                None => {
++                    log_id!(
++                        debug,
++                        self.id,
++                        "Expired connection not found: {:?}",
++                        conn_id
++                    );
++                    continue;
++                }
++                Some(Connection::Handshake(conn)) => conn.quic_conn.clone(),
++                Some(Connection::Established(conn)) => conn.quic_conn.clone(),
++            };
++
++            let new_timeout = {
++                let mut quic_conn = quic_conn_arc.lock().unwrap();
++                quic_conn.on_timeout();
++                if let Err(e) = flush_pending_data(&mut quic_conn, &self.socket, &self.id) {
++                    log_id!(debug, self.id, "Failed to flush after on_timeout: {}", e);
++                }
++                quic_conn.timeout()
++            };
++
++            if let Some(timeout) = new_timeout {
++                self.update_connection_deadline(conn_id, timeout);
+             }
+         }
++
++        self.closest_deadline = self.deadlines.values().min().copied();
+     }
+ 
+     fn on_socket_message(&mut self, message: SocketMessage) -> io::Result<()> {
+@@ -705,6 +719,23 @@ impl QuicMultiplexer {
+                 self.connections.remove(&conn_id);
+                 Ok(())
+             }
++            SocketMessage::RefreshDeadline(conn_id) => {
++                let quic_conn = match self.connections.get(&conn_id) {
++                    Some(Connection::Handshake(c)) => c.quic_conn.clone(),
++                    Some(Connection::Established(c)) => c.quic_conn.clone(),
++                    None => return Ok(()),
++                };
++                let timeout = quic_conn.lock().unwrap().timeout();
++                match timeout {
++                    Some(d) => self.update_connection_deadline(conn_id, d),
++                    None => {
++                        if self.deadlines.remove(&conn_id).is_some() {
++                            self.closest_deadline = self.deadlines.values().min().copied();
++                        }
++                    }
++                }
++                Ok(())
++            }
+         }
+     }
+ 
+@@ -965,12 +996,18 @@ impl QuicSocket {
+     }
+ 
+     fn flush_pending_data(&self) -> io::Result<()> {
+-        flush_pending_data(
+-            &mut self.quic_conn.lock().unwrap(),
+-            &self.udp_socket,
+-            &self.peer,
+-            &self.id,
+-        )
++        let (result, conn_id) = {
++            let mut quic_conn = self.quic_conn.lock().unwrap();
++            let r = flush_pending_data(&mut quic_conn, &self.udp_socket, &self.id);
++            (r, quic_conn.source_id().into_owned())
++        };
++        // Notify the multiplexer that the loss-detection timer may have changed
++        let _ = self
++            .mux_tx
++            .lock()
++            .unwrap()
++            .try_send(SocketMessage::RefreshDeadline(conn_id));
++        result
+     }
+ 
+     fn poll_h3_connection(&self) -> h3::Result<(u64, h3::Event)> {
+@@ -1092,13 +1129,12 @@ impl HandshakingConnection {
+ fn flush_pending_data(
+     quic_conn: &mut quiche::Connection,
+     udp_socket: &UdpSocket,
+-    peer: &SocketAddr,
+     id: &log_utils::IdChain<u64>,
+ ) -> io::Result<()> {
+     let mut out = [0; net_utils::MAX_UDP_PAYLOAD_SIZE];
+     loop {
+         match quic_conn.send(&mut out) {
+-            Ok((n, _)) => udp_socket_send_to(udp_socket, &out[..n], peer, id)?,
++            Ok((n, info)) => udp_socket_send_to(udp_socket, &out[..n], &info.to, id)?,
+             Err(quiche::Error::Done) => break,
+             Err(e) => return Err(io::Error::new(ErrorKind::Other, e.to_string())),
+         }
+diff --git a/lib/tests/common/mod.rs b/lib/tests/common/mod.rs
+index e4ad93b..a851187 100644
+--- a/lib/tests/common/mod.rs
++++ b/lib/tests/common/mod.rs
+@@ -341,7 +341,12 @@ impl Http3Session {
+         Self::flush_quic_data(&socket, &mut quic_conn);
+ 
+         while !quic_conn.is_established() {
+-            let _ = tokio::time::timeout(quic_conn.timeout().unwrap(), socket.readable()).await;
++            if tokio::time::timeout(quic_conn.timeout().unwrap(), socket.readable())
++                .await
++                .is_err()
++            {
++                quic_conn.on_timeout();
++            }
+ 
+             Self::read_out_socket(&socket, &mut quic_conn);
+             Self::flush_quic_data(&socket, &mut quic_conn);
+@@ -436,11 +441,15 @@ impl Http3Session {
+                     Ok(n) => chunk.advance(n),
+                     Err(h3::Error::Done) => {
+                         Self::flush_quic_data(&self.socket, &mut self.quic_conn);
+-                        let _ = tokio::time::timeout(
++                        if tokio::time::timeout(
+                             self.quic_conn.timeout().unwrap(),
+                             self.socket.readable(),
+                         )
+-                        .await;
++                        .await
++                        .is_err()
++                        {
++                            self.quic_conn.on_timeout();
++                        }
+                     }
+                     Err(e) => panic!("{}", e),
+                 }
+@@ -490,11 +499,15 @@ impl Http3Session {
+                                 Ok(_) => break,
+                                 Err(h3::Error::Done) => {
+                                     Self::flush_quic_data(&self.socket, &mut self.quic_conn);
+-                                    let _ = tokio::time::timeout(
++                                    if tokio::time::timeout(
+                                         self.quic_conn.timeout().unwrap(),
+                                         self.socket.readable(),
+                                     )
+-                                    .await;
++                                    .await
++                                    .is_err()
++                                    {
++                                        self.quic_conn.on_timeout();
++                                    }
+                                     Self::read_out_socket(&self.socket, &mut self.quic_conn);
+                                 }
+                                 // If stream/connection already closed, that's fine
+@@ -559,11 +572,15 @@ impl Http3Session {
+                     Ok(n) => chunk = &chunk[n..],
+                     Err(h3::Error::Done) => {
+                         Self::flush_quic_data(&self.socket, &mut self.quic_conn);
+-                        let _ = tokio::time::timeout(
++                        if tokio::time::timeout(
+                             self.quic_conn.timeout().unwrap(),
+                             self.socket.readable(),
+                         )
+-                        .await;
++                        .await
++                        .is_err()
++                        {
++                            self.quic_conn.on_timeout();
++                        }
+                     }
+                     Err(e) => panic!("{}", e),
+                 }
+@@ -584,11 +601,15 @@ impl Http3Session {
+                     Ok(_) => break,
+                     Err(h3::Error::Done) => {
+                         Self::flush_quic_data(&self.socket, &mut self.quic_conn);
+-                        let _ = tokio::time::timeout(
++                        if tokio::time::timeout(
+                             self.quic_conn.timeout().unwrap(),
+                             self.socket.readable(),
+                         )
+-                        .await;
++                        .await
++                        .is_err()
++                        {
++                            self.quic_conn.on_timeout();
++                        }
+                         Self::read_out_socket(&self.socket, &mut self.quic_conn);
+                     }
+                     // If stream/connection already closed
+@@ -620,8 +641,12 @@ impl Http3Session {
+ 
+             Self::flush_quic_data(&self.socket, &mut self.quic_conn);
+ 
+-            let _ = tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
+-                .await;
++            if tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
++                .await
++                .is_err()
++            {
++                self.quic_conn.on_timeout();
++            }
+ 
+             Self::read_out_socket(&self.socket, &mut self.quic_conn);
+ 
+@@ -666,8 +691,12 @@ impl Http3Session {
+             }
+ 
+             Self::flush_quic_data(&self.socket, &mut self.quic_conn);
+-            let _ = tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
+-                .await;
++            if tokio::time::timeout(self.quic_conn.timeout().unwrap(), self.socket.readable())
++                .await
++                .is_err()
++            {
++                self.quic_conn.on_timeout();
++            }
+             Self::read_out_socket(&self.socket, &mut self.quic_conn);
+ 
+             if self.quic_conn.is_closed() {
+diff --git a/lib/tests/reverse_proxy.rs b/lib/tests/reverse_proxy.rs
+index 5044f5f..3310e32 100644
+--- a/lib/tests/reverse_proxy.rs
++++ b/lib/tests/reverse_proxy.rs
+@@ -35,20 +35,26 @@ macro_rules! reverse_proxy_tests {
+                 assert_eq!(response.status, http::StatusCode::OK);
+                 assert_body_matches(&body);
+             };
++            let endpoint_task = run_endpoint(&endpoint_address, &proxy_address);
+ 
+-            // Pin both tasks to avoid moving them
++            // Pin tasks so they can be polled across multiple select! invocations
++            // without being dropped (dropping run_endpoint mid-transfer would tear
++            // down the QuicMultiplexer and abort in-flight H3 streams).
+             tokio::pin!(client_task);
+             tokio::pin!(proxy_task);
++            tokio::pin!(endpoint_task);
+ 
+             tokio::select! {
+-                _ = run_endpoint(&endpoint_address, &proxy_address) => unreachable!(),
++                _ = &mut endpoint_task => unreachable!(),
+                 _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Timed out"),
+                 // Wait for client_task first; if proxy_task completes, continue waiting for client
+                 _ = &mut client_task => (),
+                 _ = &mut proxy_task => {
+-                    // Proxy completed (expected after handling request), now wait for client
++                    // Proxy completed (expected after handling request); keep endpoint
++                    // alive while we wait for the client to finish draining the response.
+                     tokio::select! {
+                         _ = client_task => (),
++                        _ = &mut endpoint_task => unreachable!(),
+                         _ = tokio::time::sleep(Duration::from_secs(5)) => panic!("Client timed out after proxy completed"),
+                     }
+                 },
+@@ -60,14 +66,9 @@ macro_rules! reverse_proxy_tests {
+ 
+ reverse_proxy_tests! {
+     sni_h1: sni_h1_client,
++    sni_h3: sni_h3_client,
+     path_h1: path_h1_client,
+     path_h2: path_h2_client,
+-}
+-
+-// TODO: [TRUST-211] Enable H3 tests on Linux when QUIC issue will be fixed.
+-#[cfg(target_os = "macos")]
+-reverse_proxy_tests! {
+-    sni_h3: sni_h3_client,
+     path_h3: path_h3_client,
+ }
+ 
+@@ -83,17 +84,20 @@ async fn path_h2_chunked() {
+         assert_eq!(response.status, http::StatusCode::OK);
+         assert_body_matches(&body);
+     };
++    let endpoint_task = run_endpoint(&endpoint_address, &proxy_address);
+ 
+     tokio::pin!(client_task);
+     tokio::pin!(proxy_task);
++    tokio::pin!(endpoint_task);
+ 
+     tokio::select! {
+-        _ = run_endpoint(&endpoint_address, &proxy_address) => unreachable!(),
++        _ = &mut endpoint_task => unreachable!(),
+         _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Timed out"),
+         _ = &mut client_task => (),
+         _ = &mut proxy_task => {
+             tokio::select! {
+                 _ = client_task => (),
++                _ = &mut endpoint_task => unreachable!(),
+                 _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                     panic!("Client timed out after proxy completed")
+                 }
+@@ -102,7 +106,6 @@ async fn path_h2_chunked() {
+     }
+ }
+ 
+-#[cfg(target_os = "macos")]
+ #[tokio::test]
+ async fn path_h3_chunked() {
+     common::set_up_logger();
+@@ -115,17 +118,20 @@ async fn path_h3_chunked() {
+         assert_eq!(response.status, http::StatusCode::OK);
+         assert_body_matches(&body);
+     };
++    let endpoint_task = run_endpoint(&endpoint_address, &proxy_address);
+ 
+     tokio::pin!(client_task);
+     tokio::pin!(proxy_task);
++    tokio::pin!(endpoint_task);
+ 
+     tokio::select! {
+-        _ = run_endpoint(&endpoint_address, &proxy_address) => unreachable!(),
++        _ = &mut endpoint_task => unreachable!(),
+         _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Timed out"),
+         _ = &mut client_task => (),
+         _ = &mut proxy_task => {
+             tokio::select! {
+                 _ = client_task => (),
++                _ = &mut endpoint_task => unreachable!(),
+                 _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                     panic!("Client timed out after proxy completed")
+                 }
+@@ -166,7 +172,6 @@ async fn sni_h1_client(endpoint_address: &SocketAddr) -> (http::response::Parts,
+     .await
+ }
+ 
+-#[cfg(target_os = "macos")]
+ async fn sni_h3_client(endpoint_address: &SocketAddr) -> (http::response::Parts, Bytes) {
+     let mut conn = common::Http3Session::connect(
+         endpoint_address,
+@@ -225,7 +230,6 @@ async fn path_h2_client(endpoint_address: &SocketAddr) -> (http::response::Parts
+     .await
+ }
+ 
+-#[cfg(target_os = "macos")]
+ async fn path_h3_client(endpoint_address: &SocketAddr) -> (http::response::Parts, Bytes) {
+     let mut conn =
+         common::Http3Session::connect(endpoint_address, common::MAIN_DOMAIN_NAME, None).await;
+
+commit 441b74bd1647109c9514bef2ea02303aa68368ce
+Author: Bamboo <Bamboo>
+Date:   2026-04-27 08:01:03 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ Cargo.lock          | 2 +-
+ endpoint/Cargo.toml | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 5b2d7b9..18b0c98 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3580,7 +3580,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "trusttunnel_endpoint"
+-version = "1.0.35"
++version = "1.0.36"
+ dependencies = [
+  "clap",
+  "console-subscriber",
+diff --git a/endpoint/Cargo.toml b/endpoint/Cargo.toml
+index 415c02c..7a6633c 100644
+--- a/endpoint/Cargo.toml
++++ b/endpoint/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "trusttunnel_endpoint"
+-version = "1.0.35"
++version = "1.0.36"
+ authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
+ edition = "2021"
+ 
+
+commit a9ca53bfb495dfe2c1f726a72636584a6668dd50
+Author: Sergey Fionov <sfionov@adguard.com>
+Date:   2026-04-28 12:31:08 +0000
+
+    Pull request 198: TRUST-535 Add info unavailability in some App stores
+    
+    Squashed commit of the following:
+    
+    commit 9029eeb28082c0a3295a9370a2ab6ea6d2ed5192
+    Author: Sergey Fionov <sfionov@adguard.com>
+    Date:   Tue Apr 28 15:15:25 2026 +0300
+    
+        TRUST-535 Add info unavailability in some App stores
+---
+ README.md | 15 ++++-----------
+ 1 file changed, 4 insertions(+), 11 deletions(-)
+
+diff --git a/README.md b/README.md
+index 39a084b..e491f4a 100644
+--- a/README.md
++++ b/README.md
+@@ -22,7 +22,6 @@
+     - [Endpoint setup](#endpoint-setup)
+         - [Install the endpoint](#install-the-endpoint)
+         - [Updating the endpoint](#updating-the-endpoint)
+-        - [TrustTunnel Flutter Client 1.0 Warning](#trusttunnel-flutter-client-10-warning)
+         - [Endpoint configuration wizard](#endpoint-configuration-wizard)
+         - [Let's Encrypt certificate lifecycle](#lets-encrypt-certificate-lifecycle)
+         - [Running endpoint](#running-endpoint)
+@@ -146,15 +145,6 @@ directory (`/opt/trusttunnel` by default, or the directory you specified with `-
+ > sudo systemctl start trusttunnel
+ > ```
+ 
+-#### TrustTunnel Flutter Client 1.0 Warning
+-
+-> [!WARNING]
+-> TrustTunnel Flutter Client **doesn't support** self-signed certificates **yet**.
+-> If you want to use the TrustTunnel Flutter Client, you should have a valid
+-> certificate issued by a publicly trusted Certificate Authority (CA) associated
+-> with a registered domain for the IP address of the endpoint. Otherwise,
+-> the TrustTunnel Flutter Client will be unable to connect to the endpoint.
+-
+ #### Endpoint configuration wizard
+ 
+ Please refer to the [CONFIGURATION.md](CONFIGURATION.md) for the more detailed
+@@ -454,7 +444,10 @@ Administrator privileges are required to set up routes and the TUN interface.
+ 
+ [TrustTunnel Flutter Client][trusttunnel-flutter-client] —
+ iOS, Android (macOS, Windows — coming soon).
+-Available on [App Store][app-store] and [Play Store][play-store].
++Available on [App Store][app-store]* and [Play Store][play-store].
++
++> [!NOTE]
++> \* In some countries, the iOS app is not available in the App Store. You may need an Apple ID from another country to download it. [Learn how to change your App Store country](https://change-appstore-country.com/).
+ 
+ ### Community
+ 
+
+commit 2ef35e6f1fedc84b4294645372b8e597c1907b95
+Author: Bamboo <Bamboo>
+Date:   2026-04-28 12:31:28 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ Cargo.lock          | 2 +-
+ endpoint/Cargo.toml | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 18b0c98..082315a 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3580,7 +3580,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "trusttunnel_endpoint"
+-version = "1.0.36"
++version = "1.0.37"
+ dependencies = [
+  "clap",
+  "console-subscriber",
+diff --git a/endpoint/Cargo.toml b/endpoint/Cargo.toml
+index 7a6633c..f72ad0c 100644
+--- a/endpoint/Cargo.toml
++++ b/endpoint/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "trusttunnel_endpoint"
+-version = "1.0.36"
++version = "1.0.37"
+ authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
+ edition = "2021"
+ 

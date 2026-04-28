@@ -35,20 +35,26 @@ macro_rules! reverse_proxy_tests {
                 assert_eq!(response.status, http::StatusCode::OK);
                 assert_body_matches(&body);
             };
+            let endpoint_task = run_endpoint(&endpoint_address, &proxy_address);
 
-            // Pin both tasks to avoid moving them
+            // Pin tasks so they can be polled across multiple select! invocations
+            // without being dropped (dropping run_endpoint mid-transfer would tear
+            // down the QuicMultiplexer and abort in-flight H3 streams).
             tokio::pin!(client_task);
             tokio::pin!(proxy_task);
+            tokio::pin!(endpoint_task);
 
             tokio::select! {
-                _ = run_endpoint(&endpoint_address, &proxy_address) => unreachable!(),
+                _ = &mut endpoint_task => unreachable!(),
                 _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Timed out"),
                 // Wait for client_task first; if proxy_task completes, continue waiting for client
                 _ = &mut client_task => (),
                 _ = &mut proxy_task => {
-                    // Proxy completed (expected after handling request), now wait for client
+                    // Proxy completed (expected after handling request); keep endpoint
+                    // alive while we wait for the client to finish draining the response.
                     tokio::select! {
                         _ = client_task => (),
+                        _ = &mut endpoint_task => unreachable!(),
                         _ = tokio::time::sleep(Duration::from_secs(5)) => panic!("Client timed out after proxy completed"),
                     }
                 },
@@ -60,14 +66,9 @@ macro_rules! reverse_proxy_tests {
 
 reverse_proxy_tests! {
     sni_h1: sni_h1_client,
+    sni_h3: sni_h3_client,
     path_h1: path_h1_client,
     path_h2: path_h2_client,
-}
-
-// TODO: [TRUST-211] Enable H3 tests on Linux when QUIC issue will be fixed.
-#[cfg(target_os = "macos")]
-reverse_proxy_tests! {
-    sni_h3: sni_h3_client,
     path_h3: path_h3_client,
 }
 
@@ -83,17 +84,20 @@ async fn path_h2_chunked() {
         assert_eq!(response.status, http::StatusCode::OK);
         assert_body_matches(&body);
     };
+    let endpoint_task = run_endpoint(&endpoint_address, &proxy_address);
 
     tokio::pin!(client_task);
     tokio::pin!(proxy_task);
+    tokio::pin!(endpoint_task);
 
     tokio::select! {
-        _ = run_endpoint(&endpoint_address, &proxy_address) => unreachable!(),
+        _ = &mut endpoint_task => unreachable!(),
         _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Timed out"),
         _ = &mut client_task => (),
         _ = &mut proxy_task => {
             tokio::select! {
                 _ = client_task => (),
+                _ = &mut endpoint_task => unreachable!(),
                 _ = tokio::time::sleep(Duration::from_secs(5)) => {
                     panic!("Client timed out after proxy completed")
                 }
@@ -102,7 +106,6 @@ async fn path_h2_chunked() {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[tokio::test]
 async fn path_h3_chunked() {
     common::set_up_logger();
@@ -115,17 +118,20 @@ async fn path_h3_chunked() {
         assert_eq!(response.status, http::StatusCode::OK);
         assert_body_matches(&body);
     };
+    let endpoint_task = run_endpoint(&endpoint_address, &proxy_address);
 
     tokio::pin!(client_task);
     tokio::pin!(proxy_task);
+    tokio::pin!(endpoint_task);
 
     tokio::select! {
-        _ = run_endpoint(&endpoint_address, &proxy_address) => unreachable!(),
+        _ = &mut endpoint_task => unreachable!(),
         _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Timed out"),
         _ = &mut client_task => (),
         _ = &mut proxy_task => {
             tokio::select! {
                 _ = client_task => (),
+                _ = &mut endpoint_task => unreachable!(),
                 _ = tokio::time::sleep(Duration::from_secs(5)) => {
                     panic!("Client timed out after proxy completed")
                 }
@@ -166,7 +172,6 @@ async fn sni_h1_client(endpoint_address: &SocketAddr) -> (http::response::Parts,
     .await
 }
 
-#[cfg(target_os = "macos")]
 async fn sni_h3_client(endpoint_address: &SocketAddr) -> (http::response::Parts, Bytes) {
     let mut conn = common::Http3Session::connect(
         endpoint_address,
@@ -225,7 +230,6 @@ async fn path_h2_client(endpoint_address: &SocketAddr) -> (http::response::Parts
     .await
 }
 
-#[cfg(target_os = "macos")]
 async fn path_h3_client(endpoint_address: &SocketAddr) -> (http::response::Parts, Bytes) {
     let mut conn =
         common::Http3Session::connect(endpoint_address, common::MAIN_DOMAIN_NAME, None).await;

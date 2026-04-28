@@ -26460,3 +26460,1374 @@ index c813a92..38c3891 100644
                          VALUE "OriginalFilename", "trusttunnel_client.exe"
                          VALUE "InternalName", "trusttunnel_client"
                  END
+
+commit 8c37a1dfcb3f1b9d7672c9edd9024959fe40a853
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-27 12:19:25 +0000
+
+    Pull request 677: Use server name from config instead of asking it as a separate argument
+    
+    Squashed commit of the following:
+    
+    commit d7125ab8df401d82556bc3f4d99fbec4ed89de94
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 20 17:10:08 2026 +0400
+    
+        Fix testapp
+    
+    commit c6f9864d05c56d6eba277b3a1b686f00141a9305
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 20 17:00:08 2026 +0400
+    
+        Use server name from config instead of api parameter
+    
+    commit 2bdad9a3fb0661f2ec2bcfc47e483140431616d0
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 20 16:56:26 2026 +0400
+    
+        Introduce endpoint.name for swift config
+    
+    commit e595cb2e28bb9b562e60e5cc144e0d7c9ae16b3d
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 20 16:38:03 2026 +0400
+    
+        Make dns_upstreams an optional key in config
+---
+ .../TrustTunnelClient/PacketTunnelProvider.swift   |   2 +-
+ platform/apple/TrustTunnelClient/VpnConfig.swift   |   3 +-
+ platform/apple/TrustTunnelClient/VpnManager.swift  |  29 ++-
+ .../com/adguard/testapp/NativeCommunication.kt     |   7 +-
+ .../kotlin/com/adguard/testapp/NativeVpnImpl.kt    |   2 +-
+ platform/testapp/lib/config.dart                   |  25 +--
+ platform/testapp/lib/main.dart                     |   4 +-
+ platform/testapp/lib/native_communication.dart     |   4 +-
+ platform/testapp/pigeon/input.dart                 |   2 +-
+ .../swift_common/NativeVpnInterfaceImpl.swift      |   4 +-
+ .../generated/NativeCommunication.swift            |   7 +-
+ .../testapp/windows/runner/native_vpn_impl.cpp     |   3 +-
+ platform/testapp/windows/runner/native_vpn_impl.h  |   2 +-
+ .../windows/runner/pigeon/native_communication.cpp |  10 +-
+ .../windows/runner/pigeon/native_communication.h   | 195 ++++++++++-----------
+ 15 files changed, 138 insertions(+), 161 deletions(-)
+
+diff --git a/platform/apple/TrustTunnelClient/PacketTunnelProvider.swift b/platform/apple/TrustTunnelClient/PacketTunnelProvider.swift
+index b396a79..07ccf84 100644
+--- a/platform/apple/TrustTunnelClient/PacketTunnelProvider.swift
++++ b/platform/apple/TrustTunnelClient/PacketTunnelProvider.swift
+@@ -67,7 +67,7 @@ open class AGPacketTunnelProvider: NEPacketTunnelProvider {
+         let networkSettings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: tunnelAddress)
+         networkSettings.ipv4Settings = ipv4Settings
+         networkSettings.ipv6Settings = ipv6Settings
+-        let dnsServers = vpnConfig.endpoint.dns_upstreams.isEmpty
++        let dnsServers = (vpnConfig.endpoint.dns_upstreams ?? []).isEmpty
+             ? ADGUARD_DNS_SERVERS
+             : FAKE_DNS_SERVER
+         let dnsSettings = NEDNSSettings(servers: dnsServers)
+diff --git a/platform/apple/TrustTunnelClient/VpnConfig.swift b/platform/apple/TrustTunnelClient/VpnConfig.swift
+index be39833..75e157d 100644
+--- a/platform/apple/TrustTunnelClient/VpnConfig.swift
++++ b/platform/apple/TrustTunnelClient/VpnConfig.swift
+@@ -8,7 +8,8 @@ internal struct TunConfig: Codable {
+ 
+ internal struct Endpoint: Codable {
+     let addresses: [String]
+-    let dns_upstreams: [String]
++    let dns_upstreams: [String]?
++    let name: String
+ }
+ 
+ internal struct VpnConfig: Codable {
+diff --git a/platform/apple/TrustTunnelClient/VpnManager.swift b/platform/apple/TrustTunnelClient/VpnManager.swift
+index 5fa661e..b9c72f6 100644
+--- a/platform/apple/TrustTunnelClient/VpnManager.swift
++++ b/platform/apple/TrustTunnelClient/VpnManager.swift
+@@ -262,7 +262,6 @@ public final class VpnManager {
+     }
+ 
+     private func updateConfiguration(manager: NETunnelProviderManager,
+-                                  serverName: String!,
+                                       config: String!,
+                                  setOnDemand: Bool,
+                            completionHandler: @escaping ((any Error)?) -> Void) {
+@@ -281,6 +280,16 @@ public final class VpnManager {
+                 completionHandler(error)
+                 return
+             }
++
++            var vpnConfig: VpnConfig!
++            do {
++                vpnConfig = try parseVpnConfig(from: config)
++            } catch {
++                self.logger.error("Failed to parse config: \(error)")
++                completionHandler(error)
++                return
++            }
++
+             let configuration = (manager.protocolConfiguration as? NETunnelProviderProtocol) ??
+             NETunnelProviderProtocol()
+             configuration.providerBundleIdentifier = self.bundleIdentifier
+@@ -289,20 +298,12 @@ public final class VpnManager {
+                 "appGroup": self.appGroup as NSObject,
+                 "bundleIdentifier": self.bundleIdentifier as NSObject
+             ]
+-            configuration.serverAddress = serverName
++            configuration.serverAddress = vpnConfig.endpoint.name
+             manager.protocolConfiguration = configuration
+             manager.localizedDescription = "TrustTunnel"
+             manager.isEnabled = true
+ 
+             if setOnDemand {
+-                var vpnConfig: VpnConfig!
+-                do {
+-                    vpnConfig = try parseVpnConfig(from: config)
+-                } catch {
+-                    self.logger.error("Failed to parse config: \(error)")
+-                    completionHandler(error)
+-                    return
+-                }
+                 if (vpnConfig.killswitch_enabled) {
+                     manager.isOnDemandEnabled = true
+                     manager.onDemandRules = [NEOnDemandRuleConnect()]
+@@ -343,7 +344,7 @@ public final class VpnManager {
+         }
+     }
+ 
+-    public func updateConfiguration(serverName: String?, config: String?) {
++    public func updateConfiguration(config: String?) {
+         apiQueue.async {
+             let manager = self.getManager()
+             let group = DispatchGroup()
+@@ -359,13 +360,12 @@ public final class VpnManager {
+             let timeout = DispatchTime.now() + .seconds(15)
+             timerSource.schedule(deadline: timeout)
+             timerSource.resume()
+-            if serverName == nil || config == nil {
++            if config == nil {
+                 self.deleteConfiguration(manager: manager) { error in
+                     timerSource.cancel()
+                 }
+             } else {
+                 self.updateConfiguration(manager: manager,
+-                                      serverName: serverName!,
+                                           config: config!,
+                                      setOnDemand: false) { error in
+                     timerSource.cancel()
+@@ -375,14 +375,13 @@ public final class VpnManager {
+         }
+     }
+ 
+-    public func start(serverName: String, config: (String)) {
++    public func start(config: (String)) {
+         apiQueue.async {
+             let manager = self.getManager()
+             let group = DispatchGroup()
+             group.enter()
+ 
+             self.updateConfiguration(manager: manager,
+-                                  serverName: serverName,
+                                       config: config,
+                                  setOnDemand: true) { error in
+                 if let error = error {
+diff --git a/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeCommunication.kt b/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeCommunication.kt
+index e6f54ab..83d93e4 100644
+--- a/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeCommunication.kt
++++ b/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeCommunication.kt
+@@ -60,7 +60,7 @@ private open class NativeCommunicationPigeonCodec : StandardMessageCodec() {
+ 
+ /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
+ interface NativeVpnInterface {
+-  fun start(serverName: String, config: String)
++  fun start(config: String)
+   fun stop()
+ 
+   companion object {
+@@ -77,10 +77,9 @@ interface NativeVpnInterface {
+         if (api != null) {
+           channel.setMessageHandler { message, reply ->
+             val args = message as List<Any?>
+-            val serverNameArg = args[0] as String
+-            val configArg = args[1] as String
++            val configArg = args[0] as String
+             val wrapped: List<Any?> = try {
+-              api.start(serverNameArg, configArg)
++              api.start(configArg)
+               listOf(null)
+             } catch (exception: Throwable) {
+               NativeCommunicationPigeonUtils.wrapError(exception)
+diff --git a/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeVpnImpl.kt b/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeVpnImpl.kt
+index b4c9d42..08ab02d 100644
+--- a/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeVpnImpl.kt
++++ b/platform/testapp/android/app/src/main/kotlin/com/adguard/testapp/NativeVpnImpl.kt
+@@ -13,7 +13,7 @@ class NativeVpnImpl (
+     // TODO: this is dirty because this method should not use threadpool but
+     //       `VpnPrepareActivity.start` blocks the caller thread that is main. Remove it from here
+     //       and implement the correct vpn preparing with `onActivityResult` outside of this class
+-    override fun start(serverName: String, config: String) = singleThread.execute {
++    override fun start(config: String) = singleThread.execute {
+         // TODO: socks5
+         if (!VpnService.isPrepared(context)) {
+             VpnPrepareActivity.start(context);
+diff --git a/platform/testapp/lib/config.dart b/platform/testapp/lib/config.dart
+index 77ce6e6..3543304 100644
+--- a/platform/testapp/lib/config.dart
++++ b/platform/testapp/lib/config.dart
+@@ -46,18 +46,6 @@ post_quantum_group_enabled = true
+ #       * IPv6Address/mask
+ exclusions = []
+ 
+-# DNS upstreams.
+-# If specified, the library intercepts and routes plain DNS queries
+-# going through the endpoint to the DNS resolvers.
+-# One of the following kinds:
+-#   * 8.8.8.8:53 -- plain DNS
+-#   * tcp://8.8.8.8:53 -- plain DNS over TCP
+-#   * tls://1.1.1.1 -- DNS-over-TLS
+-#   * https://dns.adguard.com/dns-query -- DNS-over-HTTPS
+-#   * sdns://... -- DNS stamp (see https://dnscrypt.info/stamps-specifications)
+-#   * quic://dns.adguard.com:8853 -- DNS-over-QUIC
+-dns_upstreams = []
+-
+ # The set of endpoint connection settings
+ [endpoint]
+ # Endpoint host name, used for TLS session establishment
+@@ -94,6 +82,19 @@ IID3ebZflKrRWfh/NHq3u+AFoadv
+ upstream_protocol = "http2"
+ # Is anti-DPI measures should be enabled
+ anti_dpi = false
++# DNS upstreams.
++# If specified, the library intercepts and routes plain DNS queries
++# going through the endpoint to the DNS resolvers.
++# One of the following kinds:
++#   * 8.8.8.8:53 -- plain DNS
++#   * tcp://8.8.8.8:53 -- plain DNS over TCP
++#   * tls://1.1.1.1 -- DNS-over-TLS
++#   * https://dns.adguard.com/dns-query -- DNS-over-HTTPS
++#   * sdns://... -- DNS stamp (see https://dnscrypt.info/stamps-specifications)
++#   * quic://dns.adguard.com:8853 -- DNS-over-QUIC
++dns_upstreams = []
++# Human-readable server display name
++name = "Test Server"
+ 
+ 
+ # Defines the way to listen to network traffic by the kind of the nested table.
+diff --git a/platform/testapp/lib/main.dart b/platform/testapp/lib/main.dart
+index 3daa3d3..e0e45c2 100644
+--- a/platform/testapp/lib/main.dart
++++ b/platform/testapp/lib/main.dart
+@@ -90,7 +90,7 @@ class _MyHomePageState extends State<MyHomePage> {
+         ensureNotificationsPermissions(context).then(
+           (value) {
+             if (value) {
+-              _nativeVpnInterface.start("TestApp server", _config.text);
++              _nativeVpnInterface.start(_config.text);
+               _buttonSwitch = true;
+             }
+           },
+@@ -102,7 +102,7 @@ class _MyHomePageState extends State<MyHomePage> {
+   void _reconnect() {
+     setState(() {
+       _nativeVpnInterface.stop();
+-      _nativeVpnInterface.start("TestApp server", _config.text);
++      _nativeVpnInterface.start(_config.text);
+     });
+   }
+ 
+diff --git a/platform/testapp/lib/native_communication.dart b/platform/testapp/lib/native_communication.dart
+index b758f50..0295a5f 100644
+--- a/platform/testapp/lib/native_communication.dart
++++ b/platform/testapp/lib/native_communication.dart
+@@ -60,14 +60,14 @@ class NativeVpnInterface {
+ 
+   final String pigeonVar_messageChannelSuffix;
+ 
+-  Future<void> start(String serverName, String config) async {
++  Future<void> start(String config) async {
+     final String pigeonVar_channelName = 'dev.flutter.pigeon.com_adguard_testapp.NativeVpnInterface.start$pigeonVar_messageChannelSuffix';
+     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+       pigeonVar_channelName,
+       pigeonChannelCodec,
+       binaryMessenger: pigeonVar_binaryMessenger,
+     );
+-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[serverName, config]);
++    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[config]);
+     final List<Object?>? pigeonVar_replyList =
+         await pigeonVar_sendFuture as List<Object?>?;
+     if (pigeonVar_replyList == null) {
+diff --git a/platform/testapp/pigeon/input.dart b/platform/testapp/pigeon/input.dart
+index 27da708..2aa6857 100644
+--- a/platform/testapp/pigeon/input.dart
++++ b/platform/testapp/pigeon/input.dart
+@@ -16,7 +16,7 @@ import 'package:pigeon/pigeon.dart';
+ 
+ @HostApi()
+ abstract class NativeVpnInterface {
+-  void start(String serverName, String config);
++  void start(String config);
+ 
+   void stop();
+ }
+diff --git a/platform/testapp/swift_common/NativeVpnInterfaceImpl.swift b/platform/testapp/swift_common/NativeVpnInterfaceImpl.swift
+index dbbba51..c9c63a3 100644
+--- a/platform/testapp/swift_common/NativeVpnInterfaceImpl.swift
++++ b/platform/testapp/swift_common/NativeVpnInterfaceImpl.swift
+@@ -19,8 +19,8 @@ class NativeVpnInterfaceImpl : NativeVpnInterface {
+             }
+         )
+     }
+-    func start(serverName: String, config: String) throws {
+-        self.vpnManager.start(serverName: serverName, config: config)
++    func start(config: String) throws {
++        self.vpnManager.start(config: config)
+     }
+     func stop() throws {
+         self.vpnManager.stop()
+diff --git a/platform/testapp/swift_common/generated/NativeCommunication.swift b/platform/testapp/swift_common/generated/NativeCommunication.swift
+index c6cc481..4a90ae2 100644
+--- a/platform/testapp/swift_common/generated/NativeCommunication.swift
++++ b/platform/testapp/swift_common/generated/NativeCommunication.swift
+@@ -91,7 +91,7 @@ class NativeCommunicationPigeonCodec: FlutterStandardMessageCodec, @unchecked Se
+ 
+ /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
+ protocol NativeVpnInterface {
+-  func start(serverName: String, config: String) throws
++  func start(config: String) throws
+   func stop() throws
+ }
+ 
+@@ -105,10 +105,9 @@ class NativeVpnInterfaceSetup {
+     if let api = api {
+       startChannel.setMessageHandler { message, reply in
+         let args = message as! [Any?]
+-        let serverNameArg = args[0] as! String
+-        let configArg = args[1] as! String
++        let configArg = args[0] as! String
+         do {
+-          try api.start(serverName: serverNameArg, config: configArg)
++          try api.start(config: configArg)
+           reply(wrapResult(nil))
+         } catch {
+           reply(wrapError(error))
+diff --git a/platform/testapp/windows/runner/native_vpn_impl.cpp b/platform/testapp/windows/runner/native_vpn_impl.cpp
+index 0861865..55be89e 100644
+--- a/platform/testapp/windows/runner/native_vpn_impl.cpp
++++ b/platform/testapp/windows/runner/native_vpn_impl.cpp
+@@ -23,8 +23,7 @@ NativeVpnImpl::NativeVpnImpl(IUIThreadDispatcher *dispatcher, FlutterCallbacks &
+         , m_dispatcher(dispatcher) {
+ }
+ 
+-std::optional<FlutterError> NativeVpnImpl::Start(const std::string &serverName, const std::string &config) {
+-    (void) serverName;
++std::optional<FlutterError> NativeVpnImpl::Start(const std::string &config) {
+     vpn_easy_start(config.c_str(), state_changed_handler, this);
+     // Always return no error because flutter treats them as exceptions
+     // and pigeon doesn't allow to handle them in a general way
+diff --git a/platform/testapp/windows/runner/native_vpn_impl.h b/platform/testapp/windows/runner/native_vpn_impl.h
+index 2ae857c..c5a0832 100644
+--- a/platform/testapp/windows/runner/native_vpn_impl.h
++++ b/platform/testapp/windows/runner/native_vpn_impl.h
+@@ -7,7 +7,7 @@
+ class NativeVpnImpl : public NativeVpnInterface {
+ public:
+     NativeVpnImpl(IUIThreadDispatcher *dispatcher, FlutterCallbacks &&callbacks);
+-    std::optional<FlutterError> Start(const std::string &serverName, const std::string &config) override;
++    std::optional<FlutterError> Start(const std::string &config) override;
+     std::optional<FlutterError> Stop() override;
+     void NotifyStateChanged(int state);
+ 
+diff --git a/platform/testapp/windows/runner/pigeon/native_communication.cpp b/platform/testapp/windows/runner/pigeon/native_communication.cpp
+index 069ebb6..45224fa 100644
+--- a/platform/testapp/windows/runner/pigeon/native_communication.cpp
++++ b/platform/testapp/windows/runner/pigeon/native_communication.cpp
+@@ -65,19 +65,13 @@ void NativeVpnInterface::SetUp(
+       channel.SetMessageHandler([api](const EncodableValue& message, const flutter::MessageReply<EncodableValue>& reply) {
+         try {
+           const auto& args = std::get<EncodableList>(message);
+-          const auto& encodable_server_name_arg = args.at(0);
+-          if (encodable_server_name_arg.IsNull()) {
+-            reply(WrapError("server_name_arg unexpectedly null."));
+-            return;
+-          }
+-          const auto& server_name_arg = std::get<std::string>(encodable_server_name_arg);
+-          const auto& encodable_config_arg = args.at(1);
++          const auto& encodable_config_arg = args.at(0);
+           if (encodable_config_arg.IsNull()) {
+             reply(WrapError("config_arg unexpectedly null."));
+             return;
+           }
+           const auto& config_arg = std::get<std::string>(encodable_config_arg);
+-          std::optional<FlutterError> output = api->Start(server_name_arg, config_arg);
++          std::optional<FlutterError> output = api->Start(config_arg);
+           if (output.has_value()) {
+             reply(WrapError(output.value()));
+             return;
+diff --git a/platform/testapp/windows/runner/pigeon/native_communication.h b/platform/testapp/windows/runner/pigeon/native_communication.h
+index 338ee5b..ac73f66 100644
+--- a/platform/testapp/windows/runner/pigeon/native_communication.h
++++ b/platform/testapp/windows/runner/pigeon/native_communication.h
+@@ -12,126 +12,111 @@
+ #include <optional>
+ #include <string>
+ 
++
++
+ // Generated class from Pigeon.
+ 
+ class FlutterError {
+-public:
+-    explicit FlutterError(const std::string &code)
+-            : code_(code) {
+-    }
+-    explicit FlutterError(const std::string &code, const std::string &message)
+-            : code_(code)
+-            , message_(message) {
+-    }
+-    explicit FlutterError(const std::string &code, const std::string &message, const flutter::EncodableValue &details)
+-            : code_(code)
+-            , message_(message)
+-            , details_(details) {
+-    }
+-
+-    const std::string &code() const {
+-        return code_;
+-    }
+-    const std::string &message() const {
+-        return message_;
+-    }
+-    const flutter::EncodableValue &details() const {
+-        return details_;
+-    }
+-
+-private:
+-    std::string code_;
+-    std::string message_;
+-    flutter::EncodableValue details_;
++ public:
++  explicit FlutterError(const std::string& code)
++    : code_(code) {}
++  explicit FlutterError(const std::string& code, const std::string& message)
++    : code_(code), message_(message) {}
++  explicit FlutterError(const std::string& code, const std::string& message, const flutter::EncodableValue& details)
++    : code_(code), message_(message), details_(details) {}
++
++  const std::string& code() const { return code_; }
++  const std::string& message() const { return message_; }
++  const flutter::EncodableValue& details() const { return details_; }
++
++ private:
++  std::string code_;
++  std::string message_;
++  flutter::EncodableValue details_;
+ };
+ 
+-template <class T>
+-class ErrorOr {
+-public:
+-    ErrorOr(const T &rhs)
+-            : v_(rhs) {
+-    }
+-    ErrorOr(const T &&rhs)
+-            : v_(std::move(rhs)) {
+-    }
+-    ErrorOr(const FlutterError &rhs)
+-            : v_(rhs) {
+-    }
+-    ErrorOr(const FlutterError &&rhs)
+-            : v_(std::move(rhs)) {
+-    }
+-
+-    bool has_error() const {
+-        return std::holds_alternative<FlutterError>(v_);
+-    }
+-    const T &value() const {
+-        return std::get<T>(v_);
+-    };
+-    const FlutterError &error() const {
+-        return std::get<FlutterError>(v_);
+-    };
+-
+-private:
+-    friend class NativeVpnInterface;
+-    friend class FlutterCallbacks;
+-    ErrorOr() = default;
+-    T TakeValue() && {
+-        return std::get<T>(std::move(v_));
+-    }
+-
+-    std::variant<T, FlutterError> v_;
++template<class T> class ErrorOr {
++ public:
++  ErrorOr(const T& rhs) : v_(rhs) {}
++  ErrorOr(const T&& rhs) : v_(std::move(rhs)) {}
++  ErrorOr(const FlutterError& rhs) : v_(rhs) {}
++  ErrorOr(const FlutterError&& rhs) : v_(std::move(rhs)) {}
++
++  bool has_error() const { return std::holds_alternative<FlutterError>(v_); }
++  const T& value() const { return std::get<T>(v_); };
++  const FlutterError& error() const { return std::get<FlutterError>(v_); };
++
++ private:
++  friend class NativeVpnInterface;
++  friend class FlutterCallbacks;
++  ErrorOr() = default;
++  T TakeValue() && { return std::get<T>(std::move(v_)); }
++
++  std::variant<T, FlutterError> v_;
+ };
+ 
+-class PigeonInternalCodecSerializer : public flutter::StandardCodecSerializer {
+-public:
+-    PigeonInternalCodecSerializer();
+-    inline static PigeonInternalCodecSerializer &GetInstance() {
+-        static PigeonInternalCodecSerializer sInstance;
+-        return sInstance;
+-    }
+ 
+-    void WriteValue(const flutter::EncodableValue &value, flutter::ByteStreamWriter *stream) const override;
+ 
+-protected:
+-    flutter::EncodableValue ReadValueOfType(uint8_t type, flutter::ByteStreamReader *stream) const override;
++class PigeonInternalCodecSerializer : public flutter::StandardCodecSerializer {
++ public:
++  PigeonInternalCodecSerializer();
++  inline static PigeonInternalCodecSerializer& GetInstance() {
++    static PigeonInternalCodecSerializer sInstance;
++    return sInstance;
++  }
++
++  void WriteValue(
++    const flutter::EncodableValue& value,
++    flutter::ByteStreamWriter* stream) const override;
++ protected:
++  flutter::EncodableValue ReadValueOfType(
++    uint8_t type,
++    flutter::ByteStreamReader* stream) const override;
+ };
+ 
+ // Generated interface from Pigeon that represents a handler of messages from Flutter.
+ class NativeVpnInterface {
+-public:
+-    NativeVpnInterface(const NativeVpnInterface &) = delete;
+-    NativeVpnInterface &operator=(const NativeVpnInterface &) = delete;
+-    virtual ~NativeVpnInterface() {
+-    }
+-    virtual std::optional<FlutterError> Start(const std::string &server_name, const std::string &config) = 0;
+-    virtual std::optional<FlutterError> Stop() = 0;
+-
+-    // The codec used by NativeVpnInterface.
+-    static const flutter::StandardMessageCodec &GetCodec();
+-    // Sets up an instance of `NativeVpnInterface` to handle messages through the `binary_messenger`.
+-    static void SetUp(flutter::BinaryMessenger *binary_messenger, NativeVpnInterface *api);
+-    static void SetUp(flutter::BinaryMessenger *binary_messenger, NativeVpnInterface *api,
+-            const std::string &message_channel_suffix);
+-    static flutter::EncodableValue WrapError(std::string_view error_message);
+-    static flutter::EncodableValue WrapError(const FlutterError &error);
+-
+-protected:
+-    NativeVpnInterface() = default;
++ public:
++  NativeVpnInterface(const NativeVpnInterface&) = delete;
++  NativeVpnInterface& operator=(const NativeVpnInterface&) = delete;
++  virtual ~NativeVpnInterface() {}
++  virtual std::optional<FlutterError> Start(const std::string& config) = 0;
++  virtual std::optional<FlutterError> Stop() = 0;
++
++  // The codec used by NativeVpnInterface.
++  static const flutter::StandardMessageCodec& GetCodec();
++  // Sets up an instance of `NativeVpnInterface` to handle messages through the `binary_messenger`.
++  static void SetUp(
++    flutter::BinaryMessenger* binary_messenger,
++    NativeVpnInterface* api);
++  static void SetUp(
++    flutter::BinaryMessenger* binary_messenger,
++    NativeVpnInterface* api,
++    const std::string& message_channel_suffix);
++  static flutter::EncodableValue WrapError(std::string_view error_message);
++  static flutter::EncodableValue WrapError(const FlutterError& error);
++ protected:
++  NativeVpnInterface() = default;
+ };
+ // Generated class from Pigeon that represents Flutter messages that can be called from C++.
+ class FlutterCallbacks {
+-public:
+-    FlutterCallbacks(flutter::BinaryMessenger *binary_messenger);
+-    FlutterCallbacks(flutter::BinaryMessenger *binary_messenger, const std::string &message_channel_suffix);
+-    static const flutter::StandardMessageCodec &GetCodec();
+-    void OnStateChanged(int64_t state, std::function<void(void)> &&on_success,
+-            std::function<void(const FlutterError &)> &&on_error);
+-    void OnConnectionInfo(const std::string &info, std::function<void(void)> &&on_success,
+-            std::function<void(const FlutterError &)> &&on_error);
+-
+-private:
+-    flutter::BinaryMessenger *binary_messenger_;
+-    std::string message_channel_suffix_;
++ public:
++  FlutterCallbacks(flutter::BinaryMessenger* binary_messenger);
++  FlutterCallbacks(
++    flutter::BinaryMessenger* binary_messenger,
++    const std::string& message_channel_suffix);
++  static const flutter::StandardMessageCodec& GetCodec();
++  void OnStateChanged(
++    int64_t state,
++    std::function<void(void)>&& on_success,
++    std::function<void(const FlutterError&)>&& on_error);
++  void OnConnectionInfo(
++    const std::string& info,
++    std::function<void(void)>&& on_success,
++    std::function<void(const FlutterError&)>&& on_error);
++ private:
++  flutter::BinaryMessenger* binary_messenger_;
++  std::string message_channel_suffix_;
+ };
+ 
+-#endif // PIGEON_NATIVE_COMMUNICATION_H_
++#endif  // PIGEON_NATIVE_COMMUNICATION_H_
+
+commit 787ad4377e518fe5e37bbd9dda6166a5bf1a5c38
+Author: Bamboo <Bamboo>
+Date:   2026-04-27 12:19:33 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 9 files changed, 31 insertions(+), 29 deletions(-)
+
+diff --git a/conandata.yml b/conandata.yml
+index 0fed0f0..5ae2404 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1389,3 +1389,5 @@ commit_hash:
+     hash: "661911f04ef17117d8cfecdef6702ee9b2609c19"
+   "1.0.54":
+     hash: "9977aa6069c21dc9686212e9f4361c90a36912be"
++  "1.0.55":
++    hash: "8c37a1dfcb3f1b9d7672c9edd9024959fe40a853"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index f49e61e..9400263 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.54"
++version = "1.0.55"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index a1c5cd5..0338880 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.54"
++  s.version      = "1.0.55"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 4e4dc1b..121bbad 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.54;
++				CURRENT_PROJECT_VERSION = 1.0.55;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.54;
++				DYLIB_CURRENT_VERSION = 1.0.55;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.54;
++				MARKETING_VERSION = 1.0.55;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.54;
++				CURRENT_PROJECT_VERSION = 1.0.55;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.54;
++				DYLIB_CURRENT_VERSION = 1.0.55;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.54;
++				MARKETING_VERSION = 1.0.55;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.54;
++				CURRENT_PROJECT_VERSION = 1.0.55;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.54;
++				MARKETING_VERSION = 1.0.55;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.54;
++				CURRENT_PROJECT_VERSION = 1.0.55;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.54;
++				MARKETING_VERSION = 1.0.55;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.54;
++				CURRENT_PROJECT_VERSION = 1.0.55;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.54;
++				DYLIB_CURRENT_VERSION = 1.0.55;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.54;
++				MARKETING_VERSION = 1.0.55;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.54;
++				CURRENT_PROJECT_VERSION = 1.0.55;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.54;
++				DYLIB_CURRENT_VERSION = 1.0.55;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.54;
++				MARKETING_VERSION = 1.0.55;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index af2a4ea..3cd1e53 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.54
++    VERSION 1.0.55
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index dc76e10..46a8349 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.54"
++#define TRUSTTUNNEL_VERSION "1.0.55"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index b7f310c..b367939 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,54,0
+-    PRODUCTVERSION 1,0,54,0
++    FILEVERSION 1,0,55,0
++    PRODUCTVERSION 1,0,55,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.54"
+-                        VALUE "ProductVersion", "1.0.54"
++                        VALUE "FileVersion", "1.0.55"
++                        VALUE "ProductVersion", "1.0.55"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index 2a1ad89..ce79e3e 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.54";
++pub const VERSION: &str = "1.0.55";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index 38c3891..f58859e 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,54,0
+-    PRODUCTVERSION 1,0,54,0
++    FILEVERSION 1,0,55,0
++    PRODUCTVERSION 1,0,55,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.54"
+-                        VALUE "ProductVersion", "1.0.54"
++                        VALUE "FileVersion", "1.0.55"
++                        VALUE "ProductVersion", "1.0.55"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
+
+commit 999938e92c7212daa566fd21679965fda19accf0
+Author: Yuriy Selivanov <y.selivanov@adguard.com>
+Date:   2026-04-28 07:49:02 +0000
+
+    Pull request 680: Wildcard port exception
+    
+    Squashed commit of the following:
+    
+    commit 5c61bf9b7496e83dbd3b42ce92329405117aef3d
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Mon Apr 27 09:53:39 2026 +0300
+    
+        update changelog
+    
+    commit b9dac8a0831da1a384f367a65d6b702477f0b731
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Fri Apr 24 18:09:10 2026 +0300
+    
+        Revert "add exclusions_tcp_early_ack"
+    
+        This reverts commit 009b961f7672ccaabd3db12135fde944c7749dca.
+    
+    commit 009b961f7672ccaabd3db12135fde944c7749dca
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Fri Apr 24 17:53:52 2026 +0300
+    
+        add exclusions_tcp_early_ack
+    
+    commit f29775c1cafc1edff51c9629fd261558b9ab0832
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Thu Apr 23 20:12:02 2026 +0300
+    
+        update docks
+    
+    commit 926aa277648a5d8c00ae04390327a1dd5a6509be
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Thu Apr 23 19:02:10 2026 +0300
+    
+        Add wildcard port exception
+---
+ CHANGELOG.md                              |  3 +++
+ core/include/vpn/internal/domain_filter.h |  7 ++++++-
+ core/include/vpn/vpn.h                    |  4 ++++
+ core/src/domain_filter.cpp                | 14 +++++++++++++-
+ core/src/vpn_manager.cpp                  |  1 +
+ core/test/test_domain_filter.cpp          | 14 ++++++++++++++
+ trusttunnel/README.md                     |  1 +
+ 7 files changed, 42 insertions(+), 2 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6ebc159..74a75b0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,8 @@
+ # CHANGELOG
+ 
++- [Feature] Add wildcard port syntax (`*:port`) to `VpnSettings::exclusions`.
++            Any connection to the specified port is matched regardless of the destination address.
++
+ ## 1.0.49
+ 
+ - [Fix] Protect service socket for DNS query forwarding with securely generated password #62
+diff --git a/core/include/vpn/internal/domain_filter.h b/core/include/vpn/internal/domain_filter.h
+index 1ff8984..6019512 100644
+--- a/core/include/vpn/internal/domain_filter.h
++++ b/core/include/vpn/internal/domain_filter.h
+@@ -21,6 +21,7 @@ enum DomainFilterValidationStatus {
+     DFVS_OK_ADDR,
+     DFVS_OK_CIDR,
+     DFVS_OK_DOMAIN,
++    DFVS_OK_PORT,
+     DFVS_MALFORMED,
+ };
+ 
+@@ -108,12 +109,16 @@ private:
+         std::string text;
+         MatchFlagsSet flags;
+     };
++    struct PortOnlyEntry {
++        uint16_t port;
++    };
+     struct DomainEntryMalformed {};
+-    using ParseResult = std::variant<SocketAddress, CidrRange, DomainEntryInfo, DomainEntryMalformed>;
++    using ParseResult = std::variant<SocketAddress, CidrRange, DomainEntryInfo, PortOnlyEntry, DomainEntryMalformed>;
+ 
+     VpnMode m_mode = VPN_MODE_GENERAL;
+     std::unordered_map<std::string, MatchFlagsSet> m_domains; // key - domain name / value - set of `MatchFlags`
+     std::unordered_set<SocketAddress> m_addresses;
++    std::unordered_set<uint16_t> m_ports_only;
+     ag::CidrRangeSet m_cidr_ranges;
+     ag::LruTimeoutCache<ag::SockAddrTag, std::string> m_resolved_tags{DEFAULT_CACHE_SIZE, DEFAULT_TAG_TTL};
+     ag::LruTimeoutCache<SocketAddress, uint8_t> m_exclusion_suspects{DEFAULT_CACHE_SIZE, DEFAULT_TAG_TTL};
+diff --git a/core/include/vpn/vpn.h b/core/include/vpn/vpn.h
+index f55d0ea..6986df3 100644
+--- a/core/include/vpn/vpn.h
++++ b/core/include/vpn/vpn.h
+@@ -488,11 +488,15 @@ typedef struct {
+      *              - recognized formats are:
+      *                  - IPv4Address/mask
+      *                  - IPv6Address/mask
++     *          - wildcard port: `*:port`
++     *              - matches any connection to the specified port regardless of the destination address
++     *                (e.g., `*:80` will match any connection to port 80)
+      *
+      *  examples:
+      *      - example.org 1.2.3.4
+      *      - 1.1.1.1:1 [feed::beef] www.example.com
+      *      - [deaf::beef]:12 *.example.com
++     *      - *:80 *:443
+      */
+     ag::VpnStr exclusions;
+     /**
+diff --git a/core/src/domain_filter.cpp b/core/src/domain_filter.cpp
+index ad5094d..c1753a5 100644
+--- a/core/src/domain_filter.cpp
++++ b/core/src/domain_filter.cpp
+@@ -26,7 +26,8 @@ DomainFilterValidationStatus DomainFilter::validate_entry(std::string_view entry
+     static_assert(std::is_same_v<std::variant_alternative_t<DFVS_OK_CIDR, ParseResult>, CidrRange>);
+     static_assert(std::is_same_v<std::variant_alternative_t<DFVS_OK_DOMAIN, ParseResult>, DomainEntryInfo>);
+     static_assert(std::is_same_v<std::variant_alternative_t<DFVS_MALFORMED, ParseResult>, DomainEntryMalformed>);
+-    static_assert(std::variant_size_v<ParseResult> == 4);
++    static_assert(std::is_same_v<std::variant_alternative_t<DFVS_OK_PORT, ParseResult>, PortOnlyEntry>);
++    static_assert(std::variant_size_v<ParseResult> == 5);
+ 
+     return DomainFilterValidationStatus(result.index());
+ }
+@@ -38,6 +39,9 @@ DomainFilter::ParseResult DomainFilter::parse_entry(std::string_view entry) {
+         std::optional port = utils::to_integer<uint64_t>(split->second);
+         if (port.has_value() && !split->second.empty()) {
+             if (port > 0 && port <= USHRT_MAX) {
++                if (split->first == "*") {
++                    return PortOnlyEntry{static_cast<uint16_t>(port.value())};
++                }
+                 addr = SocketAddress(split->first, port.value());
+             }
+         } else {
+@@ -88,6 +92,7 @@ bool DomainFilter::update_exclusions(VpnMode mode_, std::string_view exclusions)
+     m_mode = mode_;
+     m_domains.clear();
+     m_addresses.clear();
++    m_ports_only.clear();
+     m_exclusion_suspects.clear();
+     m_cidr_ranges.clear();
+ 
+@@ -102,6 +107,9 @@ bool DomainFilter::update_exclusions(VpnMode mode_, std::string_view exclusions)
+         } else if (auto *range = std::get_if<CidrRange>(&result); range != nullptr) {
+             log_filter(this, trace, "Entry added in CIDR ranges table: {}", range->to_string());
+             m_cidr_ranges.insert(*range);
++        } else if (auto *port_only = std::get_if<PortOnlyEntry>(&result); port_only != nullptr) {
++            log_filter(this, trace, "Entry added in ports only table: {}", port_only->port);
++            m_ports_only.insert(port_only->port);
+         } else {
+             auto status = std::get<DomainEntryMalformed>(result);
+             (void) status;
+@@ -174,6 +182,10 @@ DomainFilterMatchResult DomainFilter::match_tag(const SockAddrTag &tag) const {
+         found = m_cidr_ranges.includes(addr_cidr);
+     }
+ 
++    if (!found) {
++        found = m_ports_only.contains(tag.addr.port());
++    }
++
+     if (found) {
+         log_filter(this, trace, "Address matched against exclusion list: {}", tag.addr);
+         result.status = DFMS_EXCLUSION;
+diff --git a/core/src/vpn_manager.cpp b/core/src/vpn_manager.cpp
+index f038318..3696817 100644
+--- a/core/src/vpn_manager.cpp
++++ b/core/src/vpn_manager.cpp
+@@ -651,6 +651,7 @@ VpnExclusionValidationStatus vpn_validate_exclusion(const char *text) {
+     case DFVS_OK_ADDR:
+     case DFVS_OK_CIDR:
+     case DFVS_OK_DOMAIN:
++    case DFVS_OK_PORT:
+         return VPN_EVS_OK;
+     case DFVS_MALFORMED:
+         return VPN_EVS_MALFORMED;
+diff --git a/core/test/test_domain_filter.cpp b/core/test/test_domain_filter.cpp
+index 8b324bf..042e8c1 100644
+--- a/core/test/test_domain_filter.cpp
++++ b/core/test/test_domain_filter.cpp
+@@ -104,6 +104,10 @@ static const MatchTestParam ADDRESS_MATCH_TEST_SAMPLES[] = {
+         {VPN_MODE_GENERAL, "2000::/64", "2000::1"},
+         {VPN_MODE_GENERAL, "2000::/64", "[2000::1]"},
+         {VPN_MODE_GENERAL, "2000::/64", "[2000::1]:123"},
++
++        {VPN_MODE_GENERAL, "*:8080", "1.2.3.4:8080"},
++        {VPN_MODE_GENERAL, "*:8080", "[dead::beef]:8080"},
++        {VPN_MODE_GENERAL, "*:443 *:80", "5.6.7.8:443"},
+ };
+ INSTANTIATE_TEST_SUITE_P(Simple, AddressMatch, testing::ValuesIn(ADDRESS_MATCH_TEST_SAMPLES));
+ 
+@@ -130,6 +134,9 @@ static const MatchTestParam ADDRESS_NOMATCH_TEST_SAMPLES[] = {
+         {VPN_MODE_GENERAL, "2000::/64", "2001::1"},
+         {VPN_MODE_GENERAL, "2000::/64", "[2001::1]"},
+         {VPN_MODE_GENERAL, "2000::/64", "[2001::1]:4433"},
++
++        {VPN_MODE_GENERAL, "*:8080", "1.2.3.4:9090"},
++        {VPN_MODE_GENERAL, "*:8080", "[dead::beef]:443"},
+ };
+ INSTANTIATE_TEST_SUITE_P(Simple, AddressNoMatch, testing::ValuesIn(ADDRESS_NOMATCH_TEST_SAMPLES));
+ 
+@@ -206,4 +213,11 @@ TEST(DomainFilterTest, ValidateEntry) {
+     ASSERT_EQ(DFVS_MALFORMED, DomainFilter::validate_entry(" example.org"));
+     ASSERT_EQ(DFVS_MALFORMED, DomainFilter::validate_entry("."));
+     ASSERT_EQ(DFVS_MALFORMED, DomainFilter::validate_entry(".."));
++    ASSERT_EQ(DFVS_MALFORMED, DomainFilter::validate_entry("*:0"));
++    ASSERT_EQ(DFVS_MALFORMED, DomainFilter::validate_entry("*:65536"));
++    ASSERT_EQ(DFVS_MALFORMED, DomainFilter::validate_entry("*:abc"));
++
++    ASSERT_EQ(DFVS_OK_PORT, DomainFilter::validate_entry("*:80"));
++    ASSERT_EQ(DFVS_OK_PORT, DomainFilter::validate_entry("*:443"));
++    ASSERT_EQ(DFVS_OK_PORT, DomainFilter::validate_entry("*:65535"));
+ }
+diff --git a/trusttunnel/README.md b/trusttunnel/README.md
+index 5baba6a..21977aa 100644
+--- a/trusttunnel/README.md
++++ b/trusttunnel/README.md
+@@ -151,6 +151,7 @@ The `exclusions` array supports the following formats:
+ - **IPv4 address**: `192.168.1.1` or `192.168.1.1:443` (port optional)
+ - **IPv6 address**: `[::1]` or `[::1]:443` or `2001:db8::1`
+ - **CIDR range**: `192.168.0.0/16` or `2001:db8::/32`
++- **Wildcard port**: `*:80` — matches any connection to the specified port regardless of destination address
+ 
+ ### DNS Upstreams Syntax
+ 
+
+commit bca9188acdf1d08a9353a312ddccb03dbdcbd8b0
+Author: Bamboo <Bamboo>
+Date:   2026-04-28 07:49:09 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ CHANGELOG.md                                       |  2 ++
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 10 files changed, 33 insertions(+), 29 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 74a75b0..e66abc0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,7 @@
+ # CHANGELOG
+ 
++## 1.0.56
++
+ - [Feature] Add wildcard port syntax (`*:port`) to `VpnSettings::exclusions`.
+             Any connection to the specified port is matched regardless of the destination address.
+ 
+diff --git a/conandata.yml b/conandata.yml
+index 5ae2404..2b11b39 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1391,3 +1391,5 @@ commit_hash:
+     hash: "9977aa6069c21dc9686212e9f4361c90a36912be"
+   "1.0.55":
+     hash: "8c37a1dfcb3f1b9d7672c9edd9024959fe40a853"
++  "1.0.56":
++    hash: "999938e92c7212daa566fd21679965fda19accf0"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index 9400263..5b35f15 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.55"
++version = "1.0.56"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index 0338880..2f9979c 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.55"
++  s.version      = "1.0.56"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 121bbad..8e83137 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.55;
++				CURRENT_PROJECT_VERSION = 1.0.56;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.55;
++				DYLIB_CURRENT_VERSION = 1.0.56;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.55;
++				MARKETING_VERSION = 1.0.56;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.55;
++				CURRENT_PROJECT_VERSION = 1.0.56;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.55;
++				DYLIB_CURRENT_VERSION = 1.0.56;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.55;
++				MARKETING_VERSION = 1.0.56;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.55;
++				CURRENT_PROJECT_VERSION = 1.0.56;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.55;
++				MARKETING_VERSION = 1.0.56;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.55;
++				CURRENT_PROJECT_VERSION = 1.0.56;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.55;
++				MARKETING_VERSION = 1.0.56;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.55;
++				CURRENT_PROJECT_VERSION = 1.0.56;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.55;
++				DYLIB_CURRENT_VERSION = 1.0.56;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.55;
++				MARKETING_VERSION = 1.0.56;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.55;
++				CURRENT_PROJECT_VERSION = 1.0.56;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.55;
++				DYLIB_CURRENT_VERSION = 1.0.56;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.55;
++				MARKETING_VERSION = 1.0.56;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index 3cd1e53..9fcafa2 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.55
++    VERSION 1.0.56
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 46a8349..46e0487 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.55"
++#define TRUSTTUNNEL_VERSION "1.0.56"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index b367939..a9bcd49 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,55,0
+-    PRODUCTVERSION 1,0,55,0
++    FILEVERSION 1,0,56,0
++    PRODUCTVERSION 1,0,56,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.55"
+-                        VALUE "ProductVersion", "1.0.55"
++                        VALUE "FileVersion", "1.0.56"
++                        VALUE "ProductVersion", "1.0.56"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index ce79e3e..d99b0ed 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.55";
++pub const VERSION: &str = "1.0.56";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index f58859e..b36ab9f 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,55,0
+-    PRODUCTVERSION 1,0,55,0
++    FILEVERSION 1,0,56,0
++    PRODUCTVERSION 1,0,56,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.55"
+-                        VALUE "ProductVersion", "1.0.55"
++                        VALUE "FileVersion", "1.0.56"
++                        VALUE "ProductVersion", "1.0.56"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
