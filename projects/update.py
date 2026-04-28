@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
+import argparse
 from pathlib import Path
 
 
@@ -109,11 +110,53 @@ def process_project(project: dict):
         print(f"Saved changelog: {log_file}")
 
 
+def select_projects_interactive(projects: list[dict]) -> list[dict]:
+    print("\nInteractive mode enabled.")
+    print("Select a project to update:")
+
+    for idx, project in enumerate(projects, start=1):
+        print(f"  {idx}. {project['name']} ({project['path']})")
+
+    print("  a. Update all projects")
+    print("  q. Quit")
+
+    while True:
+        choice = input("\nEnter your choice: ").strip().lower()
+
+        if choice == "a":
+            return projects
+        if choice == "q":
+            print("No projects selected. Exiting.")
+            return []
+        if choice.isdigit():
+            index = int(choice) - 1
+            if 0 <= index < len(projects):
+                return [projects[index]]
+
+        print("Invalid choice. Enter a number, 'a', or 'q'.")
+
+
 def main():
+    parser = argparse.ArgumentParser(
+        description="Update local project mirrors and changelogs from upstream sources."
+    )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="Enable interactive mode to update a specific project.",
+    )
+    args = parser.parse_args()
+
     with open(CONFIG_FILE, "rb") as f:
         config = tomllib.load(f)
 
-    for project in config["projects"]:
+    projects = config["projects"]
+
+    if args.interactive:
+        projects = select_projects_interactive(projects)
+
+    for project in projects:
         process_project(project)
 
 
