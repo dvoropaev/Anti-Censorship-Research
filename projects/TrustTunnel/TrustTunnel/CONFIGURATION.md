@@ -280,9 +280,13 @@ action = "deny"
 | `ping_enable`                           | Boolean | `false`       | Enable ping handler on main hosts                                |
 | `ping_path`                             | String  | -             | Optional path prefix for ping on main hosts                      |
 | `speedtest_path`                        | String  | -             | Optional path prefix for speedtest on main hosts                 |
-| `auth_failure_status_code`              | Integer | `407`         | HTTP status code returned on authentication failure (405 or 407) |
+| `auth_failure_status_code`              | Integer | `407`         | HTTP status code on auth failure for CONNECT requests            |
+| `non_connect_auth_failure_status_code`  | Integer | -             | HTTP status code on auth failure for non-CONNECT requests        |
 
 Ping and speedtest are matched only via their configured paths. Default paths are: `/ping` and `/speedtest`.
+`auth_failure_status_code` and `non_connect_auth_failure_status_code` accept `407`, `405`, `404`, or `403`.
+If `non_connect_auth_failure_status_code` is not set, it falls back to `auth_failure_status_code`.
+Warning: using a value other than `407` for `auth_failure_status_code` breaks proxy authentication in Chrome.
 
 ### Listen Protocol Settings
 

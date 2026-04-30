@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.0.41
+
+- [Feature] Add `non_connect_auth_failure_status_code` config key to control the HTTP status code returned on authentication failure for non-CONNECT requests. Extend allowed values for `auth_failure_status_code` and `non_connect_auth_failure_status_code` to 407, 405, 404, and 403.
+
 ## 1.0.28
 
 - [Feature] `trusttunnel_endpoint -c` can now generate `client_random_prefix` values automatically, append matching allow rules to `rules.toml`, and embed the generated value into exported client configs.

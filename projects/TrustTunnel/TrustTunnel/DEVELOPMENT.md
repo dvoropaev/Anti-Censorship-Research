@@ -150,6 +150,11 @@ cargo run --bin trusttunnel_endpoint -- <lib-settings> <hosts-settings>  # File 
 For additional details about the binary, refer to the [endpoint/README.md](./endpoint/README.md)
 file.
 
+## Benchmarking
+
+The project includes a benchmark suite for measuring VPN throughput. See
+[bench/README.md](bench/README.md) for setup and usage instructions.
+
 ---
 
 ## See Also

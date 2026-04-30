@@ -20599,3 +20599,1464 @@ index 7a6633c..f72ad0c 100644
  authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
  edition = "2021"
  
+
+commit bd35a82d8589f84b6570b51234322468fdb09bf8
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-28 14:46:34 +0000
+
+    Pull request 196: GitHub action for bench tests and bench improvements
+    
+    Squashed commit of the following:
+    
+    commit 69935cd567e440938fa141dfec7c2105e819c1d0
+    Author: Sergey Fionov <sfionov@adguard.com>
+    Date:   Tue Apr 28 17:26:40 2026 +0300
+    
+        Post in separate job
+    
+    commit 059e5e1a985c0067704eee611c092667aedca49e
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Thu Apr 16 15:59:19 2026 +0400
+    
+        Update docs
+    
+    commit ebc44df9614759c80e945ed866b74aec0e2fdad9
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 15 18:46:51 2026 +0400
+    
+        Remove ghcr stuff from workflow
+    
+    commit 17b2dce10221e10bfb86d9e598bb11f3e7d07229
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 15 18:06:04 2026 +0400
+    
+        Use endpoint_ref if provided
+    
+    commit aec9274a943ccf9984a05388d82bacf60d34ede2
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 15 17:57:54 2026 +0400
+    
+        Remove PR number from inputs
+    
+    commit 49e46a2d8d257cad3cb0fa7a299893fcfad2f00b
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 15 17:13:16 2026 +0400
+    
+        Fix bench for PRs from forks
+    
+    commit 27054519da6b1f18550ada3786bbf707f228752c
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 15 16:22:48 2026 +0400
+    
+        Add worker_processes auto to nginx
+    
+    commit 4cf615040849f0122dfe025b0e7fbb3ceafc857a
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 15 15:32:47 2026 +0400
+    
+        User friendly client_repo input
+    
+    commit 3f5e323bfc5c266df2b15e0269e4db3d67a5e07c
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 18:03:47 2026 +0400
+    
+        Fix wg images
+    
+    commit 63ea8f7d0ab89f3e354fecfad1b2ef8edb0b95eb
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 15:55:31 2026 +0400
+    
+        Remove unneded endpoint ref input
+    
+    commit 9c3ed6121b369c873c9ec6a262509be61e70268f
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 14:45:29 2026 +0400
+    
+        Add options to bench tests type
+    
+    commit e7c51798e029489e2e10c11fea16250953f62061
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 13:39:37 2026 +0400
+    
+        Round off the speed
+    
+    commit 5c042d636f72520ea5a368db3157b15bc6c62ee3
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 13:39:01 2026 +0400
+    
+        Remove redundant line
+    
+    commit 6616902656925ff17e83165dc084b8768c79616d
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 12:21:35 2026 +0400
+    
+        Fix post comment job
+    
+    commit c627f5fe178e49d17ac3c8ccd927955332cfa7a7
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 11:25:31 2026 +0400
+    
+        fixup! Fix cache mounting
+    
+    commit 6b445861b4a5ce14f75d2740f4cf68b0e2ce0313
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 11:25:19 2026 +0400
+    
+        Improve removing containers
+    
+    commit 42410ae41932cf17d12c0321725e822a6cc0d0bf
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 11:23:31 2026 +0400
+    
+        Remove -x from scripts
+    
+    commit 344992bf0f7d6e57279138aca6df4c5f04fbd2de
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 14 11:22:59 2026 +0400
+    
+        Fix naming
+    
+    commit 2cd55b892d12c0f9bdad800192a78e249822e594
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 13 18:10:09 2026 +0400
+    
+        Fix cache mounting
+    
+    commit 32518375743cda7e9b6d5bc07988ec81c97b96d8
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 13 17:44:34 2026 +0400
+    
+        Add workflow for endpoint bench
+    
+    ... and 4 more commits
+---
+ .github/workflows/bench.yml                  | 198 +++++++++++++++++++++++++++
+ AGENTS.md                                    |   2 +-
+ DEVELOPMENT.md                               |   5 +
+ bench/README.md                              |  34 +++--
+ bench/local-side/bench.sh                    | 108 +++++++--------
+ bench/local-side/trusttunnel/Dockerfile      |  12 +-
+ bench/local-side/wireguard/Dockerfile        |   2 +-
+ bench/middle-box/trusttunnel-rust/Dockerfile |  16 +--
+ bench/middle-box/wireguard/Dockerfile        |   2 +-
+ bench/remote-side/Dockerfile                 |   4 +-
+ bench/single_host.sh                         |  54 +++-----
+ 11 files changed, 317 insertions(+), 120 deletions(-)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+new file mode 100644
+index 0000000..9369174
+--- /dev/null
++++ b/.github/workflows/bench.yml
+@@ -0,0 +1,198 @@
++name: Benchmark
++
++on:
++  workflow_dispatch:
++    inputs:
++      client_repo:
++        description: "Client repo (owner/name)"
++        required: false
++        default: "TrustTunnel/TrustTunnelClient"
++      client_ref:
++        description: "Client branch/ref"
++        required: false
++        default: "master"
++      tunnel_type:
++        description: "Tunnel type to benchmark"
++        required: false
++        default: "ag"
++        type: choice
++        options:
++          - ag
++          - all
++          - wg
++          - no-vpn
++
++  issue_comment:
++    types: [created]
++
++  repository_dispatch:
++    types: [client-bench]
++
++concurrency:
++  group: bench
++  cancel-in-progress: false
++
++jobs:
++  bench:
++    name: Run Benchmarks
++    runs-on: ubuntu-latest
++    timeout-minutes: 90
++    if: >-
++      github.event_name == 'workflow_dispatch' ||
++      github.event_name == 'repository_dispatch' ||
++      (
++        github.event_name == 'issue_comment' &&
++        github.event.issue.pull_request &&
++        contains(github.event.comment.body, '/bench') &&
++        contains(fromJson('["COLLABORATOR","MEMBER","OWNER"]'), github.event.comment.author_association)
++      )
++    outputs:
++      pr_number: ${{ steps.inputs.outputs.pr_number }}
++
++    steps:
++      - name: Resolve inputs
++        id: inputs
++        uses: actions/github-script@v7
++        with:
++          script: |
++            let ref = '', clientRepo = '', clientRef = '', prNumber = '', tunnelType = 'ag';
++
++            if (context.eventName === 'workflow_dispatch') {
++              ref = context.ref;
++              clientRepo = '${{ github.event.inputs.client_repo }}';
++              clientRef = '${{ github.event.inputs.client_ref }}' || 'master';
++              tunnelType = '${{ github.event.inputs.tunnel_type }}' || 'ag';
++            } else if (context.eventName === 'repository_dispatch') {
++              const p = context.payload.client_payload || {};
++              ref = p.endpoint_ref || context.ref;
++              clientRepo = p.client_repo || 'TrustTunnel/TrustTunnelClient';
++              clientRef = p.client_ref || 'master';
++              prNumber = String(p.pr_number || '');
++              tunnelType = 'ag';
++            } else if (context.eventName === 'issue_comment') {
++              prNumber = String(context.issue.number);
++              ref = `refs/pull/${prNumber}/head`;
++              const pr = await github.rest.pulls.get({
++                owner: context.repo.owner,
++                repo: context.repo.repo,
++                pull_number: context.issue.number,
++              });
++              clientRepo = 'TrustTunnel/TrustTunnelClient';
++              tunnelType = 'ag';
++            }
++
++            core.setOutput('ref', ref);
++            core.setOutput('client_repo', clientRepo);
++            core.setOutput('client_ref', clientRef);
++            core.setOutput('pr_number', prNumber);
++            core.setOutput('tunnel_type', tunnelType);
++
++      - name: Checkout endpoint
++        uses: actions/checkout@v4
++        with:
++          ref: ${{ steps.inputs.outputs.ref }}
++
++      - name: Checkout client
++        uses: actions/checkout@v4
++        with:
++          repository: ${{ steps.inputs.outputs.client_repo }}
++          ref: ${{ steps.inputs.outputs.client_ref }}
++          path: bench/local-side/trusttunnel/trusttunnel-client
++
++      - name: Build bench images
++        run: |
++          cd bench
++          ./single_host.sh build
++
++      - name: Run benchmarks
++        run: |
++          cd bench
++          ./single_host.sh run --tunnel_type=${{ steps.inputs.outputs.tunnel_type }}
++
++      - name: Upload results
++        if: always()
++        uses: actions/upload-artifact@v4
++        with:
++          name: bench-results
++          path: bench/results/
++          if-no-files-found: ignore
++
++  comment:
++    name: Post PR comment
++    runs-on: ubuntu-latest
++    needs: bench
++    if: needs.bench.outputs.pr_number != ''
++    steps:
++      - name: Download results
++        uses: actions/download-artifact@v4
++        with:
++          name: bench-results
++          path: bench/results/
++
++      - name: Post PR comment
++        uses: actions/github-script@v7
++        with:
++          github-token: ${{ github.event_name == 'repository_dispatch' && secrets.CLIENT_COMMENT_TOKEN || secrets.GITHUB_TOKEN }}
++          script: |
++            const fs = require('fs');
++            const path = require('path');
++
++            const resultsDir = 'bench/results/ag';
++            let body = '## Benchmark Results\n\n';
++
++            function readResults(dir, prefix) {
++              let table = '';
++              if (!fs.existsSync(dir)) return table;
++              const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
++              if (files.length === 0) return table;
++
++              table += `### ${prefix}\n\n`;
++              table += '| Test | Avg Speed (MB/s) | Jobs | Failed |\n';
++              table += '| --- | --- | --- | --- |\n';
++              for (const file of files.sort()) {
++                try {
++                  const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
++                  const name = file.replace('.json', '');
++                  const result = data.http_download || data.http_upload || {};
++                  const speed = typeof result.avg_speed_MBps === 'number' ? result.avg_speed_MBps.toFixed(4) : 'N/A';
++                  table += `| ${name} | ${speed} | ${result.jobs_num || 'N/A'} | ${result.failed_num || 0} |\n`;
++                } catch (e) {
++                  table += `| ${file} | error reading | - | - |\n`;
++                }
++              }
++              table += '\n';
++              return table;
++            }
++
++            if (fs.existsSync(resultsDir)) {
++              const subdirs = fs.readdirSync(resultsDir, { withFileTypes: true });
++              for (const sub of subdirs) {
++                if (sub.isDirectory()) {
++                  body += readResults(path.join(resultsDir, sub.name), sub.name);
++                }
++              }
++            } else {
++              body += 'No results found.\n';
++            }
++
++            const prNumber = parseInt('${{ needs.bench.outputs.pr_number }}');
++
++            // For cross-repo dispatches, the pr_repo payload field identifies
++            // the main repo where the PR lives (not the fork used for checkout).
++            let owner = context.repo.owner;
++            let repo = context.repo.repo;
++            if (context.eventName === 'repository_dispatch') {
++              const prRepo = (context.payload.client_payload || {}).pr_repo || '';
++              const parts = prRepo.split('/');
++              if (parts.length === 2) {
++                owner = parts[0];
++                repo = parts[1];
++              }
++            }
++
++            await github.rest.issues.createComment({
++              owner,
++              repo,
++              issue_number: prNumber,
++              body,
++            });
+diff --git a/AGENTS.md b/AGENTS.md
+index 4b70b14..208a896 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -47,7 +47,7 @@ vpn-libs-endpoint/
+ │   ├── install.sh             # Release installation script
+ │   └── trusttunnel.service.template  # systemd service template
+ ├── bamboo-specs/              # Bamboo CI pipeline definitions
+-├── .github/workflows/         # GitHub Actions (test, md-lint, security-audit)
++├── .github/workflows/         # GitHub Actions (test, md-lint, security-audit, bench)
+ ├── Dockerfile                 # Multi-stage Docker build
+ ├── docker-entrypoint.sh       # Container entrypoint script
+ ├── Makefile                   # Development task runner
+diff --git a/DEVELOPMENT.md b/DEVELOPMENT.md
+index e261c16..a68925c 100644
+--- a/DEVELOPMENT.md
++++ b/DEVELOPMENT.md
+@@ -150,6 +150,11 @@ cargo run --bin trusttunnel_endpoint -- <lib-settings> <hosts-settings>  # File
+ For additional details about the binary, refer to the [endpoint/README.md](./endpoint/README.md)
+ file.
+ 
++## Benchmarking
++
++The project includes a benchmark suite for measuring VPN throughput. See
++[bench/README.md](bench/README.md) for setup and usage instructions.
++
+ ---
+ 
+ ## See Also
+diff --git a/bench/README.md b/bench/README.md
+index 7b2ab0c..e79f6fc 100644
+--- a/bench/README.md
++++ b/bench/README.md
+@@ -15,11 +15,17 @@ The benchmark consists of 3 isolated parts:
+ 
+    ```shell
+    cd ./bench
+-   ./single_host.sh build --client=<TrustTunnelClient.git> --endpoint=<TrustTunnel.git>
++   ./single_host.sh build
+    ```
+ 
+-   This command prepares all the parts to run on the current host. To see the full set of
+-   the available options run:
++   The client repo defaults to `https://github.com/TrustTunnel/TrustTunnelClient.git`.
++   To use a different client repo:
++
++   ```shell
++   ./single_host.sh build --client=<trusttunnel_client_repo_url>
++   ```
++
++   To see the full set of available options run:
+ 
+    ```shell
+    ./single_host.sh --help
+@@ -50,18 +56,20 @@ Assume IP addresses of `host_1`, `host_2` and `host_3` are 1.1.1.1, 2.2.2.2 and
+ 
+ 2) Running `host_2` as a middle box
+ 
++   The endpoint is built from the repository root. Clone the project on the
++   middle-box host:
++
+    ```shell
+-   scp Dockerfile user@2.2.2.2:~
+-   git clone <TrustTunnel.git> ./middle-box/trusttunnel-rust/trusttunnel-endpoint
+-   scp -r middle-box user@2.2.2.2:~
+    ssh user@2.2.2.2
+-   docker build -t bench-common .
++   git clone <TrustTunnel.git> ~/trusttunnel-endpoint
++   cd ~/trusttunnel-endpoint
++   docker build -t bench-common bench/
+    ```
+ 
+     - WireGuard
+ 
+        ```shell
+-       docker build -t bench-mb-wg ./middle-box/wireguard
++       docker build -t bench-mb-wg bench/middle-box/wireguard
+        docker run -d \
+          --cap-add=NET_ADMIN --cap-add=SYS_MODULE --device=/dev/net/tun \
+          -p 51820:51820/udp \
+@@ -73,9 +81,9 @@ Assume IP addresses of `host_1`, `host_2` and `host_3` are 1.1.1.1, 2.2.2.2 and
+        ```shell
+        docker build \
+          --build-arg ENDPOINT_HOSTNAME=endpoint.bench \
+-         -t bench-mb-ag ./middle-box/trusttunnel-rust/
++         -f bench/middle-box/trusttunnel-rust/Dockerfile \
++         -t bench-mb-ag .
+        docker run -d \
+-         --cap-add=NET_ADMIN --cap-add=SYS_MODULE --device=/dev/net/tun \
+          -p 4433:4433 -p 4433:4433/udp \
+          bench-mb-ag
+        ```
+@@ -84,7 +92,7 @@ Assume IP addresses of `host_1`, `host_2` and `host_3` are 1.1.1.1, 2.2.2.2 and
+ 
+    ```shell
+    scp Dockerfile user@3.3.3.3:~
+-   git clone <TrustTunnel.git> ./local-side/trusttunnel/trusttunnel-endpoint
++   git clone <TrustTunnelClient.git> ./local-side/trusttunnel/trusttunnel-client
+    scp -r local-side user@3.3.3.3:~
+    ssh user@3.3.3.3
+    docker build -t bench-common .
+@@ -107,6 +115,8 @@ Assume IP addresses of `host_1`, `host_2` and `host_3` are 1.1.1.1, 2.2.2.2 and
+    - TrustTunnel
+ 
+       ```shell
+-      docker build -t bench-ls-ag ./local-side/trusttunnel
++      docker build \
++        --build-arg CLIENT_DIR=trusttunnel-client \
++        -t bench-ls-ag ./local-side/trusttunnel
+       ./local-side/bench.sh ag bridge 1.1.1.1 results/ag 2.2.2.2 endpoint.bench
+       ```
+diff --git a/bench/local-side/bench.sh b/bench/local-side/bench.sh
+index f6a0aa3..35ab5b5 100755
+--- a/bench/local-side/bench.sh
++++ b/bench/local-side/bench.sh
+@@ -4,7 +4,7 @@ HELP_MSG="
+ Usage:  bench.sh <type=no-vpn|wg|ag> <network> <remote_ip> <results_dir_path> [<endpoint_ip> <endpoint_hostname>]
+ "
+ 
+-set -e -x
++set -e
+ set -o pipefail
+ 
+ LOCAL_IMAGE="bench-ls"
+@@ -13,24 +13,31 @@ LOCAL_WG_IMAGE="bench-ls-wg"
+ CONTAINER_RESULTS_DIR_PATH="/bench/results"
+ JOB_NUMS=(1 2 4)
+ 
++start_container() {
++  local set_up_cmd="$1"
++  local wait_time="${2:-3}"
++  local container
++  container=$(eval "$set_up_cmd")
++  sleep "$wait_time"
++  echo "$container"
++}
++
+ run_test() {
+-  local set_up_test_suite_cmd="$1"
++  local container="$1"
+   shift
+-  local tear_down_test_suite_cmd="$1"
+-  shift
+-  local results_host_dir_path="$1"
+-  shift
+-
+-  local container
++  docker exec -w /bench "$container" ./local_side.py "$@" || true
++}
+ 
+-  container=$(eval "$set_up_test_suite_cmd")
+-  # Otherwise the bench is not able to connect to the server
+-  sleep 3
+-  docker exec -w /bench "$container" ./local_side.py "$@"
++stop_container() {
++  local container="$1"
++  local results_host_dir_path="$2"
++  local tear_down_cmd="${3:-}"
+   mkdir -p "$results_host_dir_path"
+   docker cp "$container:$CONTAINER_RESULTS_DIR_PATH/." "$results_host_dir_path"
+   docker rm -f "$container"
+-  eval "$tear_down_test_suite_cmd"
++  if [[ -n "$tear_down_cmd" ]]; then
++    eval "$tear_down_cmd"
++  fi
+ }
+ 
+ run_through_tun() {
+@@ -39,9 +46,12 @@ run_through_tun() {
+   local results_host_dir_path="$3"
+   local remote_ip="$4"
+ 
++  local container
++  container=$(start_container "$set_up_test_suite_cmd")
++
+   for jobs_num in "${JOB_NUMS[@]}"; do
+     echo "Running HTTP2 download test with ${jobs_num} parallel jobs..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++    run_test "$container" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/lf-dl-h2-$jobs_num.json" \
+       --jobs "$jobs_num" \
+       --proto "http2" \
+@@ -49,7 +59,7 @@ run_through_tun() {
+     echo "...done"
+ 
+     echo "Running HTTP3 download test with ${jobs_num} parallel jobs..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++    run_test "$container" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/lf-dl-h3-$jobs_num.json" \
+       --jobs "$jobs_num" \
+       --proto "http3" \
+@@ -57,7 +67,7 @@ run_through_tun() {
+     echo "...done"
+ 
+     echo "Running HTTP2 upload test with ${jobs_num} parallel jobs..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++    run_test "$container" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/lf-ul-h2-$jobs_num.json" \
+       --jobs "$jobs_num" \
+       --proto "http2" \
+@@ -65,7 +75,7 @@ run_through_tun() {
+     echo "...done"
+ 
+     echo "Running HTTP3 upload test with ${jobs_num} parallel jobs..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++    run_test "$container" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/lf-ul-h3-$jobs_num.json" \
+       --jobs "$jobs_num" \
+       --proto "http3" \
+@@ -74,18 +84,20 @@ run_through_tun() {
+   done
+ 
+   echo "Running HTTP2 small file download test"
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++  run_test "$container" \
+     --output "$CONTAINER_RESULTS_DIR_PATH/sf-dl-h2.json" \
+     --jobs 1000 \
+     --proto "http2" \
+     --download "https://$remote_ip:8080/download/100KiB.dat"
+ 
+   echo "Running HTTP3 small file download test"
+-  run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++  run_test "$container" \
+     --output "$CONTAINER_RESULTS_DIR_PATH/sf-dl-h3.json" \
+     --jobs 1000 \
+     --proto "http3" \
+     --download "https://$remote_ip:8080/download/100KiB.dat"
++
++  stop_container "$container" "$results_host_dir_path" "$tear_down_test_suite_cmd"
+ }
+ 
+ run_through_proxy() {
+@@ -97,16 +109,19 @@ run_through_proxy() {
+ 
+   common_script_args=(--proxy "https://premium:premium@$proxy_hostname:4433")
+ 
++  local container
++  container=$(start_container "$set_up_test_suite_cmd")
++
+   for jobs_num in "${JOB_NUMS[@]}"; do
+     echo "Running download test with ${jobs_num} parallel jobs..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++    run_test "$container" \
+       "${common_script_args[@]}" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/lf-dl-$jobs_num.json" \
+       --jobs "$jobs_num" \
+       --download "https://$remote_ip:8080/download/1GiB.dat"
+     echo "...done"
+     echo "Running upload test with ${jobs_num} parallel jobs..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++    run_test "$container" \
+       "${common_script_args[@]}" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/lf-ul-$jobs_num.json" \
+       --jobs "$jobs_num" \
+@@ -115,12 +130,14 @@ run_through_proxy() {
+   done
+ 
+   echo "Running small files download test..."
+-  run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$results_host_dir_path" \
++  run_test "$container" \
+     "${common_script_args[@]}" \
+     --output "$CONTAINER_RESULTS_DIR_PATH/sf-dl.json" \
+     --jobs 1000 \
+     --download "https://$remote_ip:8080/download/100KiB.dat"
+   echo "...done"
++
++  stop_container "$container" "$results_host_dir_path" "$tear_down_test_suite_cmd"
+ }
+ 
+ run_no_vpn() {
+@@ -131,15 +148,7 @@ run_no_vpn() {
+   echo "Running bench without any VPN..."
+   local set_up_test_suite_cmd="docker run -it -d --network=$network $LOCAL_IMAGE"
+   local tear_down_test_suite_cmd=""
+-  run_through_tun "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir_path" "$remote_ip" ""
+-
+-  # echo "Running small files download test..."
+-  # run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir_path" \
+-  #   --output "$CONTAINER_RESULTS_DIR_PATH/sf-dl.json" \
+-  #   --jobs 1000 \
+-  #   --download "https://$remote_ip:8080/download/100KiB.dat"
+-  # echo "...done"
+-
++  run_through_tun "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir_path" "$remote_ip"
+   echo "Bench without any VPN is done"
+ }
+ 
+@@ -148,7 +157,6 @@ run_through_wg() {
+   local remote_ip="$2"
+   local endpoint_ip="$3"
+   local output_dir="$4"
+-  local container
+ 
+   local set_up_test_suite_cmd="docker run -d \
+     --cap-add=NET_ADMIN --cap-add=SYS_MODULE --device=/dev/net/tun \
+@@ -157,16 +165,7 @@ run_through_wg() {
+     $endpoint_ip $remote_ip/32"
+   local tear_down_test_suite_cmd=""
+   echo "Running bench through WireGuard tunnel..."
+-  run_through_tun "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir" \
+-    "$remote_ip"
+-
+-  # echo "Running small files download test..."
+-  # run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir" \
+-  #   --output "$CONTAINER_RESULTS_DIR_PATH/sf-dl.json" \
+-  #   --jobs 1000 \
+-  #   --download "https://$remote_ip:8080/download/100KiB.dat"
+-  # echo "...done"
+-
++  run_through_tun "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir" "$remote_ip"
+   echo "...done"
+ }
+ 
+@@ -192,29 +191,26 @@ run_through_ag() {
+       $LOCAL_AG_IMAGE \
+       $endpoint_hostname $endpoint_ip $protocol tun"
+     tear_down_test_suite_cmd=""
+-    echo "Running bench through AgGuard ${protocol} tunnel..."
++    echo "Running bench through TrustTunnel ${protocol} tunnel..."
+     run_through_tun "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir/${protocol}/" \
+       "$remote_ip"
+ 
+-    set_up_test_suite_cmd="{
+-      container=\$(docker run -d \
+-        --cap-add=NET_ADMIN --cap-add=SYS_MODULE --device=/dev/net/tun \
+-        --add-host=$endpoint_hostname:$endpoint_ip \
+-        --network=$network \
+-        $LOCAL_AG_IMAGE \
+-        $endpoint_hostname $endpoint_ip $protocol socks 1080 1179)
+-      sleep 10
+-      echo \$container
+-    }"
++    set_up_test_suite_cmd="docker run -d \
++      --cap-add=NET_ADMIN --cap-add=SYS_MODULE --device=/dev/net/tun \
++      --add-host=$endpoint_hostname:$endpoint_ip \
++      --network=$network \
++      $LOCAL_AG_IMAGE \
++      $endpoint_hostname $endpoint_ip $protocol socks 1080 1179"
+     echo "Running small files download test..."
+-    run_test "$set_up_test_suite_cmd" "$tear_down_test_suite_cmd" "$output_dir/${protocol}/" \
++    local container
++    container=$(start_container "$set_up_test_suite_cmd" 10)
++    run_test "$container" \
+       --output "$CONTAINER_RESULTS_DIR_PATH/sf-dl.json" \
+       --jobs 10 \
+       --download "https://$remote_ip:8080/download/100KiB.dat" \
+       --proxy "socks5://127.0.0.1" \
+       --socks-ports-range "(1080,1179)"
+-    echo "...done"
+-
++    stop_container "$container" "$output_dir/${protocol}/" ""
+     echo "...done"
+   done
+ }
+diff --git a/bench/local-side/trusttunnel/Dockerfile b/bench/local-side/trusttunnel/Dockerfile
+index 5ac2fc2..c36fb21 100644
+--- a/bench/local-side/trusttunnel/Dockerfile
++++ b/bench/local-side/trusttunnel/Dockerfile
+@@ -19,10 +19,13 @@ ENV PATH="/usr/lib/llvm-$LLVM_MAJOR_VER/bin:/usr/local/go/bin:$PATH"
+ 
+ COPY $CLIENT_DIR /bench/$CLIENT_DIR
+ WORKDIR /bench/$CLIENT_DIR/build
+-RUN pipreqs . && \
++RUN --mount=type=cache,target=/root/.conan2 \
++    pipreqs . && \
+     pip install -r ../scripts/requirements.txt && \
+     ../scripts/bootstrap_conan_deps.py
+-RUN cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" \
++RUN --mount=type=cache,target=/root/.conan2 \
++    --mount=type=cache,target=/root/.cargo/registry \
++    cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" \
+         -DCMAKE_C_COMPILER="clang" \
+         -DCMAKE_CXX_COMPILER="clang++" \
+         -DCMAKE_CXX_FLAGS="-stdlib=libc++"
+@@ -31,10 +34,11 @@ RUN cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" \
+ COPY ssl_verify.patch /bench/
+ 
+ WORKDIR /bench/$CLIENT_DIR
+-RUN patch -p1 < /bench/ssl_verify.patch && \
++RUN --mount=type=cache,target=/root/.conan2 \
++    patch -p1 < /bench/ssl_verify.patch && \
+     cd build && \
+     ninja trusttunnel_client && \
+-    mv ./trusttunnel/trusttunnel_client /bench/
++    cp ./trusttunnel/trusttunnel_client /bench/
+ 
+ COPY entrypoint.sh /bench/
+ 
+diff --git a/bench/local-side/wireguard/Dockerfile b/bench/local-side/wireguard/Dockerfile
+index 0591bb0..1754629 100644
+--- a/bench/local-side/wireguard/Dockerfile
++++ b/bench/local-side/wireguard/Dockerfile
+@@ -3,7 +3,7 @@ FROM bench-ls
+ 
+ ARG WG_QUICK_URL="https://raw.githubusercontent.com/WireGuard/wireguard-tools/71799a8f6d1450b63071a21cad6ed434b348d3d5/src/wg-quick/linux.bash"
+ 
+-RUN apt install -y iptables wireguard
++RUN apt update -y && apt install -y iptables wireguard
+ 
+ ADD entrypoint.sh \
+     wg-quick.patch \
+diff --git a/bench/middle-box/trusttunnel-rust/Dockerfile b/bench/middle-box/trusttunnel-rust/Dockerfile
+index 2c88829..0736e2c 100644
+--- a/bench/middle-box/trusttunnel-rust/Dockerfile
++++ b/bench/middle-box/trusttunnel-rust/Dockerfile
+@@ -1,22 +1,20 @@
+ # syntax=docker/dockerfile:1
+ FROM bench-common
+ 
+-ARG ENDPOINT_DIR="TrustTunnel"
+ ARG ENDPOINT_HOSTNAME="endpoint.bench"
+ ARG CONFIG_FILE="vpn.conf"
+ ARG TLS_HOSTS_SETTINGS_FILE="tls_hosts.conf"
+ ARG LOG_LEVEL="info"
+ 
+-COPY $ENDPOINT_DIR/lib/Cargo.toml /tmp/Cargo.toml
++WORKDIR /bench/endpoint
+ 
+-COPY $ENDPOINT_DIR /bench/$ENDPOINT_DIR
+-
+-WORKDIR /bench/
+-RUN cd "$ENDPOINT_DIR" && \
+-    cargo build --release --bin setup_wizard && \
+-    cargo build --release --bin trusttunnel_endpoint && \
+-    mv ./target/release/setup_wizard ./target/release/trusttunnel_endpoint /bench/
++COPY . .
++RUN --mount=type=cache,target=/root/.cargo/registry \
++    --mount=type=cache,target=/bench/endpoint/target \
++    cargo build --release --bin setup_wizard --bin trusttunnel_endpoint && \
++    cp ./target/release/setup_wizard ./target/release/trusttunnel_endpoint /bench/
+ 
++WORKDIR /bench
+ RUN ./setup_wizard --mode non-interactive  \
+     --address [::]:4433 \
+     --creds premium:premium  \
+diff --git a/bench/middle-box/wireguard/Dockerfile b/bench/middle-box/wireguard/Dockerfile
+index a8f1f60..198eb9a 100644
+--- a/bench/middle-box/wireguard/Dockerfile
++++ b/bench/middle-box/wireguard/Dockerfile
+@@ -1,7 +1,7 @@
+ # syntax=docker/dockerfile:1
+ FROM bench-common
+ 
+-RUN apt install -y iptables wireguard
++RUN apt update -y && apt install -y iptables wireguard
+ 
+ ADD entrypoint.sh \
+     /bench/
+diff --git a/bench/remote-side/Dockerfile b/bench/remote-side/Dockerfile
+index d3ed143..d31d990 100644
+--- a/bench/remote-side/Dockerfile
++++ b/bench/remote-side/Dockerfile
+@@ -18,7 +18,9 @@ RUN mkdir -p ssl && \
+       -out ssl/server.crt \
+       -subj "/C=US/ST=Test/L=Test/O=Test/CN=$HOSTNAME"
+ 
+-RUN echo "events {\n\
++RUN echo "worker_processes auto;\n\
++\n\
++events {\n\
+   worker_connections 4096;\n\
+   multi_accept on;\n\
+ }\n\
+diff --git a/bench/single_host.sh b/bench/single_host.sh
+index 4f84629..632d6a9 100755
+--- a/bench/single_host.sh
++++ b/bench/single_host.sh
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env bash
+ 
+-set -e -x
++set -e
+ set -o pipefail
+ 
+ HELP_MSG="
+@@ -9,7 +9,6 @@ Usage: single_host.sh COMMAND
+ Commands
+     Build and prepare images for running
+         build [--client=<trusttunnel_client_repo_url>]
+-              [--endpoint=<trusttunnel_endpoint_repo_url>]
+ 
+     Clean build artifacts
+         clean [all]
+@@ -35,6 +34,7 @@ NETWORK_NAME="bench-network"
+ ENDPOINT_HOSTNAME="endpoint.bench"
+ RESULTS_DIR="results"
+ REMOTE_HOSTNAME="server.bench"
++DEFAULT_CLIENT_URL="https://github.com/TrustTunnel/TrustTunnelClient.git"
+ 
+ build_remote() {
+   docker build \
+@@ -43,16 +43,11 @@ build_remote() {
+ }
+ 
+ build_middle_ag_rust() {
+-  local endpoint_url="$1"
+-
+-  if [ ! -d "$SELF_DIR_PATH/middle-box/trusttunnel-rust/$ENDPOINT_DIR" ]; then
+-    git clone "$endpoint_url" "$SELF_DIR_PATH/middle-box/trusttunnel-rust/$ENDPOINT_DIR"
+-  fi
+-
+   docker build \
+-    --build-arg ENDPOINT_DIR="$ENDPOINT_DIR" \
+     --build-arg ENDPOINT_HOSTNAME="$ENDPOINT_HOSTNAME" \
+-    -t "$MIDDLE_AG_RUST_IMAGE" "$SELF_DIR_PATH/middle-box/trusttunnel-rust"
++    -t "$MIDDLE_AG_RUST_IMAGE" \
++    -f "$SELF_DIR_PATH/middle-box/trusttunnel-rust/Dockerfile" \
++    "$SELF_DIR_PATH/.."
+ }
+ 
+ build_middle_wg() {
+@@ -61,33 +56,28 @@ build_middle_wg() {
+ }
+ 
+ build_local() {
+-  local trusttunnel_client_url="$1"
++  local trusttunnel_client_url="${1:-$DEFAULT_CLIENT_URL}"
+ 
+   docker build -t "$LOCAL_IMAGE" "$SELF_DIR_PATH/local-side"
+ 
+-  if [ -n "$trusttunnel_client_url" ]; then
+-    if [ ! -d "$SELF_DIR_PATH/local-side/trusttunnel/$CLIENT_DIR" ]; then
+-      git clone "$trusttunnel_client_url" "$SELF_DIR_PATH/local-side/trusttunnel/$CLIENT_DIR"
+-    fi
+-
+-    docker build \
+-      --build-arg CLIENT_DIR="$CLIENT_DIR" \
+-      -t "$LOCAL_AG_IMAGE" "$SELF_DIR_PATH/local-side/trusttunnel"
++  if [ ! -d "$SELF_DIR_PATH/local-side/trusttunnel/$CLIENT_DIR" ]; then
++    git clone "$trusttunnel_client_url" "$SELF_DIR_PATH/local-side/trusttunnel/$CLIENT_DIR"
+   fi
+ 
++  docker build \
++    --build-arg CLIENT_DIR="$CLIENT_DIR" \
++    -t "$LOCAL_AG_IMAGE" "$SELF_DIR_PATH/local-side/trusttunnel"
++
+   docker build \
+     -t "$LOCAL_WG_IMAGE" "$SELF_DIR_PATH/local-side/wireguard"
+ }
+ 
+ build() {
+   local trusttunnel_client_url
+-  local trusttunnel_endpoint_url
+ 
+   for arg in "$@"; do
+     if [[ "$arg" == --client=* ]]; then
+       trusttunnel_client_url=${arg#--client=}
+-    elif [[ "$arg" == --endpoint=* ]]; then
+-      trusttunnel_endpoint_url=${arg#--endpoint=}
+     else
+       echo "$HELP_MSG"
+       exit 1
+@@ -97,9 +87,7 @@ build() {
+   docker build -t "$COMMON_IMAGE" "$SELF_DIR_PATH"
+ 
+   build_local "$trusttunnel_client_url"
+-  if [ -n "$trusttunnel_endpoint_url" ]; then
+-    build_middle_ag_rust "$trusttunnel_endpoint_url"
+-  fi
++  build_middle_ag_rust
+   build_middle_wg
+   build_remote
+ }
+@@ -107,9 +95,9 @@ build() {
+ clean_local() {
+   local everything="$1"
+ 
+-  docker rm -f $(docker ps -aq -f ancestor="$LOCAL_AG_IMAGE")
+-  docker rm -f $(docker ps -aq -f ancestor="$LOCAL_WG_IMAGE")
+-  docker rm -f $(docker ps -aq -f ancestor="$LOCAL_IMAGE")
++  docker ps -aq -f ancestor="$LOCAL_AG_IMAGE" | xargs -r docker rm -f
++  docker ps -aq -f ancestor="$LOCAL_WG_IMAGE" | xargs -r docker rm -f
++  docker ps -aq -f ancestor="$LOCAL_IMAGE" | xargs -r docker rm -f
+ 
+   if [[ "$everything" == "all" ]]; then
+     rm -rf "${SELF_DIR_PATH:?}/local-side/trusttunnel/$CLIENT_DIR"
+@@ -122,10 +110,9 @@ clean_local() {
+ clean_middle_ag_rust() {
+   local everything="$1"
+ 
+-  docker rm -f $(docker ps -aq -f ancestor="$MIDDLE_AG_RUST_IMAGE")
++  docker ps -aq -f ancestor="$MIDDLE_AG_RUST_IMAGE" | xargs -r docker rm -f
+ 
+   if [[ "$everything" == "all" ]]; then
+-    rm -rf "${SELF_DIR_PATH:?}/middle-box/trusttunnel-rust/$ENDPOINT_DIR"
+     docker rmi -f "$MIDDLE_AG_RUST_IMAGE"
+   fi
+ }
+@@ -133,7 +120,7 @@ clean_middle_ag_rust() {
+ clean_middle_wg() {
+   local everything="$1"
+ 
+-  docker rm -f $(docker ps -aq -f ancestor="$MIDDLE_WG_IMAGE")
++  docker ps -aq -f ancestor="$MIDDLE_WG_IMAGE" | xargs -r docker rm -f
+   if [[ "$everything" == "all" ]]; then
+     docker rmi -f "$MIDDLE_WG_IMAGE"
+   fi
+@@ -151,7 +138,7 @@ clean() {
+   clean_middle_ag_rust "$everything"
+   clean_middle_wg "$everything"
+ 
+-  docker rm -f $(docker ps -aq -f ancestor="$REMOTE_IMAGE")
++  docker ps -aq -f ancestor="$REMOTE_IMAGE" | xargs -r docker rm -f
+ 
+   if [[ "$everything" == "all" ]]; then
+     docker rmi -f "$REMOTE_IMAGE"
+@@ -248,15 +235,12 @@ run() {
+ cmd="$1"
+ shift
+ if [[ "$cmd" == "build" ]]; then
+-  trap clean EXIT INT TERM
+   build "$@"
+-  trap - EXIT INT TERM
+ elif [[ "$cmd" == "clean" ]]; then
+   clean "$@"
+ elif [[ "$cmd" == "run" ]]; then
+   trap clean EXIT INT TERM
+   run "$@"
+-  trap - EXIT INT TERM
+ else
+   echo "$HELP_MSG"
+   exit 1
+
+commit ce56fcd5e2acacb517382f0ac19c5cd186261862
+Author: Bamboo <Bamboo>
+Date:   2026-04-28 14:46:55 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ Cargo.lock          | 2 +-
+ endpoint/Cargo.toml | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 082315a..0ebf582 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3580,7 +3580,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "trusttunnel_endpoint"
+-version = "1.0.37"
++version = "1.0.38"
+ dependencies = [
+  "clap",
+  "console-subscriber",
+diff --git a/endpoint/Cargo.toml b/endpoint/Cargo.toml
+index f72ad0c..08cc606 100644
+--- a/endpoint/Cargo.toml
++++ b/endpoint/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "trusttunnel_endpoint"
+-version = "1.0.37"
++version = "1.0.38"
+ authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
+ edition = "2021"
+ 
+
+commit f1e1be71b3d525a4ab554dddb0a8db3734f35e0b
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-29 15:24:20 +0000
+
+    Pull request 199: Specify permissions for comment job
+    
+    Squashed commit of the following:
+    
+    commit 2ee56cd08ecceed8ceac6acb8b55e99fe5ef8bfd
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 29 16:43:54 2026 +0400
+    
+        Fix permissions
+    
+    commit 0ef9ed1190fd9d42ed306b306195a601a5555f98
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 28 22:40:40 2026 +0400
+    
+        Specify permissions for comment job
+---
+ .github/workflows/bench.yml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+index 9369174..b1d774a 100644
+--- a/.github/workflows/bench.yml
++++ b/.github/workflows/bench.yml
+@@ -121,6 +121,8 @@ jobs:
+     name: Post PR comment
+     runs-on: ubuntu-latest
+     needs: bench
++    permissions:
++      pull-requests: write
+     if: needs.bench.outputs.pr_number != ''
+     steps:
+       - name: Download results
+
+commit d47cdc4b5fb198ce57e276797801cf7a5ed98438
+Author: Bamboo <Bamboo>
+Date:   2026-04-29 15:52:52 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ Cargo.lock          | 2 +-
+ endpoint/Cargo.toml | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 0ebf582..08cac18 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3580,7 +3580,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "trusttunnel_endpoint"
+-version = "1.0.38"
++version = "1.0.39"
+ dependencies = [
+  "clap",
+  "console-subscriber",
+diff --git a/endpoint/Cargo.toml b/endpoint/Cargo.toml
+index 08cc606..16b81fc 100644
+--- a/endpoint/Cargo.toml
++++ b/endpoint/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "trusttunnel_endpoint"
+-version = "1.0.38"
++version = "1.0.39"
+ authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
+ edition = "2021"
+ 
+
+commit 2fb385ace611babd90f1367706ebe572770f9fdb
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-30 08:14:12 +0000
+
+    Pull request 201: Remove concurrency from bench workflow
+    
+    Squashed commit of the following:
+    
+    commit 338cea90b588f771e7419fa358d6697585a98a0f
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Thu Apr 30 12:01:24 2026 +0400
+    
+        Remove concurrency from bench workflow
+---
+ .github/workflows/bench.yml | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+index b1d774a..5b18e07 100644
+--- a/.github/workflows/bench.yml
++++ b/.github/workflows/bench.yml
+@@ -28,10 +28,6 @@ on:
+   repository_dispatch:
+     types: [client-bench]
+ 
+-concurrency:
+-  group: bench
+-  cancel-in-progress: false
+-
+ jobs:
+   bench:
+     name: Run Benchmarks
+
+commit a5cc41b802dffcd9654f03e509fd784d9d50040f
+Author: Bamboo <Bamboo>
+Date:   2026-04-30 08:14:36 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ Cargo.lock          | 2 +-
+ endpoint/Cargo.toml | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 08cac18..b055136 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3580,7 +3580,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "trusttunnel_endpoint"
+-version = "1.0.39"
++version = "1.0.40"
+ dependencies = [
+  "clap",
+  "console-subscriber",
+diff --git a/endpoint/Cargo.toml b/endpoint/Cargo.toml
+index 16b81fc..9f8db2a 100644
+--- a/endpoint/Cargo.toml
++++ b/endpoint/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "trusttunnel_endpoint"
+-version = "1.0.39"
++version = "1.0.40"
+ authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
+ edition = "2021"
+ 
+
+commit 1553e91f340ea884b4fcc775d46193aa9704b8e9
+Author: Yuriy Selivanov <y.selivanov@adguard.com>
+Date:   2026-04-30 09:18:22 +0000
+
+    Pull request 200: Add ability to not respond with 407 to non-CONNECT requests
+    
+    Squashed commit of the following:
+    
+    commit 6de033f1a80ba735de583bb7d424338eb2150969
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Wed Apr 29 14:31:32 2026 +0300
+    
+        fix markdownlint
+    
+    commit ae9ca59c0011133f67e054434387ce6fe0afe4f8
+    Author: Yuriy Selivanov <y.selivanov@adguard.com>
+    Date:   Wed Apr 29 13:43:31 2026 +0300
+    
+        Add ability to not respond with 407 to non-CONNECT requests
+---
+ CHANGELOG.md               |  2 ++
+ CONFIGURATION.md           |  6 +++-
+ lib/src/http_downstream.rs | 30 +++++++++++++++--
+ lib/src/settings.rs        | 82 +++++++++++++++++++++++++++++++++++++++++++---
+ 4 files changed, 111 insertions(+), 9 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 62266c0..2c7b5f0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,7 @@
+ # CHANGELOG
+ 
++- [Feature] Add `non_connect_auth_failure_status_code` config key to control the HTTP status code returned on authentication failure for non-CONNECT requests. Extend allowed values for `auth_failure_status_code` and `non_connect_auth_failure_status_code` to 407, 405, 404, and 403.
++
+ ## 1.0.28
+ 
+ - [Feature] `trusttunnel_endpoint -c` can now generate `client_random_prefix` values automatically, append matching allow rules to `rules.toml`, and embed the generated value into exported client configs.
+diff --git a/CONFIGURATION.md b/CONFIGURATION.md
+index 2ad4e99..ba1cd1a 100644
+--- a/CONFIGURATION.md
++++ b/CONFIGURATION.md
+@@ -280,9 +280,13 @@ action = "deny"
+ | `ping_enable`                           | Boolean | `false`       | Enable ping handler on main hosts                                |
+ | `ping_path`                             | String  | -             | Optional path prefix for ping on main hosts                      |
+ | `speedtest_path`                        | String  | -             | Optional path prefix for speedtest on main hosts                 |
+-| `auth_failure_status_code`              | Integer | `407`         | HTTP status code returned on authentication failure (405 or 407) |
++| `auth_failure_status_code`              | Integer | `407`         | HTTP status code on auth failure for CONNECT requests            |
++| `non_connect_auth_failure_status_code`  | Integer | -             | HTTP status code on auth failure for non-CONNECT requests        |
+ 
+ Ping and speedtest are matched only via their configured paths. Default paths are: `/ping` and `/speedtest`.
++`auth_failure_status_code` and `non_connect_auth_failure_status_code` accept `407`, `405`, `404`, or `403`.
++If `non_connect_auth_failure_status_code` is not set, it falls back to `auth_failure_status_code`.
++Warning: using a value other than `407` for `auth_failure_status_code` breaks proxy authentication in Chrome.
+ 
+ ### Listen Protocol Settings
+ 
+diff --git a/lib/src/http_downstream.rs b/lib/src/http_downstream.rs
+index 006039c..6e09156 100644
+--- a/lib/src/http_downstream.rs
++++ b/lib/src/http_downstream.rs
+@@ -114,9 +114,17 @@ impl Downstream for HttpDownstream {
+             match channel {
+                 net_utils::Channel::Tunnel => {
+                     log_id!(trace, stream_id, "HTTP downstream: tunnel request");
+-                    let auth_failure_status_code =
+-                        StatusCode::from_u16(self.context.settings.auth_failure_status_code)
+-                            .unwrap_or(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
++                    let connect_code = self.context.settings.auth_failure_status_code;
++                    let effective_code = if request.method == http::Method::CONNECT {
++                        connect_code
++                    } else {
++                        self.context
++                            .settings
++                            .non_connect_auth_failure_status_code
++                            .unwrap_or(connect_code)
++                    };
++                    let auth_failure_status_code = StatusCode::from_u16(effective_code)
++                        .unwrap_or(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+                     return Ok(Some(Box::new(PendingRequest {
+                         stream,
+                         id: stream_id,
+@@ -538,4 +546,20 @@ mod tests {
+         let headers = tunnel_error_to_warn_header(&error, "example.com", status_code);
+         assert!(headers.is_empty());
+     }
++
++    #[test]
++    fn warn_header_empty_for_404() {
++        let status_code = StatusCode::NOT_FOUND;
++        let error = tunnel::ConnectionError::Authentication("bad creds".into());
++        let headers = tunnel_error_to_warn_header(&error, "example.com", status_code);
++        assert!(headers.is_empty());
++    }
++
++    #[test]
++    fn warn_header_empty_for_403() {
++        let status_code = StatusCode::FORBIDDEN;
++        let error = tunnel::ConnectionError::Authentication("bad creds".into());
++        let headers = tunnel_error_to_warn_header(&error, "example.com", status_code);
++        assert!(headers.is_empty());
++    }
+ }
+diff --git a/lib/src/settings.rs b/lib/src/settings.rs
+index 1430351..553164d 100644
+--- a/lib/src/settings.rs
++++ b/lib/src/settings.rs
+@@ -56,7 +56,7 @@ impl Debug for ValidationError {
+             ),
+             Self::InvalidAuthFailureStatusCode(code) => write!(
+                 f,
+-                "Invalid auth_failure_status_code: {}. Supported values: 407, 405",
++                "Invalid auth_failure_status_code: {}. Supported values: 407, 405, 404, 403",
+                 code
+             ),
+         }
+@@ -198,11 +198,21 @@ pub struct Settings {
+     #[serde(default = "Settings::default_speedtest_path")]
+     pub(crate) speedtest_path: Option<String>,
+ 
+-    /// HTTP status code returned on authentication failure.
+-    /// Supported values: 407 (Proxy Authentication Required) or 405 (Method Not Allowed).
++    /// HTTP status code returned on authentication failure for CONNECT requests.
++    /// Supported values: 407 (Proxy Authentication Required), 405 (Method Not Allowed),
++    /// 404 (Not Found), 403 (Forbidden).
++    /// Warning: using a value other than 407 breaks proxy authentication in Chrome,
++    /// as Chrome relies on 407 to trigger its proxy authentication logic.
+     #[serde(default = "Settings::default_auth_failure_status_code")]
+     pub(crate) auth_failure_status_code: u16,
+ 
++    /// HTTP status code returned on authentication failure for non-CONNECT requests.
++    /// Supported values: 407 (Proxy Authentication Required), 405 (Method Not Allowed),
++    /// 404 (Not Found), 403 (Forbidden).
++    /// If absent, falls back to `auth_failure_status_code`.
++    #[serde(default)]
++    pub(crate) non_connect_auth_failure_status_code: Option<u16>,
++
+     /// Default maximum number of simultaneous HTTP/1 and HTTP/2 connections per client credentials.
+     /// TrustTunnel clients open 8 HTTP/2 connections by default, so set this to
+     /// `8 * <max_devices>` to limit the number of simultaneously connected devices.
+@@ -540,12 +550,18 @@ impl Settings {
+             return Err(ValidationError::NoCredentialsOnPublicAddress);
+         }
+ 
+-        if self.auth_failure_status_code != 407 && self.auth_failure_status_code != 405 {
++        if !Self::is_valid_auth_failure_status_code(self.auth_failure_status_code) {
+             return Err(ValidationError::InvalidAuthFailureStatusCode(
+                 self.auth_failure_status_code,
+             ));
+         }
+ 
++        if let Some(code) = self.non_connect_auth_failure_status_code {
++            if !Self::is_valid_auth_failure_status_code(code) {
++                return Err(ValidationError::InvalidAuthFailureStatusCode(code));
++            }
++        }
++
+         Ok(())
+     }
+ 
+@@ -601,6 +617,10 @@ impl Settings {
+         407
+     }
+ 
++    fn is_valid_auth_failure_status_code(code: u16) -> bool {
++        matches!(code, 407 | 405 | 404 | 403)
++    }
++
+     fn validate_request_path(name: &str, path: &Option<String>) -> Result<(), ValidationError> {
+         if let Some(path) = path {
+             if path.is_empty() || !path.starts_with('/') {
+@@ -656,6 +676,7 @@ impl Default for Settings {
+             default_max_http2_conns_per_client: None,
+             default_max_http3_conns_per_client: None,
+             auth_failure_status_code: Settings::default_auth_failure_status_code(),
++            non_connect_auth_failure_status_code: None,
+             built: false,
+         }
+     }
+@@ -916,6 +937,7 @@ impl SettingsBuilder {
+                 default_max_http2_conns_per_client: None,
+                 default_max_http3_conns_per_client: None,
+                 auth_failure_status_code: Settings::default_auth_failure_status_code(),
++                non_connect_auth_failure_status_code: None,
+                 built: true,
+             },
+         }
+@@ -1049,12 +1071,18 @@ impl SettingsBuilder {
+         self
+     }
+ 
+-    /// Set the HTTP status code for authentication failures (407 or 405)
++    /// Set the HTTP status code for authentication failures on CONNECT requests (407, 405, 404, or 403)
+     pub fn auth_failure_status_code(mut self, x: u16) -> Self {
+         self.settings.auth_failure_status_code = x;
+         self
+     }
+ 
++    /// Set the HTTP status code for authentication failures on non-CONNECT requests (407, 405, 404, or 403)
++    pub fn non_connect_auth_failure_status_code(mut self, x: Option<u16>) -> Self {
++        self.settings.non_connect_auth_failure_status_code = x;
++        self
++    }
++
+     /// Set whether ping is available
+     pub fn ping_enable(mut self, x: bool) -> Self {
+         self.settings.ping_enable = x;
+@@ -1696,6 +1724,22 @@ mod tests {
+         assert!(settings.validate().is_ok());
+     }
+ 
++    #[test]
++    fn auth_failure_status_code_404_valid() {
++        let mut settings = Settings::default();
++        settings.auth_failure_status_code = 404;
++        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
++        assert!(settings.validate().is_ok());
++    }
++
++    #[test]
++    fn auth_failure_status_code_403_valid() {
++        let mut settings = Settings::default();
++        settings.auth_failure_status_code = 403;
++        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
++        assert!(settings.validate().is_ok());
++    }
++
+     #[test]
+     fn auth_failure_status_code_200_invalid() {
+         let mut settings = Settings::default();
+@@ -1707,4 +1751,32 @@ mod tests {
+             ValidationError::InvalidAuthFailureStatusCode(200)
+         ));
+     }
++
++    #[test]
++    fn non_connect_auth_failure_status_code_none_valid() {
++        let mut settings = Settings::default();
++        settings.non_connect_auth_failure_status_code = None;
++        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
++        assert!(settings.validate().is_ok());
++    }
++
++    #[test]
++    fn non_connect_auth_failure_status_code_404_valid() {
++        let mut settings = Settings::default();
++        settings.non_connect_auth_failure_status_code = Some(404);
++        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
++        assert!(settings.validate().is_ok());
++    }
++
++    #[test]
++    fn non_connect_auth_failure_status_code_200_invalid() {
++        let mut settings = Settings::default();
++        settings.non_connect_auth_failure_status_code = Some(200);
++        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
++        let err = settings.validate().unwrap_err();
++        assert!(matches!(
++            err,
++            ValidationError::InvalidAuthFailureStatusCode(200)
++        ));
++    }
+ }
+
+commit 1f3ffda57e2f943ccc100f6965c8ab2c4c51f659
+Author: Bamboo <Bamboo>
+Date:   2026-04-30 09:18:40 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ CHANGELOG.md        | 2 ++
+ Cargo.lock          | 2 +-
+ endpoint/Cargo.toml | 2 +-
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2c7b5f0..b1b2f0f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,7 @@
+ # CHANGELOG
+ 
++## 1.0.41
++
+ - [Feature] Add `non_connect_auth_failure_status_code` config key to control the HTTP status code returned on authentication failure for non-CONNECT requests. Extend allowed values for `auth_failure_status_code` and `non_connect_auth_failure_status_code` to 407, 405, 404, and 403.
+ 
+ ## 1.0.28
+diff --git a/Cargo.lock b/Cargo.lock
+index b055136..eca55b0 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3580,7 +3580,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "trusttunnel_endpoint"
+-version = "1.0.40"
++version = "1.0.41"
+ dependencies = [
+  "clap",
+  "console-subscriber",
+diff --git a/endpoint/Cargo.toml b/endpoint/Cargo.toml
+index 9f8db2a..8a504b9 100644
+--- a/endpoint/Cargo.toml
++++ b/endpoint/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "trusttunnel_endpoint"
+-version = "1.0.40"
++version = "1.0.41"
+ authors = ["Sergei Gunchenko <s.gunchenko@adguard.com>"]
+ edition = "2021"
+ 

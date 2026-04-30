@@ -106036,3 +106036,90 @@ index 2ba9b9cb..ea4995d9 100644
  )
  
  var (
+
+commit 1836b1c6e4f672e266f629532e3252ce2a07ff54
+Author: RPRX <63339210+RPRX@users.noreply.github.com>
+Date:   2026-04-28 20:57:20 +0000
+
+    Browser Dialer: Potential optimized IP and non-standard port
+    
+    Fixes https://github.com/2dust/v2rayNG/issues/5519#issuecomment-4335112057
+---
+ transport/internet/splithttp/dialer.go | 12 ++++++++++++
+ transport/internet/websocket/dialer.go | 25 +++++++++++++++++++------
+ 2 files changed, 31 insertions(+), 6 deletions(-)
+
+diff --git a/transport/internet/splithttp/dialer.go b/transport/internet/splithttp/dialer.go
+index 6f4ec1d8..19b5c3f3 100644
+--- a/transport/internet/splithttp/dialer.go
++++ b/transport/internet/splithttp/dialer.go
+@@ -373,6 +373,12 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
+ 	if requestURL.Host == "" {
+ 		requestURL.Host = dest.Address.String()
+ 	}
++	if browser_dialer.HasBrowserDialer() && realityConfig == nil {
++		// For Browser Dialer's optimized IP and non-standard port
++		if !(requestURL.Scheme == "http" && dest.Port == 80) && !(requestURL.Scheme == "https" && dest.Port == 443) {
++			requestURL.Host += ":" + dest.Port.String()
++		}
++	}
+ 
+ 	requestURL.Path = transportConfiguration.GetNormalizedPath()
+ 	requestURL.RawQuery = transportConfiguration.GetNormalizedQuery()
+@@ -434,6 +440,12 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
+ 		if requestURL2.Host == "" {
+ 			requestURL2.Host = dest2.Address.String()
+ 		}
++		if browser_dialer.HasBrowserDialer() && realityConfig2 == nil {
++			// For Browser Dialer's optimized IP and non-standard port
++			if !(requestURL2.Scheme == "http" && dest2.Port == 80) && !(requestURL2.Scheme == "https" && dest2.Port == 443) {
++				requestURL2.Host += ":" + dest2.Port.String()
++			}
++		}
+ 		requestURL2.Path = config2.GetNormalizedPath()
+ 		requestURL2.RawQuery = config2.GetNormalizedQuery()
+ 		httpClient2, xmuxClient2 = getHTTPClient(ctx, dest2, memory2)
+diff --git a/transport/internet/websocket/dialer.go b/transport/internet/websocket/dialer.go
+index e5354908..8e295da0 100644
+--- a/transport/internet/websocket/dialer.go
++++ b/transport/internet/websocket/dialer.go
+@@ -111,13 +111,20 @@ func dialWebSocket(ctx context.Context, dest net.Destination, streamSettings *in
+ 		}
+ 	}
+ 
+-	host := dest.NetAddr()
+-	if (protocol == "ws" && dest.Port == 80) || (protocol == "wss" && dest.Port == 443) {
+-		host = dest.Address.String()
+-	}
+-	uri := protocol + "://" + host + wsSettings.GetNormalizedPath()
+-
+ 	if browser_dialer.HasBrowserDialer() {
++		// For Browser Dialer's optimized IP and non-standard port
++		host := wsSettings.Host
++		if host == "" && tConfig.ServerName != "" {
++			host = tConfig.ServerName
++		}
++		if host == "" {
++			host = dest.Address.String()
++		}
++		if !(protocol == "ws" && dest.Port == 80) && !(protocol == "wss" && dest.Port == 443) {
++			host += ":" + dest.Port.String()
++		}
++		uri := protocol + "://" + host + wsSettings.GetNormalizedPath()
++
+ 		conn, err := browser_dialer.DialWS(uri, ed)
+ 		if err != nil {
+ 			return nil, err
+@@ -126,6 +133,12 @@ func dialWebSocket(ctx context.Context, dest net.Destination, streamSettings *in
+ 		return NewConnection(conn, conn.RemoteAddr(), nil, wsSettings.HeartbeatPeriod), nil
+ 	}
+ 
++	host := dest.Address.String()
++	if !(protocol == "ws" && dest.Port == 80) && !(protocol == "wss" && dest.Port == 443) {
++		host += ":" + dest.Port.String()
++	}
++	uri := protocol + "://" + host + wsSettings.GetNormalizedPath()
++
+ 	header := wsSettings.GetRequestHeader()
+ 	// See dialer.DialContext()
+ 	header.Set("Host", wsSettings.Host)

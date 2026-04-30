@@ -56,7 +56,7 @@ impl Debug for ValidationError {
             ),
             Self::InvalidAuthFailureStatusCode(code) => write!(
                 f,
-                "Invalid auth_failure_status_code: {}. Supported values: 407, 405",
+                "Invalid auth_failure_status_code: {}. Supported values: 407, 405, 404, 403",
                 code
             ),
         }
@@ -198,10 +198,20 @@ pub struct Settings {
     #[serde(default = "Settings::default_speedtest_path")]
     pub(crate) speedtest_path: Option<String>,
 
-    /// HTTP status code returned on authentication failure.
-    /// Supported values: 407 (Proxy Authentication Required) or 405 (Method Not Allowed).
+    /// HTTP status code returned on authentication failure for CONNECT requests.
+    /// Supported values: 407 (Proxy Authentication Required), 405 (Method Not Allowed),
+    /// 404 (Not Found), 403 (Forbidden).
+    /// Warning: using a value other than 407 breaks proxy authentication in Chrome,
+    /// as Chrome relies on 407 to trigger its proxy authentication logic.
     #[serde(default = "Settings::default_auth_failure_status_code")]
     pub(crate) auth_failure_status_code: u16,
+
+    /// HTTP status code returned on authentication failure for non-CONNECT requests.
+    /// Supported values: 407 (Proxy Authentication Required), 405 (Method Not Allowed),
+    /// 404 (Not Found), 403 (Forbidden).
+    /// If absent, falls back to `auth_failure_status_code`.
+    #[serde(default)]
+    pub(crate) non_connect_auth_failure_status_code: Option<u16>,
 
     /// Default maximum number of simultaneous HTTP/1 and HTTP/2 connections per client credentials.
     /// TrustTunnel clients open 8 HTTP/2 connections by default, so set this to
@@ -540,10 +550,16 @@ impl Settings {
             return Err(ValidationError::NoCredentialsOnPublicAddress);
         }
 
-        if self.auth_failure_status_code != 407 && self.auth_failure_status_code != 405 {
+        if !Self::is_valid_auth_failure_status_code(self.auth_failure_status_code) {
             return Err(ValidationError::InvalidAuthFailureStatusCode(
                 self.auth_failure_status_code,
             ));
+        }
+
+        if let Some(code) = self.non_connect_auth_failure_status_code {
+            if !Self::is_valid_auth_failure_status_code(code) {
+                return Err(ValidationError::InvalidAuthFailureStatusCode(code));
+            }
         }
 
         Ok(())
@@ -601,6 +617,10 @@ impl Settings {
         407
     }
 
+    fn is_valid_auth_failure_status_code(code: u16) -> bool {
+        matches!(code, 407 | 405 | 404 | 403)
+    }
+
     fn validate_request_path(name: &str, path: &Option<String>) -> Result<(), ValidationError> {
         if let Some(path) = path {
             if path.is_empty() || !path.starts_with('/') {
@@ -656,6 +676,7 @@ impl Default for Settings {
             default_max_http2_conns_per_client: None,
             default_max_http3_conns_per_client: None,
             auth_failure_status_code: Settings::default_auth_failure_status_code(),
+            non_connect_auth_failure_status_code: None,
             built: false,
         }
     }
@@ -916,6 +937,7 @@ impl SettingsBuilder {
                 default_max_http2_conns_per_client: None,
                 default_max_http3_conns_per_client: None,
                 auth_failure_status_code: Settings::default_auth_failure_status_code(),
+                non_connect_auth_failure_status_code: None,
                 built: true,
             },
         }
@@ -1049,9 +1071,15 @@ impl SettingsBuilder {
         self
     }
 
-    /// Set the HTTP status code for authentication failures (407 or 405)
+    /// Set the HTTP status code for authentication failures on CONNECT requests (407, 405, 404, or 403)
     pub fn auth_failure_status_code(mut self, x: u16) -> Self {
         self.settings.auth_failure_status_code = x;
+        self
+    }
+
+    /// Set the HTTP status code for authentication failures on non-CONNECT requests (407, 405, 404, or 403)
+    pub fn non_connect_auth_failure_status_code(mut self, x: Option<u16>) -> Self {
+        self.settings.non_connect_auth_failure_status_code = x;
         self
     }
 
@@ -1697,9 +1725,53 @@ mod tests {
     }
 
     #[test]
+    fn auth_failure_status_code_404_valid() {
+        let mut settings = Settings::default();
+        settings.auth_failure_status_code = 404;
+        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn auth_failure_status_code_403_valid() {
+        let mut settings = Settings::default();
+        settings.auth_failure_status_code = 403;
+        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
     fn auth_failure_status_code_200_invalid() {
         let mut settings = Settings::default();
         settings.auth_failure_status_code = 200;
+        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
+        let err = settings.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ValidationError::InvalidAuthFailureStatusCode(200)
+        ));
+    }
+
+    #[test]
+    fn non_connect_auth_failure_status_code_none_valid() {
+        let mut settings = Settings::default();
+        settings.non_connect_auth_failure_status_code = None;
+        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn non_connect_auth_failure_status_code_404_valid() {
+        let mut settings = Settings::default();
+        settings.non_connect_auth_failure_status_code = Some(404);
+        settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn non_connect_auth_failure_status_code_200_invalid() {
+        let mut settings = Settings::default();
+        settings.non_connect_auth_failure_status_code = Some(200);
         settings.listen_address = (Ipv4Addr::LOCALHOST, 8443).into();
         let err = settings.validate().unwrap_err();
         assert!(matches!(

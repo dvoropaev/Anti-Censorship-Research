@@ -114,9 +114,17 @@ impl Downstream for HttpDownstream {
             match channel {
                 net_utils::Channel::Tunnel => {
                     log_id!(trace, stream_id, "HTTP downstream: tunnel request");
-                    let auth_failure_status_code =
-                        StatusCode::from_u16(self.context.settings.auth_failure_status_code)
-                            .unwrap_or(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+                    let connect_code = self.context.settings.auth_failure_status_code;
+                    let effective_code = if request.method == http::Method::CONNECT {
+                        connect_code
+                    } else {
+                        self.context
+                            .settings
+                            .non_connect_auth_failure_status_code
+                            .unwrap_or(connect_code)
+                    };
+                    let auth_failure_status_code = StatusCode::from_u16(effective_code)
+                        .unwrap_or(StatusCode::PROXY_AUTHENTICATION_REQUIRED);
                     return Ok(Some(Box::new(PendingRequest {
                         stream,
                         id: stream_id,
@@ -534,6 +542,22 @@ mod tests {
     #[test]
     fn warn_header_empty_for_405() {
         let status_code = StatusCode::METHOD_NOT_ALLOWED;
+        let error = tunnel::ConnectionError::Authentication("bad creds".into());
+        let headers = tunnel_error_to_warn_header(&error, "example.com", status_code);
+        assert!(headers.is_empty());
+    }
+
+    #[test]
+    fn warn_header_empty_for_404() {
+        let status_code = StatusCode::NOT_FOUND;
+        let error = tunnel::ConnectionError::Authentication("bad creds".into());
+        let headers = tunnel_error_to_warn_header(&error, "example.com", status_code);
+        assert!(headers.is_empty());
+    }
+
+    #[test]
+    fn warn_header_empty_for_403() {
+        let status_code = StatusCode::FORBIDDEN;
         let error = tunnel::ConnectionError::Authentication("bad creds".into());
         let headers = tunnel_error_to_warn_header(&error, "example.com", status_code);
         assert!(headers.is_empty());

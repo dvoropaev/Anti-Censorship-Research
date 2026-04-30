@@ -27831,3 +27831,1614 @@ index f58859e..b36ab9f 100644
                          VALUE "OriginalFilename", "trusttunnel_client.exe"
                          VALUE "InternalName", "trusttunnel_client"
                  END
+
+commit 34126d5cbd84a6bd062b4394ac52b3f8f647ca6b
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-28 14:46:51 +0000
+
+    Pull request 673: Add workflow to run bench tests
+    
+    Squashed commit of the following:
+    
+    commit 25dd2f262698da9b914758ccff6e032fa76ef55f
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Thu Apr 16 17:52:26 2026 +0400
+    
+        Add workflow to run bench tests
+---
+ .github/workflows/bench.yml | 117 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 117 insertions(+)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+new file mode 100644
+index 0000000..0a84b6a
+--- /dev/null
++++ b/.github/workflows/bench.yml
+@@ -0,0 +1,117 @@
++# Workflow for the TrustTunnelClient repo.
++# Triggers endpoint benchmarks on /bench PR comments or manual dispatch.
++#
++# Prerequisites:
++#   - A repository secret ENDPOINT_BENCH_TOKEN containing a PAT or
++#     GitHub App token with 'repo' scope on the endpoint repo
++#     (TrustTunnel/TrustTunnel).
++name: Trigger Endpoint Benchmarks
++
++on:
++  issue_comment:
++    types: [created]
++
++  workflow_dispatch:
++    inputs:
++      endpoint_repo:
++        description: "Endpoint repo (owner/name)"
++        required: false
++        default: "TrustTunnel/TrustTunnel"
++      endpoint_ref:
++        description: "Endpoint branch/ref"
++        required: false
++        default: "master"
++      tunnel_type:
++        description: "Tunnel type to benchmark"
++        required: false
++        default: "ag"
++        type: choice
++        options:
++          - ag
++          - all
++          - wg
++          - no-vpn
++
++jobs:
++  dispatch:
++    name: Dispatch Bench to Endpoint Repo
++    runs-on: ubuntu-latest
++    if: >
++      github.event_name == 'workflow_dispatch' ||
++      (
++        github.event.issue.pull_request &&
++        contains(github.event.comment.body, '/bench') &&
++        (github.event.comment.author_association == 'MEMBER' ||
++         github.event.comment.author_association == 'OWNER' ||
++         github.event.comment.author_association == 'COLLABORATOR')
++      )
++    steps:
++      - name: React to comment
++        if: github.event_name == 'issue_comment'
++        uses: actions/github-script@v7
++        with:
++          script: |
++            await github.rest.reactions.createForIssueComment({
++              owner: context.repo.owner,
++              repo: context.repo.repo,
++              comment_id: context.payload.comment.id,
++              content: 'rocket'
++            });
++
++      - name: Resolve inputs
++        id: inputs
++        uses: actions/github-script@v7
++        with:
++          script: |
++            let clientRef, clientUrl, clientRepo, prNumber, endpointRepo, endpointRef, tunnelType;
++
++            if (context.eventName === 'workflow_dispatch') {
++              clientRef = context.ref.replace('refs/heads/', '');
++              clientUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}.git`;
++              clientRepo = `${context.repo.owner}/${context.repo.repo}`;
++              prNumber = '';
++              endpointRepo = '${{ github.event.inputs.endpoint_repo }}' || 'TrustTunnel/TrustTunnel';
++              endpointRef = '${{ github.event.inputs.endpoint_ref }}' || 'master';
++              tunnelType = '${{ github.event.inputs.tunnel_type }}' || 'ag';
++            } else {
++              const pr = await github.rest.pulls.get({
++                owner: context.repo.owner,
++                repo: context.repo.repo,
++                pull_number: context.issue.number
++              });
++              clientRef = pr.data.head.ref;
++              clientUrl = pr.data.head.repo.clone_url;
++              clientRepo = pr.data.head.repo.full_name;
++              prNumber = String(context.issue.number);
++              endpointRepo = 'TrustTunnel/TrustTunnel';
++              endpointRef = 'master';
++              tunnelType = 'ag';
++            }
++
++            core.setOutput('client_ref', clientRef);
++            core.setOutput('client_repo', clientRepo);
++            core.setOutput('client_url', clientUrl);
++            core.setOutput('pr_number', prNumber);
++            core.setOutput('endpoint_repo', endpointRepo);
++            core.setOutput('endpoint_ref', endpointRef);
++            core.setOutput('tunnel_type', tunnelType);
++
++      - name: Dispatch to endpoint repo
++        uses: actions/github-script@v7
++        with:
++          github-token: ${{ secrets.ENDPOINT_BENCH_TOKEN }}
++          script: |
++            const [owner, repo] = '${{ steps.inputs.outputs.endpoint_repo }}'.split('/');
++            await github.rest.repos.createDispatchEvent({
++              owner,
++              repo,
++              event_type: 'client-bench',
++              client_payload: {
++                client_repo: '${{ steps.inputs.outputs.client_repo }}',
++                client_ref: '${{ steps.inputs.outputs.client_ref }}',
++                pr_number: '${{ steps.inputs.outputs.pr_number }}',
++                pr_repo: `${context.repo.owner}/${context.repo.repo}`,
++                endpoint_repo: '${{ steps.inputs.outputs.endpoint_repo }}',
++                endpoint_ref: '${{ steps.inputs.outputs.endpoint_ref }}'
++              }
++            });
+
+commit 1728952a0a45bab2d6206f40199590096824ca22
+Author: Bamboo <Bamboo>
+Date:   2026-04-28 14:49:13 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 9 files changed, 31 insertions(+), 29 deletions(-)
+
+diff --git a/conandata.yml b/conandata.yml
+index 2b11b39..76b1922 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1393,3 +1393,5 @@ commit_hash:
+     hash: "8c37a1dfcb3f1b9d7672c9edd9024959fe40a853"
+   "1.0.56":
+     hash: "999938e92c7212daa566fd21679965fda19accf0"
++  "1.0.57":
++    hash: "34126d5cbd84a6bd062b4394ac52b3f8f647ca6b"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index 5b35f15..e46d272 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.56"
++version = "1.0.57"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index 2f9979c..9c4a0f5 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.56"
++  s.version      = "1.0.57"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 8e83137..3d19fad 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.56;
++				CURRENT_PROJECT_VERSION = 1.0.57;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.56;
++				DYLIB_CURRENT_VERSION = 1.0.57;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.56;
++				MARKETING_VERSION = 1.0.57;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.56;
++				CURRENT_PROJECT_VERSION = 1.0.57;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.56;
++				DYLIB_CURRENT_VERSION = 1.0.57;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.56;
++				MARKETING_VERSION = 1.0.57;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.56;
++				CURRENT_PROJECT_VERSION = 1.0.57;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.56;
++				MARKETING_VERSION = 1.0.57;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.56;
++				CURRENT_PROJECT_VERSION = 1.0.57;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.56;
++				MARKETING_VERSION = 1.0.57;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.56;
++				CURRENT_PROJECT_VERSION = 1.0.57;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.56;
++				DYLIB_CURRENT_VERSION = 1.0.57;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.56;
++				MARKETING_VERSION = 1.0.57;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.56;
++				CURRENT_PROJECT_VERSION = 1.0.57;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.56;
++				DYLIB_CURRENT_VERSION = 1.0.57;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.56;
++				MARKETING_VERSION = 1.0.57;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index 9fcafa2..5061143 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.56
++    VERSION 1.0.57
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 46e0487..d8be312 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.56"
++#define TRUSTTUNNEL_VERSION "1.0.57"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index a9bcd49..4412540 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,56,0
+-    PRODUCTVERSION 1,0,56,0
++    FILEVERSION 1,0,57,0
++    PRODUCTVERSION 1,0,57,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.56"
+-                        VALUE "ProductVersion", "1.0.56"
++                        VALUE "FileVersion", "1.0.57"
++                        VALUE "ProductVersion", "1.0.57"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index d99b0ed..a083d20 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.56";
++pub const VERSION: &str = "1.0.57";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index b36ab9f..72323d7 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,56,0
+-    PRODUCTVERSION 1,0,56,0
++    FILEVERSION 1,0,57,0
++    PRODUCTVERSION 1,0,57,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.56"
+-                        VALUE "ProductVersion", "1.0.56"
++                        VALUE "FileVersion", "1.0.57"
++                        VALUE "ProductVersion", "1.0.57"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
+
+commit a11643a003c4357ec0bb7cef30784ac3ae9c5075
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-28 19:10:25 +0000
+
+    Pull request 683: Fix permissions and clean up unused inputs
+    
+    Squashed commit of the following:
+    
+    commit e506637e7ca27c32e8d95952e1b2f3bfbc8b019a
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 28 22:34:01 2026 +0400
+    
+        Remove unused inputs
+    
+    commit 4b50d6fe9c1afbe83a5006551171d93d411d4833
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 28 22:33:40 2026 +0400
+    
+        Specify permissions for bench dispatch jobs
+---
+ .github/workflows/bench.yml | 21 ++++-----------------
+ 1 file changed, 4 insertions(+), 17 deletions(-)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+index 0a84b6a..0e260a2 100644
+--- a/.github/workflows/bench.yml
++++ b/.github/workflows/bench.yml
+@@ -21,21 +21,14 @@ on:
+         description: "Endpoint branch/ref"
+         required: false
+         default: "master"
+-      tunnel_type:
+-        description: "Tunnel type to benchmark"
+-        required: false
+-        default: "ag"
+-        type: choice
+-        options:
+-          - ag
+-          - all
+-          - wg
+-          - no-vpn
+ 
+ jobs:
+   dispatch:
+     name: Dispatch Bench to Endpoint Repo
+     runs-on: ubuntu-latest
++    permissions:
++      issues: write
++      pull-requests: read
+     if: >
+       github.event_name == 'workflow_dispatch' ||
+       (
+@@ -63,16 +56,14 @@ jobs:
+         uses: actions/github-script@v7
+         with:
+           script: |
+-            let clientRef, clientUrl, clientRepo, prNumber, endpointRepo, endpointRef, tunnelType;
++            let clientRef, clientRepo, prNumber, endpointRepo, endpointRef;
+ 
+             if (context.eventName === 'workflow_dispatch') {
+               clientRef = context.ref.replace('refs/heads/', '');
+-              clientUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}.git`;
+               clientRepo = `${context.repo.owner}/${context.repo.repo}`;
+               prNumber = '';
+               endpointRepo = '${{ github.event.inputs.endpoint_repo }}' || 'TrustTunnel/TrustTunnel';
+               endpointRef = '${{ github.event.inputs.endpoint_ref }}' || 'master';
+-              tunnelType = '${{ github.event.inputs.tunnel_type }}' || 'ag';
+             } else {
+               const pr = await github.rest.pulls.get({
+                 owner: context.repo.owner,
+@@ -80,21 +71,17 @@ jobs:
+                 pull_number: context.issue.number
+               });
+               clientRef = pr.data.head.ref;
+-              clientUrl = pr.data.head.repo.clone_url;
+               clientRepo = pr.data.head.repo.full_name;
+               prNumber = String(context.issue.number);
+               endpointRepo = 'TrustTunnel/TrustTunnel';
+               endpointRef = 'master';
+-              tunnelType = 'ag';
+             }
+ 
+             core.setOutput('client_ref', clientRef);
+             core.setOutput('client_repo', clientRepo);
+-            core.setOutput('client_url', clientUrl);
+             core.setOutput('pr_number', prNumber);
+             core.setOutput('endpoint_repo', endpointRepo);
+             core.setOutput('endpoint_ref', endpointRef);
+-            core.setOutput('tunnel_type', tunnelType);
+ 
+       - name: Dispatch to endpoint repo
+         uses: actions/github-script@v7
+
+commit 9c732fe2984e607c0e2215aa0ea890f8a4d304f7
+Author: Bamboo <Bamboo>
+Date:   2026-04-28 19:10:32 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 9 files changed, 31 insertions(+), 29 deletions(-)
+
+diff --git a/conandata.yml b/conandata.yml
+index 76b1922..0492e00 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1395,3 +1395,5 @@ commit_hash:
+     hash: "999938e92c7212daa566fd21679965fda19accf0"
+   "1.0.57":
+     hash: "34126d5cbd84a6bd062b4394ac52b3f8f647ca6b"
++  "1.0.58":
++    hash: "a11643a003c4357ec0bb7cef30784ac3ae9c5075"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index e46d272..b457e9b 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.57"
++version = "1.0.58"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index 9c4a0f5..de26dbb 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.57"
++  s.version      = "1.0.58"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 3d19fad..64e8d68 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.57;
++				CURRENT_PROJECT_VERSION = 1.0.58;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.57;
++				DYLIB_CURRENT_VERSION = 1.0.58;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.57;
++				MARKETING_VERSION = 1.0.58;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.57;
++				CURRENT_PROJECT_VERSION = 1.0.58;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.57;
++				DYLIB_CURRENT_VERSION = 1.0.58;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.57;
++				MARKETING_VERSION = 1.0.58;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.57;
++				CURRENT_PROJECT_VERSION = 1.0.58;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.57;
++				MARKETING_VERSION = 1.0.58;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.57;
++				CURRENT_PROJECT_VERSION = 1.0.58;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.57;
++				MARKETING_VERSION = 1.0.58;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.57;
++				CURRENT_PROJECT_VERSION = 1.0.58;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.57;
++				DYLIB_CURRENT_VERSION = 1.0.58;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.57;
++				MARKETING_VERSION = 1.0.58;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.57;
++				CURRENT_PROJECT_VERSION = 1.0.58;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.57;
++				DYLIB_CURRENT_VERSION = 1.0.58;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.57;
++				MARKETING_VERSION = 1.0.58;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index 5061143..7c22114 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.57
++    VERSION 1.0.58
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index d8be312..81a3efa 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.57"
++#define TRUSTTUNNEL_VERSION "1.0.58"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index 4412540..a11e40b 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,57,0
+-    PRODUCTVERSION 1,0,57,0
++    FILEVERSION 1,0,58,0
++    PRODUCTVERSION 1,0,58,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.57"
+-                        VALUE "ProductVersion", "1.0.57"
++                        VALUE "FileVersion", "1.0.58"
++                        VALUE "ProductVersion", "1.0.58"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index a083d20..3aa1ad6 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.57";
++pub const VERSION: &str = "1.0.58";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index 72323d7..7fda16d 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,57,0
+-    PRODUCTVERSION 1,0,57,0
++    FILEVERSION 1,0,58,0
++    PRODUCTVERSION 1,0,58,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.57"
+-                        VALUE "ProductVersion", "1.0.57"
++                        VALUE "FileVersion", "1.0.58"
++                        VALUE "ProductVersion", "1.0.58"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
+
+commit 1251a441b19ce60b42c2b8f7d7b9c33d9843bc5b
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-29 09:00:08 +0000
+
+    Pull request 684: Use specific github token instead of permissions for comment reaction
+    
+    Squashed commit of the following:
+    
+    commit 65c85960a3a792f884275a76a3f029e5695545c2
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 29 12:43:46 2026 +0400
+    
+        Use specific github token instead of permissions for comment reaction
+---
+ .github/workflows/bench.yml | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+index 0e260a2..7afa637 100644
+--- a/.github/workflows/bench.yml
++++ b/.github/workflows/bench.yml
+@@ -26,9 +26,7 @@ jobs:
+   dispatch:
+     name: Dispatch Bench to Endpoint Repo
+     runs-on: ubuntu-latest
+-    permissions:
+-      issues: write
+-      pull-requests: read
++    github-token: ${{ secrets.CLIENT_ISSUES_TOKEN }}
+     if: >
+       github.event_name == 'workflow_dispatch' ||
+       (
+
+commit 8fca3dc22e281a938a7cf044dff7fa61cdeba075
+Author: Bamboo <Bamboo>
+Date:   2026-04-29 09:00:26 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 9 files changed, 31 insertions(+), 29 deletions(-)
+
+diff --git a/conandata.yml b/conandata.yml
+index 0492e00..9bbd4f0 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1397,3 +1397,5 @@ commit_hash:
+     hash: "34126d5cbd84a6bd062b4394ac52b3f8f647ca6b"
+   "1.0.58":
+     hash: "a11643a003c4357ec0bb7cef30784ac3ae9c5075"
++  "1.0.59":
++    hash: "1251a441b19ce60b42c2b8f7d7b9c33d9843bc5b"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index b457e9b..fede73e 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.58"
++version = "1.0.59"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index de26dbb..c6691a1 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.58"
++  s.version      = "1.0.59"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 64e8d68..1ddac32 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.58;
++				CURRENT_PROJECT_VERSION = 1.0.59;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.58;
++				DYLIB_CURRENT_VERSION = 1.0.59;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.58;
++				MARKETING_VERSION = 1.0.59;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.58;
++				CURRENT_PROJECT_VERSION = 1.0.59;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.58;
++				DYLIB_CURRENT_VERSION = 1.0.59;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.58;
++				MARKETING_VERSION = 1.0.59;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.58;
++				CURRENT_PROJECT_VERSION = 1.0.59;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.58;
++				MARKETING_VERSION = 1.0.59;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.58;
++				CURRENT_PROJECT_VERSION = 1.0.59;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.58;
++				MARKETING_VERSION = 1.0.59;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.58;
++				CURRENT_PROJECT_VERSION = 1.0.59;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.58;
++				DYLIB_CURRENT_VERSION = 1.0.59;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.58;
++				MARKETING_VERSION = 1.0.59;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.58;
++				CURRENT_PROJECT_VERSION = 1.0.59;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.58;
++				DYLIB_CURRENT_VERSION = 1.0.59;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.58;
++				MARKETING_VERSION = 1.0.59;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index 7c22114..3675aac 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.58
++    VERSION 1.0.59
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 81a3efa..43ed03a 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.58"
++#define TRUSTTUNNEL_VERSION "1.0.59"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index a11e40b..b0e61e4 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,58,0
+-    PRODUCTVERSION 1,0,58,0
++    FILEVERSION 1,0,59,0
++    PRODUCTVERSION 1,0,59,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.58"
+-                        VALUE "ProductVersion", "1.0.58"
++                        VALUE "FileVersion", "1.0.59"
++                        VALUE "ProductVersion", "1.0.59"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index 3aa1ad6..4a47c44 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.58";
++pub const VERSION: &str = "1.0.59";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index 7fda16d..d836ca9 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,58,0
+-    PRODUCTVERSION 1,0,58,0
++    FILEVERSION 1,0,59,0
++    PRODUCTVERSION 1,0,59,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.58"
+-                        VALUE "ProductVersion", "1.0.58"
++                        VALUE "FileVersion", "1.0.59"
++                        VALUE "ProductVersion", "1.0.59"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
+
+commit 889a479345e2ce59af2427ee9ae148359aa331e1
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-29 09:38:03 +0000
+
+    Pull request 685: Fix token placement
+    
+    Squashed commit of the following:
+    
+    commit 916acb2bd917501fbfebe10ad0ff58179366cd30
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 29 13:08:04 2026 +0400
+    
+        Fix token placement
+---
+ .github/workflows/bench.yml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+index 7afa637..74b93ae 100644
+--- a/.github/workflows/bench.yml
++++ b/.github/workflows/bench.yml
+@@ -26,7 +26,6 @@ jobs:
+   dispatch:
+     name: Dispatch Bench to Endpoint Repo
+     runs-on: ubuntu-latest
+-    github-token: ${{ secrets.CLIENT_ISSUES_TOKEN }}
+     if: >
+       github.event_name == 'workflow_dispatch' ||
+       (
+@@ -41,6 +40,7 @@ jobs:
+         if: github.event_name == 'issue_comment'
+         uses: actions/github-script@v7
+         with:
++          github-token: ${{ secrets.CLIENT_ISSUES_TOKEN }}
+           script: |
+             await github.rest.reactions.createForIssueComment({
+               owner: context.repo.owner,
+
+commit 28d4464196ae0b90f5c6d3dcb8099f9a3db591b9
+Author: Bamboo <Bamboo>
+Date:   2026-04-29 09:38:12 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 9 files changed, 31 insertions(+), 29 deletions(-)
+
+diff --git a/conandata.yml b/conandata.yml
+index 9bbd4f0..b224914 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1399,3 +1399,5 @@ commit_hash:
+     hash: "a11643a003c4357ec0bb7cef30784ac3ae9c5075"
+   "1.0.59":
+     hash: "1251a441b19ce60b42c2b8f7d7b9c33d9843bc5b"
++  "1.0.60":
++    hash: "889a479345e2ce59af2427ee9ae148359aa331e1"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index fede73e..15737e2 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.59"
++version = "1.0.60"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index c6691a1..0c9a575 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.59"
++  s.version      = "1.0.60"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 1ddac32..9c95e05 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.59;
++				CURRENT_PROJECT_VERSION = 1.0.60;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.59;
++				DYLIB_CURRENT_VERSION = 1.0.60;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.59;
++				MARKETING_VERSION = 1.0.60;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.59;
++				CURRENT_PROJECT_VERSION = 1.0.60;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.59;
++				DYLIB_CURRENT_VERSION = 1.0.60;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.59;
++				MARKETING_VERSION = 1.0.60;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.59;
++				CURRENT_PROJECT_VERSION = 1.0.60;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.59;
++				MARKETING_VERSION = 1.0.60;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.59;
++				CURRENT_PROJECT_VERSION = 1.0.60;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.59;
++				MARKETING_VERSION = 1.0.60;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.59;
++				CURRENT_PROJECT_VERSION = 1.0.60;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.59;
++				DYLIB_CURRENT_VERSION = 1.0.60;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.59;
++				MARKETING_VERSION = 1.0.60;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.59;
++				CURRENT_PROJECT_VERSION = 1.0.60;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.59;
++				DYLIB_CURRENT_VERSION = 1.0.60;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.59;
++				MARKETING_VERSION = 1.0.60;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index 3675aac..f5affc5 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.59
++    VERSION 1.0.60
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 43ed03a..22dd899 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.59"
++#define TRUSTTUNNEL_VERSION "1.0.60"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index b0e61e4..961abe3 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,59,0
+-    PRODUCTVERSION 1,0,59,0
++    FILEVERSION 1,0,60,0
++    PRODUCTVERSION 1,0,60,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.59"
+-                        VALUE "ProductVersion", "1.0.59"
++                        VALUE "FileVersion", "1.0.60"
++                        VALUE "ProductVersion", "1.0.60"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index 4a47c44..8b0bf7e 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.59";
++pub const VERSION: &str = "1.0.60";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index d836ca9..b0fcf93 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,59,0
+-    PRODUCTVERSION 1,0,59,0
++    FILEVERSION 1,0,60,0
++    PRODUCTVERSION 1,0,60,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.59"
+-                        VALUE "ProductVersion", "1.0.59"
++                        VALUE "FileVersion", "1.0.60"
++                        VALUE "ProductVersion", "1.0.60"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
+
+commit e797de2a3c2839891aae2722a4af319197d82310
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-29 15:29:00 +0400
+
+    Return permissions for with correct rights
+---
+ .github/workflows/bench.yml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/.github/workflows/bench.yml b/.github/workflows/bench.yml
+index 74b93ae..dc2df12 100644
+--- a/.github/workflows/bench.yml
++++ b/.github/workflows/bench.yml
+@@ -26,6 +26,8 @@ jobs:
+   dispatch:
+     name: Dispatch Bench to Endpoint Repo
+     runs-on: ubuntu-latest
++    permissions:
++      pull-requests: write
+     if: >
+       github.event_name == 'workflow_dispatch' ||
+       (
+@@ -40,7 +42,6 @@ jobs:
+         if: github.event_name == 'issue_comment'
+         uses: actions/github-script@v7
+         with:
+-          github-token: ${{ secrets.CLIENT_ISSUES_TOKEN }}
+           script: |
+             await github.rest.reactions.createForIssueComment({
+               owner: context.repo.owner,
+
+commit b273912ecb449da1e037a590ffb191d550f8aa9b
+Author: Bamboo <Bamboo>
+Date:   2026-04-29 12:05:09 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 9 files changed, 31 insertions(+), 29 deletions(-)
+
+diff --git a/conandata.yml b/conandata.yml
+index b224914..172e3f3 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1401,3 +1401,5 @@ commit_hash:
+     hash: "1251a441b19ce60b42c2b8f7d7b9c33d9843bc5b"
+   "1.0.60":
+     hash: "889a479345e2ce59af2427ee9ae148359aa331e1"
++  "1.0.61":
++    hash: "e797de2a3c2839891aae2722a4af319197d82310"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index 15737e2..2f262c6 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.60"
++version = "1.0.61"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index 0c9a575..ea0cdc1 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.60"
++  s.version      = "1.0.61"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 9c95e05..4429847 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.60;
++				CURRENT_PROJECT_VERSION = 1.0.61;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.60;
++				DYLIB_CURRENT_VERSION = 1.0.61;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.60;
++				MARKETING_VERSION = 1.0.61;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.60;
++				CURRENT_PROJECT_VERSION = 1.0.61;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.60;
++				DYLIB_CURRENT_VERSION = 1.0.61;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.60;
++				MARKETING_VERSION = 1.0.61;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.60;
++				CURRENT_PROJECT_VERSION = 1.0.61;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.60;
++				MARKETING_VERSION = 1.0.61;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.60;
++				CURRENT_PROJECT_VERSION = 1.0.61;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.60;
++				MARKETING_VERSION = 1.0.61;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.60;
++				CURRENT_PROJECT_VERSION = 1.0.61;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.60;
++				DYLIB_CURRENT_VERSION = 1.0.61;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.60;
++				MARKETING_VERSION = 1.0.61;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.60;
++				CURRENT_PROJECT_VERSION = 1.0.61;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.60;
++				DYLIB_CURRENT_VERSION = 1.0.61;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.60;
++				MARKETING_VERSION = 1.0.61;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index f5affc5..a2938c5 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.60
++    VERSION 1.0.61
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 22dd899..9eac164 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.60"
++#define TRUSTTUNNEL_VERSION "1.0.61"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index 961abe3..d1c8929 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,60,0
+-    PRODUCTVERSION 1,0,60,0
++    FILEVERSION 1,0,61,0
++    PRODUCTVERSION 1,0,61,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.60"
+-                        VALUE "ProductVersion", "1.0.60"
++                        VALUE "FileVersion", "1.0.61"
++                        VALUE "ProductVersion", "1.0.61"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index 8b0bf7e..95f0cfb 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.60";
++pub const VERSION: &str = "1.0.61";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index b0fcf93..e15c8da 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,60,0
+-    PRODUCTVERSION 1,0,60,0
++    FILEVERSION 1,0,61,0
++    PRODUCTVERSION 1,0,61,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.60"
+-                        VALUE "ProductVersion", "1.0.60"
++                        VALUE "FileVersion", "1.0.61"
++                        VALUE "ProductVersion", "1.0.61"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END

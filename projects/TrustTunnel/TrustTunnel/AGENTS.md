@@ -47,7 +47,7 @@ vpn-libs-endpoint/
 │   ├── install.sh             # Release installation script
 │   └── trusttunnel.service.template  # systemd service template
 ├── bamboo-specs/              # Bamboo CI pipeline definitions
-├── .github/workflows/         # GitHub Actions (test, md-lint, security-audit)
+├── .github/workflows/         # GitHub Actions (test, md-lint, security-audit, bench)
 ├── Dockerfile                 # Multi-stage Docker build
 ├── docker-entrypoint.sh       # Container entrypoint script
 ├── Makefile                   # Development task runner
