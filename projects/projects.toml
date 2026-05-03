@@ -78,3 +78,11 @@ branch = "master"
 start_commit = "76764ad6b0ee7d3991c97e7b8c24d53189d25c28"
 recurse_submodules = true
 
+[[projects]]
+name = "hysteria"
+path = "./hysteria"
+url = "https://github.com/apernet/hysteria.git"
+branch = "master"
+start_commit = "ea2e858"
+recurse_submodules = true
+
