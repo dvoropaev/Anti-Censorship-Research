@@ -29442,3 +29442,960 @@ index b0fcf93..e15c8da 100644
                          VALUE "OriginalFilename", "trusttunnel_client.exe"
                          VALUE "InternalName", "trusttunnel_client"
                  END
+
+commit 2b017d829371aec7360933aff34d0c6c196f3985
+Author: Andrey Yakushin <a.yakushin@adguard.com>
+Date:   2026-04-30 10:57:00 +0000
+
+    Pull request 678: Better TUN control
+    
+    Squashed commit of the following:
+    
+    commit 8ec5eb48a35c7075e00935588ae5298d4a1695fc
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 28 12:59:17 2026 +0400
+    
+        Error if device_name is not utun prefixed
+    
+    commit 5fe03ee62ca2f8d838850a58a79b632ab1aa3d89
+    Merge: 0034346d bca9188a
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Tue Apr 28 12:01:48 2026 +0400
+    
+        Merge remote-tracking branch 'origin/master' into feature/TRUST-508
+    
+    commit 0034346d7f58feccd647d67dd8ac99df87f83bfe
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 27 15:59:21 2026 +0400
+    
+        Add changelog
+    
+    commit 7f8448a34449f238c5736e09a6b3d3ac08772d43
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 27 15:21:06 2026 +0400
+    
+        Fix devive_name docs
+    
+    commit c5eb0ac82aad150fe94d80d8ac9e6f9aa820e4cb
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 27 15:15:37 2026 +0400
+    
+        Remove adapter_name from win tunnel settings and use device_name from os tunnel settings
+    
+    commit 0b5cb8e874faae05bcee35511cfc11289f82e094
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Mon Apr 27 12:47:29 2026 +0400
+    
+        Improve device_name parsing for macos
+    
+    commit 2c49cb84890cc4b8d2ef00621f1d51404c5e07d2
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Fri Apr 24 19:10:08 2026 +0400
+    
+        Update docs
+    
+    commit b6c3a2ab889df234087ef14e604254d3aa7bc007
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Fri Apr 24 19:04:23 2026 +0400
+    
+        Respect device_name for macos tunnel
+    
+    commit 77333c432863b75cedf3782f63c25cd79e483671
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Fri Apr 24 18:48:44 2026 +0400
+    
+        Remove unmanaged_routing for setup_wizard
+    
+    commit 9a224001adf8b7e9ccdff1aaf284d798f87efbf5
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Fri Apr 24 18:46:54 2026 +0400
+    
+        Remove unmanaged_routing from config
+    
+    commit 56593b63367d3bf345c73c08679e64ad6f4b9423
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Fri Apr 24 18:44:27 2026 +0400
+    
+        Remove usage of unmanaged_routing for linux tunnel
+    
+    commit 142209c3626d73628a463272998c517c262d9fb9
+    Author: Nikita Gorskikh <n.gorskikh@adguard.com>
+    Date:   Fri Apr 24 08:23:38 2026 +0000
+    
+        Fix default string initialization
+    
+    commit f86f97783ad2228ad52374c7a05df454e1d29205
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 18:30:34 2026 +0400
+    
+        New settings for setup_wizard
+    
+    commit 333e113cd152c6e8917e621ee04ae6f21f588a7c
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 18:30:12 2026 +0400
+    
+        Update docs
+    
+    commit 04a9ca00e8bcd97295d181ddb049d5c5ba6ad68c
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 18:29:45 2026 +0400
+    
+        Support new settings in linux tunnel
+    
+    commit c29ef0a1b99f5b34dfaa7f697b40f994bed5f3f7
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 18:10:48 2026 +0400
+    
+        Pass new settings from config to tunnel
+    
+    commit 907dce02dd96ef5d644b8fd0d88004cd58ea59db
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 18:10:13 2026 +0400
+    
+        Add fields to config
+    
+    commit a0df393390c473efdd49ad587feddfa461af3ac5
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 18:08:23 2026 +0400
+    
+        Fix missing deinit for tunnel
+    
+    commit b0bd16c585a39bbff20883637ae06ec9484ec78f
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 17:53:50 2026 +0400
+    
+        Add device_name, use_existing and unmanaged_routing to os_tunnel
+    
+    commit 959e40c4b6ce935ca4f641a684c2679783dc9961
+    Author: Andrey Yakushin <a.yakushin@adguard.com>
+    Date:   Wed Apr 22 17:52:46 2026 +0400
+    
+        Flush route table as well as rules
+---
+ CHANGELOG.md                                      |  9 +++
+ net/include/net/os_tunnel.h                       | 11 ++-
+ net/src/os_tunnel.cpp                             | 12 ++-
+ net/src/os_tunnel_linux.cpp                       | 99 ++++++++++++++++++-----
+ net/src/os_tunnel_mac.cpp                         | 25 +++++-
+ net/src/os_tunnel_win.cpp                         |  2 +-
+ trusttunnel/README.md                             | 10 +++
+ trusttunnel/include/vpn/trusttunnel/config.h      |  3 +-
+ trusttunnel/setup_wizard/src/composer.rs          |  4 +
+ trusttunnel/setup_wizard/src/settings.rs          | 23 ++++++
+ trusttunnel/setup_wizard/src/template_settings.rs |  8 ++
+ trusttunnel/src/client.cpp                        | 16 ++--
+ trusttunnel/src/config.cpp                        | 11 ++-
+ 13 files changed, 195 insertions(+), 38 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e66abc0..c752432 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,14 @@
+ # CHANGELOG
+ 
++- [Feature] Improve control over TUN device configuration.
++    - Add `device_name` field that controls the TUN interface name on Linux, the requested `utun<N>` unit on macOS,
++      and the Wintun adapter name on Windows.
++    - Add `use_existing` boolean field that allows opening an existing TUN device specified by `device_name`. Linux only.
++    - Correctly handle `included_routes = []` and skip route/rule setup and cleanup in this case
++      (except DNS routes controlled by `change_system_dns`).
++    - Remove the Windows-specific `adapter_name` configuration field; Windows adapter naming is now configured via
++      `device_name`.
++
+ ## 1.0.56
+ 
+ - [Feature] Add wildcard port syntax (`*:port`) to `VpnSettings::exclusions`.
+diff --git a/net/include/net/os_tunnel.h b/net/include/net/os_tunnel.h
+index 319c922..8ada13a 100644
+--- a/net/include/net/os_tunnel.h
++++ b/net/include/net/os_tunnel.h
+@@ -46,12 +46,19 @@ struct VpnOsTunnelSettings {
+     int mtu;
+     /** DNS servers addresses */
+     VpnAddressArray dns_servers;
++    /** TUN / Wintun device name.
++     * On Linux: TUN interface name (empty/NULL = kernel-assigned).
++     * On macOS: request a specific `utun<N>` unit (empty/NULL = kernel-assigned).
++     * On Windows: Wintun adapter name, should be non-empty. */
++    const char *device_name;
++    /** If true, open the pre-existing device named `device_name`
++     *  instead of creating a new one. Requires `device_name` to be
++     *  non-empty. Linux only. */
++    bool use_existing;
+ };
+ 
+ #ifdef _WIN32
+ struct VpnWinTunnelSettings {
+-    /** Wintun adapter name. Displayed as title of connection in list of connections */
+-    const char *adapter_name;
+     /** Wintun adapter tunnel type. Displayed as "smth Tunnel" connection type in list of connections */
+     const char *tunnel_type;
+     /** Library module to handle tunnel */
+diff --git a/net/src/os_tunnel.cpp b/net/src/os_tunnel.cpp
+index 6ccd291..f8b482e 100644
+--- a/net/src/os_tunnel.cpp
++++ b/net/src/os_tunnel.cpp
+@@ -174,6 +174,8 @@ ag::VpnOsTunnelSettings *ag::vpn_os_tunnel_settings_clone(const ag::VpnOsTunnelS
+     for (size_t i = 0; i != dst->dns_servers.size; i++) {
+         dst->dns_servers.data[i] = safe_strdup(settings->dns_servers.data[i]);
+     }
++    dst->device_name = safe_strdup(settings->device_name);
++    dst->use_existing = settings->use_existing;
+     return dst;
+ }
+ 
+@@ -195,6 +197,7 @@ void ag::vpn_os_tunnel_settings_destroy(ag::VpnOsTunnelSettings *settings) {
+         free((void *) settings->dns_servers.data[i]);
+     }
+     delete[] settings->dns_servers.data;
++    free((void *) settings->device_name);
+     delete settings;
+ }
+ // NOLINTEND(cppcoreguidelines-no-malloc,hicpp-no-malloc)
+@@ -211,6 +214,12 @@ const ag::VpnOsTunnelSettings *ag::vpn_os_tunnel_settings_defaults() {
+             .excluded_routes = {.data = excluded_routes, .size = std::size(excluded_routes)},
+             .mtu = 9000,
+             .dns_servers = {.data = dns_servers, .size = std::size(dns_servers)},
++#ifdef _WIN32
++            .device_name = "TrustTunnel tunnel",
++#else
++            .device_name = "",
++#endif
++            .use_existing = false,
+     };
+     return &settings;
+ }
+@@ -219,7 +228,6 @@ const ag::VpnOsTunnelSettings *ag::vpn_os_tunnel_settings_defaults() {
+ 
+ const ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_defaults() {
+     static const ag::VpnWinTunnelSettings win_settings = {
+-            .adapter_name = "TrustTunnel tunnel",
+             .tunnel_type = "wintun",
+             .wintun_lib = nullptr,
+             .block_ipv6 = false,
+@@ -232,7 +240,6 @@ const ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_defaults() {
+ ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_clone(const ag::VpnWinTunnelSettings *settings) {
+     auto *dst = new VpnWinTunnelSettings{};
+     *dst = *settings;
+-    dst->adapter_name = safe_strdup(settings->adapter_name);
+     dst->tunnel_type = safe_strdup(settings->tunnel_type);
+     return dst;
+ }
+@@ -241,7 +248,6 @@ void ag::vpn_win_tunnel_settings_destroy(ag::VpnWinTunnelSettings *settings) {
+     if (settings == nullptr) {
+         return;
+     }
+-    free((char *) settings->adapter_name);
+     free((char *) settings->tunnel_type);
+     delete settings;
+ }
+diff --git a/net/src/os_tunnel_linux.cpp b/net/src/os_tunnel_linux.cpp
+index 1c3c53c..702a8ab 100644
+--- a/net/src/os_tunnel_linux.cpp
++++ b/net/src/os_tunnel_linux.cpp
+@@ -2,6 +2,7 @@
+ #include "net/os_tunnel.h"
+ #include "vpn/utils.h"
+ 
++#include <cstring>
+ #include <net/if.h> // should be included before linux/if.h
+ 
+ #include <linux/if.h>
+@@ -70,14 +71,31 @@ static ag::Result<std::string, ag::tunnel_utils::ExecError> sys_cmd_with_output_
+ ag::VpnError ag::VpnLinuxTunnel::init(const ag::VpnOsTunnelSettings *settings, std::optional<std::string> netns) {
+     init_settings(settings);
+     m_netns = netns.value_or("");
++    bool managed_routing = m_settings->included_routes.size > 0;
++    infolog(logger, "TUN mode: {}{}{}", m_settings->use_existing ? "attach" : "create",
++            (m_settings->device_name && m_settings->device_name[0] != '\0')
++                    ? AG_FMT(" name={}", m_settings->device_name)
++                    : "",
++            managed_routing ? "" : " (routes unmanaged)");
+     if (tun_open() == -1) {
+         return {-1, "Failed to init tunnel"};
+     }
+     setup_if();
+-    m_sport_supported = check_sport_rule_support();
+-    teardown_routes(TABLE_ID); // Remove stale rules from previous sessions
+-    if (!setup_routes(TABLE_ID)) {
+-        return {-1, "Unable to setup routes for linuxtun session"};
++
++    if (managed_routing) {
++        m_sport_supported = check_sport_rule_support();
++        if (m_settings->use_existing && !m_sport_supported) {
++            errlog(logger,
++                    "Managed routing for an existing TUN device requires sport rule support; "
++                    "set included_routes = [] to leave routing external");
++            return {-1, "Managed routing for an existing TUN device requires sport rule support"};
++        }
++        teardown_routes(TABLE_ID); // Remove stale rules from previous sessions
++        if (!setup_routes(TABLE_ID)) {
++            return {-1, "Unable to setup routes for linuxtun session"};
++        }
++    } else {
++        infolog(logger, "Empty included_routes: skipping route and ip rule management");
+     }
+     setup_dns();
+ 
+@@ -86,7 +104,9 @@ ag::VpnError ag::VpnLinuxTunnel::init(const ag::VpnOsTunnelSettings *settings, s
+ 
+ void ag::VpnLinuxTunnel::deinit() {
+     close(m_tun_fd);
+-    teardown_routes(TABLE_ID);
++    if (m_settings->included_routes.size > 0) {
++        teardown_routes(TABLE_ID);
++    }
+     m_system_dns_setup_success = false;
+ }
+ 
+@@ -103,8 +123,26 @@ bool ag::VpnLinuxTunnel::get_system_dns_setup_success() const {
+ }
+ 
+ evutil_socket_t ag::VpnLinuxTunnel::tun_open() {
+-    evutil_socket_t fd = open("/dev/net/tun", O_RDWR);
++    const char *requested_name = m_settings->device_name;
++    const bool has_name = (requested_name != nullptr && requested_name[0] != '\0');
++    const bool use_existing = m_settings->use_existing;
++
++    if (use_existing && !has_name) {
++        errlog(logger, "use_existing requires device_name");
++        return -1;
++    }
++
++    if (use_existing && if_nametoindex(requested_name) == 0) {
++        errlog(logger, "Device {} does not exist (use_existing = true)", requested_name);
++        return -1;
++    }
+ 
++    if (!use_existing && has_name && if_nametoindex(requested_name) != 0) {
++        errlog(logger, "Device {} already exists; refusing to create", requested_name);
++        return -1;
++    }
++
++    evutil_socket_t fd = open("/dev/net/tun", O_RDWR);
+     if (fd == -1) {
+         errlog(logger, "Failed to open /dev/net/tun: {}", strerror(errno));
+         return -1;
+@@ -112,6 +150,10 @@ evutil_socket_t ag::VpnLinuxTunnel::tun_open() {
+ 
+     struct ifreq ifr = {};
+     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
++    if (has_name) {
++        // Copy bounded by IFNAMSIZ - 1; kernel enforces max 15 chars.
++        std::strncpy(ifr.ifr_name, requested_name, IFNAMSIZ - 1);
++    }
+ 
+     if (ioctl(fd, TUNSETIFF, &ifr) == -1) {
+         evutil_closesocket(fd);
+@@ -122,7 +164,8 @@ evutil_socket_t ag::VpnLinuxTunnel::tun_open() {
+     m_tun_name = ifr.ifr_name;
+     m_if_index = if_nametoindex(ifr.ifr_name);
+ 
+-    infolog(logger, "Device {} opened", ifr.ifr_name);
++    infolog(logger, "Device {} {} (use_existing = {})", ifr.ifr_name, use_existing ? "attached" : "opened",
++            use_existing);
+     return fd;
+ }
+ 
+@@ -137,23 +180,30 @@ void ag::VpnLinuxTunnel::setup_if() {
+         infolog(logger, "Moved tunnel interface {} to network namespace {}", m_tun_name, m_netns);
+     }
+ 
+-    // Set the interface address (in netns if specified)
+-    if (!sys_cmd_netns(m_netns,
+-                AG_FMT("ip addr add {} dev {}",
+-                        tunnel_utils::get_address_for_index(m_settings->ipv4_address, m_if_index).to_string(),
+-                        m_tun_name))) {
+-        errlog(logger, "Failed to set IPv4 address");
+-        return;
+-    }
++    if (!m_settings->use_existing) {
++        // Set the interface address (in netns if specified)
++        if (!sys_cmd_netns(m_netns,
++                    AG_FMT("ip addr add {} dev {}",
++                            tunnel_utils::get_address_for_index(m_settings->ipv4_address, m_if_index).to_string(),
++                            m_tun_name))) {
++            errlog(logger, "Failed to set IPv4 address");
++            return;
++        }
+ 
+-    // Try to set IPv6 address (in netns if specified)
+-    auto result = sys_cmd_with_output_netns(m_netns,
+-            AG_FMT("ip -6 addr add {} dev {}",
+-                    tunnel_utils::get_address_for_index(m_settings->ipv6_address, m_if_index).to_string(), m_tun_name));
+-    if (result.has_error()) {
+-        warnlog(logger, "Failed to set IPv6 address: {}", result.error()->str());
++        auto result = sys_cmd_with_output_netns(m_netns,
++                AG_FMT("ip -6 addr add {} dev {}",
++                        tunnel_utils::get_address_for_index(m_settings->ipv6_address, m_if_index).to_string(),
++                        m_tun_name));
++        if (result.has_error()) {
++            warnlog(logger, "Failed to set IPv6 address: {}", result.error()->str());
++        } else {
++            m_ipv6_available = true;
++        }
+     } else {
+-        m_ipv6_available = true;
++        // In attach mode the operator owns the interface addresses; just
++        // detect IPv6 availability from the existing device state.
++        auto result = sys_cmd_with_output_netns(m_netns, AG_FMT("ip -6 addr show dev {}", m_tun_name));
++        m_ipv6_available = result.has_value() && !result.value().empty();
+     }
+ 
+     // Bring the interface up (in netns if specified)
+@@ -298,6 +348,11 @@ void ag::VpnLinuxTunnel::setup_dns() {
+ }
+ 
+ void ag::VpnLinuxTunnel::teardown_routes(int16_t table_id) {
++    // Flush all routes from the project-owned table (stale routes may remain
++    // when the TUN device is externally created and survives client shutdown).
++    sys_cmd_netns_ignore_errors(m_netns, AG_FMT("ip route flush table {}", table_id));
++    sys_cmd_netns_ignore_errors(m_netns, AG_FMT("ip -6 route flush table {}", table_id));
++
+     // Try to remove rules regardless of m_sport_supported (may exist from previous session)
+     sys_cmd_netns_ignore_errors(m_netns, AG_FMT("ip rule del prio 30801 lookup {}", table_id));
+     sys_cmd_netns_ignore_errors(m_netns, AG_FMT("ip rule del prio 30800 sport {} lookup main", PRIVILEGED_PORTS));
+diff --git a/net/src/os_tunnel_mac.cpp b/net/src/os_tunnel_mac.cpp
+index 6856f2a..2b26c77 100644
+--- a/net/src/os_tunnel_mac.cpp
++++ b/net/src/os_tunnel_mac.cpp
+@@ -6,6 +6,8 @@
+ #include <sys/kern_control.h>
+ #include <sys/kern_event.h>
+ 
++#include <common/utils.h>
++
+ static const ag::Logger logger("OS_TUNNEL_MAC");
+ 
+ static bool sys_cmd_bool(std::string cmd) {
+@@ -84,15 +86,34 @@ evutil_socket_t ag::VpnMacTunnel::tun_open() {
+         return -1;
+     }
+ 
++    constexpr std::string_view UTUN_PREFIX = "utun";
++    unsigned int sc_unit = 0;
++    std::string_view device_name = utils::safe_string_view(m_settings->device_name);
++    if (!device_name.empty()) {
++        if (auto utun_index = ag::utils::starts_with(device_name, UTUN_PREFIX)
++                        ? ag::utils::to_integer<uint32_t>(device_name.substr(UTUN_PREFIX.size()))
++                        : std::nullopt) {
++            sc_unit = *utun_index + 1;
++        } else {
++            errlog(logger, "Malformed macOS device_name '{}'; expected utun<N>", device_name);
++            close(fd);
++            return -1;
++        }
++    }
++
+     struct sockaddr_ctl addr{};
+     addr.sc_id = info.ctl_id;
+     addr.sc_len = sizeof(addr);
+     addr.sc_family = AF_SYSTEM;
+     addr.ss_sysaddr = AF_SYS_CONTROL;
+-    addr.sc_unit = 0;
++    addr.sc_unit = sc_unit;
+ 
+     if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
+-        errlog(logger, "Failed to connect: ({}) {}", errno, strerror(errno));
++        if (sc_unit != 0 && errno == EBUSY) {
++            errlog(logger, "Requested utun device {} is busy", m_settings->device_name);
++        } else {
++            errlog(logger, "Failed to connect: ({}) {}", errno, strerror(errno));
++        }
+         close(fd);
+         return -1;
+     }
+diff --git a/net/src/os_tunnel_win.cpp b/net/src/os_tunnel_win.cpp
+index 485575b..37c18be 100644
+--- a/net/src/os_tunnel_win.cpp
++++ b/net/src/os_tunnel_win.cpp
+@@ -213,7 +213,7 @@ ag::VpnError ag::VpnWinTunnel::init(
+     if (!wintun_init_success) {
+         return {-1, "Unable to init wintun library"};
+     }
+-    m_wintun_adapter = create_wintun_adapter(win_settings->adapter_name, win_settings->tunnel_type);
++    m_wintun_adapter = create_wintun_adapter(settings->device_name, win_settings->tunnel_type);
+     if (m_wintun_adapter == nullptr) {
+         return {-1, "Unable to create wintun adapter"};
+     }
+diff --git a/trusttunnel/README.md b/trusttunnel/README.md
+index 21977aa..5ca81cf 100644
+--- a/trusttunnel/README.md
++++ b/trusttunnel/README.md
+@@ -132,6 +132,12 @@ The configuration file uses TOML format. Below are all available settings.
+ | `excluded_routes` | array[string] | `["0.0.0.0/8", "10.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16", "224.0.0.0/3"]` | Routes in CIDR notation to exclude from VPN routing |
+ | `mtu_size` | int | `1280` | MTU size on the virtual interface |
+ | `change_system_dns` | bool | `true` | Allow changing system DNS servers |
++| `device_name` | string | `""` | On Linux, the TUN interface name (empty = kernel-assigned). On Windows, the Wintun adapter name (empty = auto-generated from hostname). On macOS, request a specific `utun<N>` unit (empty = kernel-assigned). |
++| `use_existing` | bool | `false` | Attach to a pre-existing TUN device named `device_name` instead of creating one. Requires `device_name`. Linux only. |
++
++To disable route management on any supported platform, set `included_routes = []`.
++On Linux this also suppresses cleanup of table `880` and the associated `ip rule`
++entries; on Windows, DNS-only route handling remains controlled by `change_system_dns`.
+ 
+ ### SOCKS Listener Settings (`[listener.socks]`)
+ 
+@@ -190,6 +196,10 @@ anti_dpi = false
+ 
+ [listener.tun]
+ bound_if = ""
++# For OpenWrt with external policy routing (`pbr`, `mwan3`):
++# device_name = "tt0"
++# use_existing = true
++# included_routes = []
+ included_routes = ["0.0.0.0/0", "2000::/3"]
+ excluded_routes = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+ mtu_size = 1280
+diff --git a/trusttunnel/include/vpn/trusttunnel/config.h b/trusttunnel/include/vpn/trusttunnel/config.h
+index 0a257fe..30afae0 100644
+--- a/trusttunnel/include/vpn/trusttunnel/config.h
++++ b/trusttunnel/include/vpn/trusttunnel/config.h
+@@ -41,12 +41,13 @@ struct TrustTunnelConfig {
+     };
+ 
+     struct TunListener {
+-        std::string adapter_name;
++        std::string device_name;
+         std::vector<std::string> included_routes;
+         std::vector<std::string> excluded_routes;
+         uint32_t mtu_size = 0;
+         std::string bound_if;
+         bool change_system_dns = true;
++        bool use_existing = false;
+         std::optional<std::string> netns;
+     };
+ 
+diff --git a/trusttunnel/setup_wizard/src/composer.rs b/trusttunnel/setup_wizard/src/composer.rs
+index d31adf1..b7574b9 100644
+--- a/trusttunnel/setup_wizard/src/composer.rs
++++ b/trusttunnel/setup_wizard/src/composer.rs
+@@ -135,6 +135,8 @@ fn fill_tun_listener_table(table: &mut Table, settings: &Settings) {
+     table["excluded_routes"] = value(Array::from_iter(settings.excluded_routes.iter()));
+     table["mtu_size"] = value(settings.mtu_size as i64);
+     table["change_system_dns"] = value(settings.change_system_dns);
++    table["device_name"] = value(&settings.device_name);
++    table["use_existing"] = value(settings.use_existing);
+ }
+ 
+ #[cfg(test)]
+@@ -167,6 +169,8 @@ mod tests {
+                 excluded_routes: vec![],
+                 mtu_size: 1280,
+                 change_system_dns: true,
++                device_name: "".into(),
++                use_existing: false,
+             }),
+         }
+     }
+diff --git a/trusttunnel/setup_wizard/src/settings.rs b/trusttunnel/setup_wizard/src/settings.rs
+index 3f4abc4..6f25e02 100644
+--- a/trusttunnel/setup_wizard/src/settings.rs
++++ b/trusttunnel/setup_wizard/src/settings.rs
+@@ -155,6 +155,15 @@ On Windows, an interface index as shown by `route print`, written as a string, m
+         #{doc("Allow changing system DNS servers")}
+         #[serde(default = "TunListener::default_change_system_dns")]
+         pub change_system_dns: bool,
++        #{doc(r#"TUN / Wintun device name.
++On Linux: TUN interface name (empty = kernel-assigned).
++On macOS: request a specific `utun<N>` unit (empty = kernel-assigned).
++On Windows: Wintun adapter name (empty = auto-generated from hostname)."#)}
++        #[serde(default = "TunListener::default_device_name")]
++        pub device_name: String,
++        #{doc("Attach to a pre-existing TUN device named `device_name` instead of creating one. Requires `device_name` to be non-empty. Linux only; ignored on Windows and macOS.")}
++        #[serde(default = "TunListener::default_use_existing")]
++        pub use_existing: bool,
+     }
+ }
+ 
+@@ -236,6 +245,14 @@ impl TunListener {
+     pub fn default_change_system_dns() -> bool {
+         true
+     }
++
++    pub fn default_device_name() -> String {
++        "".into()
++    }
++
++    pub fn default_use_existing() -> bool {
++        false
++    }
+ }
+ 
+ macro_rules! opt_field {
+@@ -602,6 +619,12 @@ fn build_listener(template: Option<&Listener>) -> Listener {
+                         .cloned()
+                         .unwrap_or_else(TunListener::default_change_system_dns),
+                 ),
++                device_name: opt_field!(template, device_name)
++                    .cloned()
++                    .unwrap_or_else(TunListener::default_device_name),
++                use_existing: opt_field!(template, use_existing)
++                    .cloned()
++                    .unwrap_or_else(TunListener::default_use_existing),
+             })
+         }
+         _ => unreachable!(),
+diff --git a/trusttunnel/setup_wizard/src/template_settings.rs b/trusttunnel/setup_wizard/src/template_settings.rs
+index 7c2c9a0..f353e09 100644
+--- a/trusttunnel/setup_wizard/src/template_settings.rs
++++ b/trusttunnel/setup_wizard/src/template_settings.rs
+@@ -145,6 +145,10 @@ excluded_routes = [{}]
+ mtu_size = {}
+ {}
+ change_system_dns = {}
++{}
++device_name = "{}"
++{}
++use_existing = {}
+ "#,
+         TunListener::doc_bound_if().to_toml_comment(),
+         TunListener::default_bound_if(),
+@@ -164,5 +168,9 @@ change_system_dns = {}
+         TunListener::default_mtu_size(),
+         TunListener::doc_change_system_dns().to_toml_comment(),
+         TunListener::default_change_system_dns(),
++        TunListener::doc_device_name().to_toml_comment(),
++        TunListener::default_device_name(),
++        TunListener::doc_use_existing().to_toml_comment(),
++        TunListener::default_use_existing(),
+     )
+ });
+diff --git a/trusttunnel/src/client.cpp b/trusttunnel/src/client.cpp
+index 6a1f912..fbe1d9c 100644
+--- a/trusttunnel/src/client.cpp
++++ b/trusttunnel/src/client.cpp
+@@ -49,6 +49,10 @@ int TrustTunnelClient::disconnect() {
+         vpn_close(vpn);
+     }
+ 
++    if (m_tunnel != nullptr) {
++        std::exchange(m_tunnel, nullptr)->deinit();
++    }
++
+     return 0;
+ }
+ 
+@@ -324,7 +328,9 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
+             .included_routes = {.data = included_routes.data(), .size = uint32_t(included_routes.size())},
+             .excluded_routes = {.data = excluded_routes.data(), .size = uint32_t(excluded_routes.size())},
+             .mtu = int(config.mtu_size),
+-            .dns_servers = config.change_system_dns ? defaults->dns_servers : VpnAddressArray{}};
++            .dns_servers = config.change_system_dns ? defaults->dns_servers : VpnAddressArray{},
++            .device_name = !config.device_name.empty() ? config.device_name.c_str() : defaults->device_name,
++            .use_existing = config.use_existing};
+ 
+     m_tunnel = ag::make_vpn_tunnel();
+     if (m_tunnel == nullptr) {
+@@ -340,14 +346,12 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
+         return nullptr;
+     }
+     VpnWinTunnelSettings win_settings = *vpn_win_tunnel_settings_defaults();
+-    if (!config.adapter_name.empty()) {
+-        win_settings.adapter_name = config.adapter_name.c_str();
+-    } else {
+-        // Fallback to hostname if adapter_name is not specified
++    if (config.device_name.empty()) {
++        // Fallback to hostname if no name is specified
+         if (!m_config.location.endpoints.empty()) {
+             static std::string fallback_name;
+             fallback_name = AG_FMT("TrustTunnel ({})", m_config.location.endpoints[0].hostname);
+-            win_settings.adapter_name = fallback_name.c_str();
++            tunnel_settings.device_name = fallback_name.c_str();
+         }
+     }
+     win_settings.wintun_lib = m_wintun;
+diff --git a/trusttunnel/src/config.cpp b/trusttunnel/src/config.cpp
+index 3e46d6c..5dd3d5b 100644
+--- a/trusttunnel/src/config.cpp
++++ b/trusttunnel/src/config.cpp
+@@ -195,11 +195,20 @@ static std::optional<TrustTunnelConfig::TunListener> parse_tun_listener_config(c
+     return std::nullopt;
+ #endif
+ 
++    bool use_existing = (*tun_config)["use_existing"].value_or<bool>(false);
++    std::string device_name = (*tun_config)["device_name"].value_or<std::string>({});
++
++    if (use_existing && device_name.empty()) {
++        errlog(g_logger, "listener.tun: use_existing = true requires device_name to be set");
++        return std::nullopt;
++    }
++
+     TrustTunnelConfig::TunListener tun = {
+-            .adapter_name = (*tun_config)["adapter_name"].value_or<std::string>({}),
++            .device_name = std::move(device_name),
+             .mtu_size = (*tun_config)["mtu_size"].value<uint32_t>().value_or(DEFAULT_MTU),
+             .bound_if = std::move(bound_if),
+             .change_system_dns = (*tun_config)["change_system_dns"].value_or<bool>(true),
++            .use_existing = use_existing,
+             .netns = (*tun_config)["netns"].value<std::string>(),
+     };
+ 
+
+commit 07ea7045523e5deb6668aacc29145e4726805cf8
+Author: Bamboo <Bamboo>
+Date:   2026-04-30 10:57:54 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ CHANGELOG.md                                       |  2 ++
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 10 files changed, 33 insertions(+), 29 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c752432..307eb44 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,7 @@
+ # CHANGELOG
+ 
++## 1.0.62
++
+ - [Feature] Improve control over TUN device configuration.
+     - Add `device_name` field that controls the TUN interface name on Linux, the requested `utun<N>` unit on macOS,
+       and the Wintun adapter name on Windows.
+diff --git a/conandata.yml b/conandata.yml
+index 172e3f3..dc90266 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1403,3 +1403,5 @@ commit_hash:
+     hash: "889a479345e2ce59af2427ee9ae148359aa331e1"
+   "1.0.61":
+     hash: "e797de2a3c2839891aae2722a4af319197d82310"
++  "1.0.62":
++    hash: "2b017d829371aec7360933aff34d0c6c196f3985"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index 2f262c6..20a7dd4 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.61"
++version = "1.0.62"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index ea0cdc1..ab8512a 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.61"
++  s.version      = "1.0.62"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 4429847..2c89dc0 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.61;
++				CURRENT_PROJECT_VERSION = 1.0.62;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.61;
++				DYLIB_CURRENT_VERSION = 1.0.62;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.61;
++				MARKETING_VERSION = 1.0.62;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.61;
++				CURRENT_PROJECT_VERSION = 1.0.62;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.61;
++				DYLIB_CURRENT_VERSION = 1.0.62;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.61;
++				MARKETING_VERSION = 1.0.62;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.61;
++				CURRENT_PROJECT_VERSION = 1.0.62;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.61;
++				MARKETING_VERSION = 1.0.62;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.61;
++				CURRENT_PROJECT_VERSION = 1.0.62;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.61;
++				MARKETING_VERSION = 1.0.62;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.61;
++				CURRENT_PROJECT_VERSION = 1.0.62;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.61;
++				DYLIB_CURRENT_VERSION = 1.0.62;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.61;
++				MARKETING_VERSION = 1.0.62;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.61;
++				CURRENT_PROJECT_VERSION = 1.0.62;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.61;
++				DYLIB_CURRENT_VERSION = 1.0.62;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.61;
++				MARKETING_VERSION = 1.0.62;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index a2938c5..23d2fdf 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.61
++    VERSION 1.0.62
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 9eac164..0ee55a3 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.61"
++#define TRUSTTUNNEL_VERSION "1.0.62"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index d1c8929..0c7cf47 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,61,0
+-    PRODUCTVERSION 1,0,61,0
++    FILEVERSION 1,0,62,0
++    PRODUCTVERSION 1,0,62,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.61"
+-                        VALUE "ProductVersion", "1.0.61"
++                        VALUE "FileVersion", "1.0.62"
++                        VALUE "ProductVersion", "1.0.62"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index 95f0cfb..40f9acf 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.61";
++pub const VERSION: &str = "1.0.62";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index e15c8da..1524a9f 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,61,0
+-    PRODUCTVERSION 1,0,61,0
++    FILEVERSION 1,0,62,0
++    PRODUCTVERSION 1,0,62,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.61"
+-                        VALUE "ProductVersion", "1.0.61"
++                        VALUE "FileVersion", "1.0.62"
++                        VALUE "ProductVersion", "1.0.62"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END

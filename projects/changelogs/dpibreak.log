@@ -8110,3 +8110,86 @@ index 9daa814..1cab401 100644
  ## Features
  For more information, please refer to
  [dpibreak(1)](./dpibreak.1.md). (Though you probably won't need it. :)
+
+commit e2299f581d7ecfb8e67bdd50eca14b853e934b11
+Author: dilluti0n <hskim@dilluti0n.com>
+Date:   2026-05-02 20:06:02 +0900
+
+    install.sh: prevent tarball fetch and log during uninstallation
+    
+    In v1.1, the make dependency was removed so there was no need to
+    fetch tarball, but it kept patching.
+---
+ install.sh | 45 +++++++++++++++++++++++----------------------
+ 1 file changed, 23 insertions(+), 22 deletions(-)
+
+diff --git a/install.sh b/install.sh
+index 0971055..0092465 100644
+--- a/install.sh
++++ b/install.sh
+@@ -3,12 +3,13 @@
+ #
+ # DPIBreak install script
+ # CHANGELOG:
++# v1.3 - Fix to prevent tarball fetch and install logs from appearing during uninstallation
+ # v1.2 - Remove -v on tar, fix/add logs and add SVERSION variable
+ # v1.1 - Remove make dependency
+ 
+ set -eu
+ 
+-SVERSION='v1.2'
++SVERSION='v1.3'
+ PROJECT='DPIBreak'
+ REPO='dilluti0n/dpibreak'
+ LINUX='Linux'
+@@ -78,29 +79,29 @@ MAN='dpibreak.1'
+ 
+ echo "$PROJECT installer $SVERSION for $AMD64 $LINUX"
+ echo Source: "https://github.com/$REPO/blob/master/install.sh"
+-echo This will install $PROG to $PREFIX and $MAN to $MANPREFIX.
+-
+-MODE=$(get_opt "$@") || die
+-KERNEL=$(uname -s)
+-ARCH=$(uname -m)
+-
+-[ "$KERNEL" = "$LINUX" ] || die "$KERNEL: not supported. Only $LINUX is supported."
+-[ "$ARCH" = "$AMD64" ] || die "$ARCH: not supported. Only $AMD64 is supported."
+-
+-TAG=$(get_tag)
+-TARBALL="$PROJECT-${TAG#v}-$ARCH-unknown-linux-musl.tar.gz"
+-EXDIR="${TARBALL%.tar.gz}"
+-URI="https://github.com/$REPO/releases/download/$TAG/$TARBALL"
+-WORKDIR=$(mktemp -d)
+-trap 'rm -rf "$WORKDIR"' EXIT
+-
+-cd "$WORKDIR" || die Failed to create temporary directory
+-curl -fsSL --retry 3 --connect-timeout 5 -o "$TARBALL" "$URI" \
+-    || die Failed to download $URI
+-tar -xzf "$TARBALL"
+-cd "$EXDIR" || die Failed to enter directory: $EXDIR
++MODE=$(get_opt "$@")
+ 
+ do_install() {
++    echo This will install $PROG to $PREFIX and $MAN to $MANPREFIX. >&2
++    KERNEL=$(uname -s)
++    ARCH=$(uname -m)
++
++    [ "$KERNEL" = "$LINUX" ] || die "$KERNEL: not supported. Only $LINUX is supported."
++    [ "$ARCH" = "$AMD64" ] || die "$ARCH: not supported. Only $AMD64 is supported."
++
++    TAG=$(get_tag)
++    TARBALL="$PROJECT-${TAG#v}-$ARCH-unknown-linux-musl.tar.gz"
++    EXDIR="${TARBALL%.tar.gz}"
++    URI="https://github.com/$REPO/releases/download/$TAG/$TARBALL"
++    WORKDIR=$(mktemp -d)
++    trap 'rm -rf "$WORKDIR"' EXIT
++
++    cd "$WORKDIR" || die Failed to create temporary directory
++    curl -fsSL --retry 3 --connect-timeout 5 -o "$TARBALL" "$URI" \
++        || die Failed to download $URI
++    tar -xzf "$TARBALL"
++    cd "$EXDIR" || die Failed to enter directory: $EXDIR
++
+     do_sudo install -Dm755 "$PROG" "$PREFIX/bin/$PROG"
+     do_sudo install -Dm644 "$MAN"  "$MANPREFIX/man1/$MAN"
+     echo "Installation complete." >&2
