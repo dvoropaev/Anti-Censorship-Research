@@ -11,33 +11,26 @@ Telemt поддерживает официальные режимы MTProxy:
 - **Secure** (`dd`)
 - **Fake TLS** (`ee` + SNI fronting)
 
+Важно по уровню протокола:
+- FakeTLS в Telemt — это **режим MTProxy-обфускации**, где handshake имитирует TLS ClientHello/ServerHello для fronting.
+- Это не «обычный HTTPS-терминатор», который принимает полноценный TLS-сайт и потом «снимает TLS» для MTProxy: верифицируется MTProxy-совместимый handshake/секрет и дальше идет MTProto proxy data-path.
+
 Ссылка в код/доки:
 - [README: поддерживаемые MTProxy режимы](../upstreams/telegram/telemt/README.md)
-
-Пример из кода (док-комментарий FakeTLS):
-
-```rust
-//! This module handles the fake TLS 1.3 handshake used by MTProto proxy
-//! for domain fronting. The handshake looks like valid TLS 1.3 but
-//! actually carries MTProto authentication data.
-```
-
-Источник:
 - [`src/protocol/tls.rs`](../upstreams/telegram/telemt/src/protocol/tls.rs)
 
 ## 2) Какой протокол используется между Telemt и Telegram?
 
-Зависит от выбранного транспортного режима:
+Это **другой уровень**, не равный client-facing MTProxy mode. На апстриме выбирается маршрут Telemt.
 
 1. **Direct DC path**
-   - Telemt подключается к Telegram DC (обычно порт 443)
-   - выполняет TG/MTProto proxy handshake
-   - после этого идет обычный relay зашифрованного трафика
+   - Telemt подключается к Telegram DC адресу.
+   - Адрес выбирается из `dc_overrides` (если есть) или из статической таблицы DC с учетом IPv4/IPv6-preference.
+   - Для нестандартного/неизвестного DC без override используется fallback на `default_dc` (или эффективный fallback к DC2).
 
 2. **Middle-End (ME) path**
-   - Telemt использует Middle Proxy endpoints (карта `proxy_for`)
-   - поддерживает пул writer/reader каналов
-   - динамически обновляет карту endpoint-ов через `getProxyConfig`/`getProxyConfigV6`
+   - Telemt использует карту ME endpoint-ов (`proxy_for`) из `getProxyConfig*`.
+   - Пул ME управляет writer/reader каналами, покрытием (coverage), floor-политикой, refill/reconnect и admission.
 
 Ссылки:
 - [Direct relay: выбор DC и подключение](../upstreams/telegram/telemt/src/proxy/direct_relay.rs)
@@ -46,176 +39,163 @@ Telemt поддерживает официальные режимы MTProxy:
 ## 3) С какими серверами Telegram взаимодействует Telemt?
 
 ### 3.1 Telegram Core (служебные URL)
-Telemt может запрашивать:
+При включенном `use_middle_proxy` и в процессе bootstrap/update Telemt использует:
 - `https://core.telegram.org/getProxySecret`
 - `https://core.telegram.org/getProxyConfig`
 - `https://core.telegram.org/getProxyConfigV6`
 
 (или кастомные URL из конфига)
 
-Пример из кода:
-
-```rust
-proxy_secret_url.unwrap_or("https://core.telegram.org/getProxySecret")
-```
-
-```rust
-.proxy_config_v4_url
-.as_deref()
-.unwrap_or("https://core.telegram.org/getProxyConfig")
-```
-
-```rust
-.proxy_config_v6_url
-.as_deref()
-.unwrap_or("https://core.telegram.org/getProxyConfigV6")
-```
+Ключевой момент: это **служебные bootstrap-запросы** (control/bootstrap plane), а не user traffic relay.
 
 Ссылки:
 - [`src/transport/middle_proxy/secret.rs`](../upstreams/telegram/telemt/src/transport/middle_proxy/secret.rs)
 - [`src/maestro/me_startup.rs`](../upstreams/telegram/telemt/src/maestro/me_startup.rs)
+- [`src/maestro/helpers.rs` (startup snapshot/cache fallback)](../upstreams/telegram/telemt/src/maestro/helpers.rs)
 - [`src/config/types.rs` (поля URL)](../upstreams/telegram/telemt/src/config/types.rs)
 
 ### 3.2 Telegram Datacenters (Direct)
 - Статические таблицы DC IPv4/IPv6 есть в коде.
-- Также можно задать `dc_overrides` в конфиге.
-
-Пример из кода (статические DC):
-
-```rust
-pub const TG_DATACENTER_PORT: u16 = 443;
-pub static TG_DATACENTERS_V4: LazyLock<Vec<IpAddr>> = LazyLock::new(|| { ... });
-pub static TG_DATACENTERS_V6: LazyLock<Vec<IpAddr>> = LazyLock::new(|| { ... });
-```
+- Можно задать `dc_overrides` (по ключу `dc_idx` как строка).
+- Для известных DC используется `abs(dc_idx)` в диапазоне таблицы.
+- Для неизвестного DC без override — fallback на `default_dc` (валидный диапазон 1..=N), иначе fallback на первый DC таблицы.
 
 Ссылки:
 - [`src/protocol/constants.rs`](../upstreams/telegram/telemt/src/protocol/constants.rs)
-- [`src/proxy/direct_relay.rs` (`dc_overrides` + fallback)](../upstreams/telegram/telemt/src/proxy/direct_relay.rs)
+- [`src/proxy/direct_relay.rs` (`get_dc_addr_static`)](../upstreams/telegram/telemt/src/proxy/direct_relay.rs)
 
 ### 3.3 Telegram Middle Proxy endpoints (ME)
 - Endpoint-ы приходят из `proxy_for` строк в `getProxyConfig*`.
-- Эти endpoint-ы и составляют рабочую карту маршрутизации для ME пула.
-
-Пример из кода:
-
-```rust
-// proxy_for 4 91.108.4.195:8888;
-// proxy_for 2 [2001:67c:04e8:f002::d]:80;
-fn parse_proxy_line(line: &str) -> Option<(i32, IpAddr, u16)> { ... }
-```
+- Парсятся в карту `dc -> [(ip, port)]`; отдельно может извлекаться `default`.
+- Эта карта используется как transport input для ME pool.
 
 Ссылка:
 - [`src/transport/middle_proxy/config_updater.rs`](../upstreams/telegram/telemt/src/transport/middle_proxy/config_updater.rs)
 
 ## 4) Как Telemt “находит” нужные сервера?
 
-Основной порядок:
+### 4.1 Для direct DC
+1. Берет `dc_idx` из handshake-контекста.
+2. Выбирает семейство адресов по `network.prefer` + `network.ipv6`.
+3. Применяет `dc_overrides` (если есть и парсинг валиден; иначе игнорирует невалидные записи).
+4. Если override нет и DC стандартный — берет адрес из статической таблицы.
+5. Если DC нестандартный и override нет — fallback на `default_dc` (или на первый DC при невалидном `default_dc`).
 
-1. Берет целевой `dc_idx` из handshake-контекста.
-2. Проверяет `dc_overrides` (если есть).
-3. Если override нет — использует статическую таблицу DC.
-4. Если запрошен нестандартный DC — применяет fallback на `default_dc`.
-5. Для ME-режима периодически обновляет endpoint-карту из `getProxyConfig*`.
-6. Для хостов учитывает `network.dns_overrides`, затем обычный DNS.
+### 4.2 Для bootstrap HTTPS-запросов (`getProxy*`, `getProxySecret`, а также другие host:port use-cases)
+1. Telemt сначала проверяет `network.dns_overrides` в формате `host:port:ip`.
+2. Если override нет — использует обычный DNS (`lookup_host`/system resolution в конкретном месте кода).
 
-Пример из кода (сначала override, затем DNS):
-
-```rust
-if let Some(addr) = resolve_socket_addr(host, port) {
-    return Ok(addr);
-}
-let addrs = tokio::net::lookup_host((host, port)).await?;
-```
+Важно: `dns_overrides` не является «глобальной заменой DNS для всех хостов и всех путей», а применяется только в тех кодовых путях, где вызывается resolver override (например, ME HTTPS fetch, mask-host, TLS front fetch, upstream host:port resolution).
 
 Ссылки:
 - [`src/proxy/direct_relay.rs` (`get_dc_addr_static`)](../upstreams/telegram/telemt/src/proxy/direct_relay.rs)
 - [`src/transport/middle_proxy/http_fetch.rs` (resolve + DNS)](../upstreams/telegram/telemt/src/transport/middle_proxy/http_fetch.rs)
+- [`src/network/dns_overrides.rs`](../upstreams/telegram/telemt/src/network/dns_overrides.rs)
 
-## 5) Зачем Telemt ходит к Telegram Middle Proxy, если можно напрямую?
+## 5) Что такое ME в Telemt: протокол или policy layer?
 
-Потому что ME — это **управляемый транспортный слой**, который обычно лучше в эксплуатационном смысле:
+В терминах Telemt, ME — это не новый клиентский протокол, а **upstream transport/orchestration слой**:
+- endpoint map из `getProxyConfig*`;
+- writer/reader pool;
+- admission readiness (`admission_ready_conditional_cast`);
+- health/refill/reconnect/floor policies;
+- route mode cutover для **новых подключений**.
 
-- более стабильная пропускная способность и предсказуемая latency;
-- снижение churn и reconnect-штормов за счет adaptive policy;
-- изоляция деградации (проблема одной сессии/канала не должна ломать весь поток);
-- более гибкое восстановление покрытия (refill/reconnect), чем “просто прямой коннект”.
-
-Direct остается важным режимом, но в архитектуре Telemt ME задуман как основной путь в типичных условиях.
+Это control+transport orchestration над relay-путем Telemt → Telegram (через middle endpoints).
 
 Ссылки:
 - [Модель ME (RU)](../upstreams/telegram/telemt/docs/Architecture/Model/MODEL.ru.md)
-- [`README.md` (позиционирование Middle-End)](../upstreams/telegram/telemt/README.md)
+- [`src/maestro/admission.rs`](../upstreams/telegram/telemt/src/maestro/admission.rs)
+- [`src/transport/middle_proxy/`](../upstreams/telegram/telemt/src/transport/middle_proxy/)
 
-## 6) Что значит “как fallback”?
+## 6) Как работает bootstrap/caching/fallback для getProxy* и getProxySecret?
 
-**Fallback** = резервный маршрут (**план Б**), когда основной путь не готов/временно недоступен.
+Коротко:
+- Для `getProxySecret`: сначала fresh download, при неуспехе — чтение cache/file fallback с проверкой длины.
+- Для startup `getProxyConfig*`: сначала fresh snapshot; при пустом/ошибочном результате — попытка disk cache snapshot.
+- Если данные недоступны:
+  - при `me2dc_fallback=true` ME startup может завершиться fallback-ом в direct режим;
+  - при `me2dc_fallback=false` startup продолжает retry-loop.
 
-Пример:
-- основной путь: `ME`
-- fallback: `direct DC`
+IPv6 bootstrap:
+- `getProxyConfigV6` запрашивается отдельным URL (`proxy_config_v6_url` или default `.../getProxyConfigV6`).
+- Реальная пригодность IPv6 пути зависит от network decision/probe и текущих runtime условий.
 
-Если включен `me2dc_fallback`, Telemt может переключиться на direct path, когда ME не инициализировался или потерял готовность по policy.
+Ссылки:
+- [`src/transport/middle_proxy/secret.rs`](../upstreams/telegram/telemt/src/transport/middle_proxy/secret.rs)
+- [`src/maestro/helpers.rs` (`load_startup_proxy_config_snapshot`)](../upstreams/telegram/telemt/src/maestro/helpers.rs)
+- [`src/maestro/me_startup.rs`](../upstreams/telegram/telemt/src/maestro/me_startup.rs)
 
-Пример из кода:
+## 7) Что именно означает fallback (`me2dc_fallback`, `me2dc_fast`)?
 
-```rust
-/// Allow fallback from Middle-End mode to direct DC when ME startup cannot be initialized.
-pub me2dc_fallback: bool,
-```
+Разделяйте startup и runtime:
 
-Ссылка:
+1. **Startup fallback**
+   - Если ME не может стартовать и `me2dc_fallback=true`, runtime может перейти в direct mode.
+   - Если `me2dc_fallback=false`, startup может продолжать ретраи вместо деградации в direct.
+
+2. **Runtime fallback / admission-gate behavior**
+   - Решение принимает admission loop по readiness ME pool.
+   - `me2dc_fast=true` (при `use_middle_proxy=true` и `me2dc_fallback=true`) разрешает быстрый direct fallback для новых сессий при `not-ready`.
+   - Без fast-режима действует grace-логика: отдельные пороги для startup-not-ready и runtime-not-ready перед переводом новых подключений в direct.
+
+3. **Активные сессии при смене route mode**
+   - Переключение не означает «мгновенно и прозрачно перенести все активные потоки».
+   - В коде есть cutover-механизм поколений; затронутые сессии могут завершаться с route-switch ошибкой (`Session terminated`) после stagger delay.
+
+Ссылки:
 - [`src/config/types.rs` (`me2dc_fallback`, `me2dc_fast`)](../upstreams/telegram/telemt/src/config/types.rs)
-
-## 7) Когда именно может сработать fallback?
-
-Типовые случаи:
-- не удалось получить/валидировать bootstrap-данные ME (secret/config);
-- недостаточное покрытие ME пула для policy admission;
-- runtime-деградация по DC/endpoint (в зависимости от policy и настроек).
-
-Важно: в модели Telemt fallback — это **ожидаемая policy-ветка**, а не автоматический признак бага.
-
-Ссылка:
-- [MODEL.ru.md (про fallback policy)](../upstreams/telegram/telemt/docs/Architecture/Model/MODEL.ru.md)
+- [`src/maestro/admission.rs`](../upstreams/telegram/telemt/src/maestro/admission.rs)
+- [`src/proxy/route_mode.rs`](../upstreams/telegram/telemt/src/proxy/route_mode.rs)
+- [`src/proxy/direct_relay.rs`](../upstreams/telegram/telemt/src/proxy/direct_relay.rs)
+- [`src/proxy/middle_relay.rs`](../upstreams/telegram/telemt/src/proxy/middle_relay.rs)
 
 ## 8) Частые уточнения
 
 ### 8.1 “ME всегда быстрее direct?”
-Не всегда в каждом микросценарии, но архитектурно Telemt оптимизирует ME под **стабильность + предсказуемость** в реальной нагрузке.
+Не гарантия. В коде и архитектурных материалах это скорее целевая модель/дизайн-намерение (устойчивость, управляемость), а не строгая гарантия latency/throughput для любого сценария.
 
 ### 8.2 “Можно ли работать только в direct?”
-Да, это возможно настройками. Но теряются преимущества ME orchestration (пул, адаптивные политики, устойчивость на деградациях).
+Да. Если `use_middle_proxy=false`, runtime работает direct-only.
 
 ### 8.3 “Что если DNS нестабилен?”
-Используются `dns_overrides`, что позволяет жестко зафиксировать разрешение конкретных host:port.
+Можно использовать `network.dns_overrides` для конкретных `host:port` маршрутов, где этот механизм реально вызывается.
 
 ### 8.4 “Почему вообще нужны `getProxyConfig*`?”
-Чтобы получать актуальную карту Middle Proxy endpoint-ов (а не жить только на статике).
+Для актуальной карты ME endpoint-ов (`proxy_for`) и runtime-обновлений map/pool.
 
 ### 8.5 “Где смотреть runtime-состояние маршрутизации?”
-Смотреть runtime API и состояние ME pool, counters, coverage/floor.
+Практически полезные endpoint-ы API:
+- `/v1/runtime/gates` — admission/route/fallback state;
+- `/v1/runtime/initialization` — startup/ME init stage;
+- `/v1/runtime/me_pool_state` — поколение/контур/рефилл ME pool;
+- `/v1/runtime/me_quality` — route drops, coverage-related quality signals;
+- `/v1/stats/me-writers`, `/v1/stats/dcs` — writer/DC counters;
+- `/v1/runtime/events/recent` — recent control-plane события.
 
-Ссылка:
+Ссылки:
 - [Architecture API](../upstreams/telegram/telemt/docs/Architecture/API/API.md)
+- [`src/api/mod.rs` (route matrix)](../upstreams/telegram/telemt/src/api/mod.rs)
 
 ## 9) Мини-чеклист диагностики маршрутизации
 
-1. Проверить, включен ли `use_middle_proxy`.
+1. Проверить `use_middle_proxy`.
 2. Проверить `me2dc_fallback` и `me2dc_fast`.
-3. Проверить доступность `getProxySecret/getProxyConfig/getProxyConfigV6`.
-4. Проверить `dc_overrides` / `default_dc`.
-5. Проверить DNS и `network.dns_overrides`.
-6. Сопоставить runtime-состояние с policy (coverage/floor/admission).
+3. Проверить startup/runtime readiness (API: `/v1/runtime/gates`, `/v1/runtime/initialization`).
+4. Проверить доступность `getProxySecret/getProxyConfig/getProxyConfigV6` и наличие cache snapshot.
+5. Проверить `dc_overrides` / `default_dc` и семейство IPv4/IPv6.
+6. Проверить `network.dns_overrides` только для релевантных host:port путей.
+7. Проверить ME pool state/quality (`/v1/runtime/me_pool_state`, `/v1/runtime/me_quality`, `/v1/stats/me-writers`, `/v1/stats/dcs`).
 
 ## 10) Короткий словарь
 
-- **ME (Middle-End)** — режим работы через middle proxy endpoints.
-- **DC** — Telegram datacenter endpoint.
-- **Writer** — долгоживущий исходящий канал к конкретному ME endpoint.
-- **Coverage** — достаточное число живых writer-ов для приема трафика.
-- **Floor** — целевая минимальная емкость writer-ов.
-- **Churn** — частые reconnect/remove циклы.
-- **Fallback** — резервный маршрут при недоступности основного.
+- **ME (Middle-End)** — upstream transport/orchestration слой через middle proxy endpoints.
+- **DC** — Telegram datacenter endpoint для direct-path.
+- **Writer** — исходящий канал пула к конкретному ME endpoint.
+- **Coverage** — достаточность живых writer-ов по policy.
+- **Floor** — минимально целевой уровень writer capacity (static/adaptive policy).
+- **Admission gate** — runtime-решение, принимать ли новые подключения и каким route mode.
+- **Fallback** — policy-ветка маршрутизации, в том числе для новых подключений при ME not-ready.
 
 ## 11) Быстрый индекс ссылок на код
 
@@ -225,13 +205,15 @@ pub me2dc_fallback: bool,
 - Direct route / `dc_overrides`: [`src/proxy/direct_relay.rs`](../upstreams/telegram/telemt/src/proxy/direct_relay.rs)
 - Bootstrap URL и fallback параметры: [`src/config/types.rs`](../upstreams/telegram/telemt/src/config/types.rs)
 - Startup загрузка `getProxyConfig*`: [`src/maestro/me_startup.rs`](../upstreams/telegram/telemt/src/maestro/me_startup.rs)
+- Startup cache fallback: [`src/maestro/helpers.rs`](../upstreams/telegram/telemt/src/maestro/helpers.rs)
 - Загрузка `getProxySecret`: [`src/transport/middle_proxy/secret.rs`](../upstreams/telegram/telemt/src/transport/middle_proxy/secret.rs)
 - Парсинг `proxy_for`: [`src/transport/middle_proxy/config_updater.rs`](../upstreams/telegram/telemt/src/transport/middle_proxy/config_updater.rs)
-- DNS + overrides: [`src/transport/middle_proxy/http_fetch.rs`](../upstreams/telegram/telemt/src/transport/middle_proxy/http_fetch.rs)
+- DNS overrides: [`src/network/dns_overrides.rs`](../upstreams/telegram/telemt/src/network/dns_overrides.rs)
+- API route matrix: [`src/api/mod.rs`](../upstreams/telegram/telemt/src/api/mod.rs)
 
 ---
 
 Если нужно, в следующей версии можно добавить:
 - диаграмму “client -> telemt -> (ME|direct) -> Telegram”;
-- таблицу “сигнал/симптом -> вероятная причина -> действие”;
-- шаблон runbook для on-call.
+- таблицу “симптом -> наблюдаемый API сигнал -> проверка policy/конфига -> действие”;
+- короткий runbook «startup fallback vs runtime fallback».
