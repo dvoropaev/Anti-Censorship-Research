@@ -30399,3 +30399,819 @@ index e15c8da..1524a9f 100644
                          VALUE "OriginalFilename", "trusttunnel_client.exe"
                          VALUE "InternalName", "trusttunnel_client"
                  END
+
+commit 356ab493c7a522d129f160f1316ee962b9adb052
+Author: Ilia Zhirov <i.zhirov@adguard.com>
+Date:   2026-05-04 12:27:49 +0000
+
+    Pull request 672: AG-45460 investigate a possible memory leakage in tcp ip exacerbated by a large tcp wnd
+    
+    Squashed commit of the following:
+    
+    commit d42104fb3d981c63b7fd43dc737dd6ee892c084e
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Fri May 1 00:00:36 2026 +0500
+    
+        Add missing tcp buffer fields to test initializer
+    
+    commit e6621d489e473bbe0622b80a9171b912ca5d5722
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Thu Apr 30 23:38:18 2026 +0500
+    
+        Fix dead_code warning in setup_wizard template
+    
+    commit bb55ad9f624db71d6dc693d2d083f40595e75423
+    Merge: 3d9054bc 07ea7045
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Thu Apr 30 23:34:51 2026 +0500
+    
+        Merge branch 'master' into AG-45460-investigate-a-possible-memory-leakage-in-tcp-ip-exacerbated-by-a-large-tcp_wnd
+    
+        # Conflicts:
+        #   CHANGELOG.md
+    
+    commit 3d9054bc25d2ead3666e56580b3b1508e9883f70
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Thu Apr 30 23:32:37 2026 +0500
+    
+        Update CHANGELOG, README, and setup_wizard template with new fields
+    
+    commit 280303cb0620ef836a9d498d645553be21c78918
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Fri Apr 24 21:12:09 2026 +0500
+    
+        Increase trimming interval to 30 minutes
+    
+    commit 32f5b6dea2a48e26b7c4fdcf59d1de860ad77fe3
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Fri Apr 24 15:54:22 2026 +0500
+    
+        Remove tcp_active_pcbs guard
+    
+    commit 61c2fdb9bf98a26dd3802b9332069c541ecf742e
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Mon Apr 20 21:39:57 2026 +0500
+    
+        Use runtime GetProcAddress for HeapSetInformation on Windows
+    
+    commit f63455eee70b19bc004b4aba0cd52ff73ae2873d
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Thu Apr 16 17:07:00 2026 +0500
+    
+        Set trim interval to 3 minutes
+    
+    commit ae95ade30450c32f6f3547eb8317b61aa697a57c
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Thu Apr 16 14:22:07 2026 +0500
+    
+        Fix build
+    
+    commit c9cbda67d114285d9361bd9e4ff4525e17a04862
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Wed Apr 15 20:43:14 2026 +0500
+    
+        Use proper Windows way to reclaim memory
+    
+    commit 313925709fe94fec8944024cf9ad366a6dcdcef0
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Wed Apr 15 16:55:51 2026 +0500
+    
+        Add cross-platform heap trimming (macOS, Windows)
+    
+    commit 0ba49793d754795f929e4cbcd689d8daedfd7eb4
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Tue Apr 14 22:59:47 2026 +0500
+    
+        Use proper glibc guard
+    
+    commit 70b958334840c79c2fe3787e1f0212a1725a251e
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Tue Apr 14 21:00:16 2026 +0500
+    
+        Add runtime TCP buffer size configuration
+    
+    commit 29f93f42755725f3cb8316c7c2282c3595627f18
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Mon Apr 13 23:05:10 2026 +0500
+    
+        Increase TCP buffer sizes from 32KB to 256KB
+    
+    commit 8120df6faf48fdba54b76e4985803db3862a14a6
+    Author: Ilia Zhirov <i.zhirov@adguard.com>
+    Date:   Mon Apr 13 21:14:58 2026 +0500
+    
+        Call malloc_trim to release heap pages after TCP connections close
+---
+ CHANGELOG.md                                      |  7 ++++
+ core/include/vpn/vpn.h                            |  4 ++
+ core/src/tun_device_listener.cpp                  |  4 ++
+ integration-tests/tests/client_setup.sh           |  7 ++++
+ tcpip/include/tcpip/tcpip.h                       |  8 ++--
+ tcpip/src/lwipopts.h                              | 14 +++++--
+ tcpip/src/tcp_raw.cpp                             |  9 +++++
+ tcpip/src/tcpip_common.cpp                        | 48 +++++++++++++++++++++++
+ third-party/lwip/lwip/src/core/tcp.c              |  2 +-
+ third-party/lwip/lwip/src/include/lwip/tcp.h      |  7 +++-
+ trusttunnel/README.md                             |  6 +++
+ trusttunnel/include/vpn/trusttunnel/config.h      |  2 +
+ trusttunnel/setup_wizard/src/composer.rs          |  2 +
+ trusttunnel/setup_wizard/src/settings.rs          | 20 ++++++++++
+ trusttunnel/setup_wizard/src/template_settings.rs |  6 +++
+ trusttunnel/src/client.cpp                        |  6 +++
+ trusttunnel/src/config.cpp                        |  2 +
+ 17 files changed, 144 insertions(+), 10 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 307eb44..df77be5 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,12 @@
+ # CHANGELOG
+ 
++- [Feature] Add `tcp_recv_buf_size` and `tcp_send_buf_size` options to `[listener.tun]` section.
++            These allow tuning TCP window and send buffer sizes per connection.
++            Default (0) uses optimized compile-time values (256 KB each). Adjust only for
++            constrained environments or specific network conditions.
++- [Feature] Add periodic heap trimming to reduce RSS after traffic bursts.
++            Frees fragmented heap pages back to the OS, preventing memory growth over long sessions.
++
+ ## 1.0.62
+ 
+ - [Feature] Improve control over TUN device configuration.
+diff --git a/core/include/vpn/vpn.h b/core/include/vpn/vpn.h
+index 6986df3..42bb82a 100644
+--- a/core/include/vpn/vpn.h
++++ b/core/include/vpn/vpn.h
+@@ -85,6 +85,10 @@ typedef struct {
+     VpnOsTunnel *tunnel;
+     /** Maximum transfer unit for TCP protocol (if 0, `DEFAULT_MTU_SIZE` will be used) */
+     uint32_t mtu_size;
++    /** TCP receive window size in bytes (if 0, compile-time default is used) */
++    uint32_t tcp_recv_buf_size;
++    /** TCP send buffer size in bytes (if 0, compile-time default is used) */
++    uint32_t tcp_send_buf_size;
+     /** Pcap file name */
+     const char *pcap_filename;
+ } VpnTunListenerConfig;
+diff --git a/core/src/tun_device_listener.cpp b/core/src/tun_device_listener.cpp
+index e1cc628..f5f7682 100644
+--- a/core/src/tun_device_listener.cpp
++++ b/core/src/tun_device_listener.cpp
+@@ -45,6 +45,8 @@ static VpnTunListenerConfig clone_config(const VpnTunListenerConfig *config) {
+             .fd = config->fd,
+             .tunnel = config->tunnel,
+             .mtu_size = config->mtu_size,
++            .tcp_recv_buf_size = config->tcp_recv_buf_size,
++            .tcp_send_buf_size = config->tcp_send_buf_size,
+             .pcap_filename = safe_strdup(config->pcap_filename),
+     };
+ }
+@@ -84,6 +86,8 @@ ClientListener::InitResult TunListener::init(VpnClient *vpn, ClientHandler handl
+             .tun_fd = m_config.fd,
+             .event_loop = this->vpn->parameters.ev_loop,
+             .mtu_size = m_config.mtu_size,
++            .tcp_recv_buf_size = m_config.tcp_recv_buf_size,
++            .tcp_send_buf_size = m_config.tcp_send_buf_size,
+             .pcap_filename = m_config.pcap_filename,
+             .handler = {tcpip_handler, this},
+     };
+diff --git a/integration-tests/tests/client_setup.sh b/integration-tests/tests/client_setup.sh
+index 3fdff32..d4647c7 100755
+--- a/integration-tests/tests/client_setup.sh
++++ b/integration-tests/tests/client_setup.sh
+@@ -121,6 +121,13 @@ excluded_routes = [
+ ]
+ mtu_size = 1280
+ EOF
++  # Add optional TCP buffer size overrides
++  if [[ -n "${TCP_RECV_BUF_SIZE:-}" ]]; then
++    echo "tcp_recv_buf_size = $TCP_RECV_BUF_SIZE" >> trusttunnel_client.toml
++  fi
++  if [[ -n "${TCP_SEND_BUF_SIZE:-}" ]]; then
++    echo "tcp_send_buf_size = $TCP_SEND_BUF_SIZE" >> trusttunnel_client.toml
++  fi
+   echo "TUN mode configuration created"
+ else
+   cat >trusttunnel_client.toml <<EOF
+diff --git a/tcpip/include/tcpip/tcpip.h b/tcpip/include/tcpip/tcpip.h
+index 2d5a4f2..c72dc9e 100644
+--- a/tcpip/include/tcpip/tcpip.h
++++ b/tcpip/include/tcpip/tcpip.h
+@@ -110,9 +110,11 @@ typedef struct {
+ typedef struct {
+     evutil_socket_t tun_fd; /**< File descriptor of TUN device */
+     VpnEventLoop *event_loop;
+-    uint32_t mtu_size;         /**< Maximum transfer unit for TCP protocol (if 0 `DEFAULT_MTU_SIZE` will be used) */
+-    const char *pcap_filename; /**< Pcap file name */
+-    TcpipHandler handler;      /**< callbacks structure for TCP connection (@see tcpip_callbacks_t) */
++    uint32_t mtu_size;          /**< Maximum transfer unit for TCP protocol (if 0 `DEFAULT_MTU_SIZE` will be used) */
++    uint32_t tcp_recv_buf_size; /**< TCP receive window size in bytes (if 0, compile-time default is used) */
++    uint32_t tcp_send_buf_size; /**< TCP send buffer size in bytes (if 0, compile-time default is used) */
++    const char *pcap_filename;  /**< Pcap file name */
++    TcpipHandler handler;       /**< callbacks structure for TCP connection (@see tcpip_callbacks_t) */
+ } TcpipParameters;
+ 
+ /**
+diff --git a/tcpip/src/lwipopts.h b/tcpip/src/lwipopts.h
+index 7330473..e95b540 100644
+--- a/tcpip/src/lwipopts.h
++++ b/tcpip/src/lwipopts.h
+@@ -64,15 +64,21 @@
+ 
+ #define MAX_SUPPORTED_MTU 9000
+ 
+-#define TCP_WND (32 * 1024)
+-#define TCP_RCV_SCALE 2
++#define TCP_WND (256 * 1024)
++#define TCP_RCV_SCALE 4
+ #define TCP_MSS (MAX_SUPPORTED_MTU - IP_HLEN - TCP_HLEN)
+ 
+-#define TCP_SND_BUF (32 * 1024)
+-#define TCP_SND_QUEUELEN 32
++#define TCP_SND_BUF (256 * 1024)
++#define TCP_SND_QUEUELEN 256
++// Explicit SNDLOWAT to avoid LWIP sanity check u16 overflow with large TCP_SND_BUF
++#define TCP_SNDLOWAT (2 * TCP_MSS + 1)
+ 
+ #define LWIP_TCP_SACK_OUT 1
+ 
++// Limit out-of-sequence buffer to prevent unbounded memory growth
++#define TCP_OOSEQ_MAX_BYTES TCP_WND
++#define TCP_OOSEQ_MAX_PBUFS 64
++
+ // IP hooks (implementation in ip_hooks.c)
+ #define LWIP_HOOK_FILENAME "./ip_hooks.h"
+ 
+diff --git a/tcpip/src/tcp_raw.cpp b/tcpip/src/tcp_raw.cpp
+index 53065da..f2726c1 100644
+--- a/tcpip/src/tcp_raw.cpp
++++ b/tcpip/src/tcp_raw.cpp
+@@ -223,6 +223,15 @@ static err_t tcp_raw_accept(void *arg, struct tcp_pcb *newpcb, err_t err) {
+     tcp_setprio(newpcb, TCP_PRIO_MIN);
+     tcp_nagle_disable(newpcb);
+ 
++    // Apply runtime TCP buffer size overrides (for constrained devices like routers)
++    if (ctx->parameters.tcp_recv_buf_size > 0) {
++        newpcb->rcv_wnd_max = ctx->parameters.tcp_recv_buf_size;
++        newpcb->rcv_wnd = newpcb->rcv_ann_wnd = ctx->parameters.tcp_recv_buf_size;
++    }
++    if (ctx->parameters.tcp_send_buf_size > 0) {
++        newpcb->snd_buf = ctx->parameters.tcp_send_buf_size;
++    }
++
+     static_assert(std::is_trivial_v<ConnCtx>);
+     auto *conn_ctx = (ConnCtx *) malloc(sizeof(ConnCtx));
+     conn_ctx->tcpip = ctx;
+diff --git a/tcpip/src/tcpip_common.cpp b/tcpip/src/tcpip_common.cpp
+index b717241..26edf29 100644
+--- a/tcpip/src/tcpip_common.cpp
++++ b/tcpip/src/tcpip_common.cpp
+@@ -3,6 +3,26 @@
+ #ifndef _WIN32
+ #include <unistd.h>
+ #endif
++#ifdef __GLIBC__
++#include <malloc.h>
++#elif defined(__MACH__)
++#include <malloc/malloc.h>
++#elif defined(_WIN32)
++#include <windows.h>
++// HeapOptimizeResources requires NTDDI_VERSION > NTDDI_WINBLUE in SDK headers,
++// but we target Win7 (_WIN32_WINNT=0x0601). Define the constants manually
++// so we can call HeapSetInformation via GetProcAddress at runtime.
++#ifndef HeapOptimizeResources
++#define HeapOptimizeResources static_cast<HEAP_INFORMATION_CLASS>(3)
++#endif
++#ifndef HEAP_OPTIMIZE_RESOURCES_CURRENT_VERSION
++#define HEAP_OPTIMIZE_RESOURCES_CURRENT_VERSION 1
++struct HEAP_OPTIMIZE_RESOURCES_INFORMATION {
++    DWORD Version;
++    DWORD Flags;
++};
++#endif
++#endif
+ 
+ #include <cstdlib>
+ #include <cstring>
+@@ -19,6 +39,7 @@
+ #include <lwip/netdb.h>
+ #include <lwip/netif.h>
+ #include <lwip/pbuf.h>
++#include <lwip/priv/tcp_priv.h>
+ #include <lwip/tcp.h>
+ 
+ #include "libevent_lwip.h"
+@@ -46,6 +67,9 @@ static constexpr TimerTickNotifyFn TIMER_TICK_NOTIFIERS[] = {
+         udp_cm_timer_tick,
+ };
+ 
++static int s_malloc_trim_tick_counter = 0;
++static constexpr int MALLOC_TRIM_INTERVAL_TICKS = 600; // ~30 minutes (tick = TIMER_PERIOD_S = 3s)
++
+ static void dump_packet_to_pcap(TcpipCtx *ctx, const uint8_t *data, size_t len);
+ static void dump_packet_iovec_to_pcap(TcpipCtx *ctx, std::span<evbuffer_iovec> chunks);
+ static void open_pcap_file(TcpipCtx *ctx, const char *pcap_filename);
+@@ -289,6 +313,30 @@ static void timer_callback(evutil_socket_t, short, void *arg) {
+     for (auto fn : TIMER_TICK_NOTIFIERS) {
+         fn((TcpipCtx *) arg);
+     }
++
++    // Periodically return freed heap pages to the OS.
++    // LWIP uses libc malloc (MEM_LIBC_MALLOC=1) and some allocators don't release pages
++    // automatically, causing RSS to stay high after traffic bursts.
++    // HeapOptimizeResources / malloc_trim only compact free blocks and are safe to call
++    // with active connections — they do not affect live allocations.
++    if (++s_malloc_trim_tick_counter >= MALLOC_TRIM_INTERVAL_TICKS) {
++        s_malloc_trim_tick_counter = 0;
++#ifdef __GLIBC__
++        malloc_trim(0);
++#elif defined(__MACH__)
++        malloc_zone_pressure_relief(NULL, 0);
++#elif defined(_WIN32)
++        // HeapOptimizeResources is available on Windows 8.1+ (NTDDI >= 0x06030000).
++        // Use runtime loading so the binary works on Win7 too.
++        static const auto heap_set_info = reinterpret_cast<decltype(&HeapSetInformation)>(
++                GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "HeapSetInformation"));
++        if (heap_set_info) {
++            HEAP_OPTIMIZE_RESOURCES_INFORMATION heap_opt_info = {};
++            heap_opt_info.Version = HEAP_OPTIMIZE_RESOURCES_CURRENT_VERSION;
++            heap_set_info(NULL, HeapOptimizeResources, &heap_opt_info, sizeof(heap_opt_info));
++        }
++#endif
++    }
+ }
+ 
+ static bool configure_events(TcpipCtx *ctx) {
+diff --git a/third-party/lwip/lwip/src/core/tcp.c b/third-party/lwip/lwip/src/core/tcp.c
+index bd7d64e..2b72da8 100644
+--- a/third-party/lwip/lwip/src/core/tcp.c
++++ b/third-party/lwip/lwip/src/core/tcp.c
+@@ -934,7 +934,7 @@ tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb)
+   LWIP_ASSERT("tcp_update_rcv_ann_wnd: invalid pcb", pcb != NULL);
+   new_right_edge = pcb->rcv_nxt + pcb->rcv_wnd;
+ 
+-  if (TCP_SEQ_GEQ(new_right_edge, pcb->rcv_ann_right_edge + LWIP_MIN((TCP_WND / 2), pcb->mss))) {
++  if (TCP_SEQ_GEQ(new_right_edge, pcb->rcv_ann_right_edge + LWIP_MIN((u32_t)(TCP_WND / 2), (u32_t)pcb->mss))) {
+     /* we can advertise more window */
+     pcb->rcv_ann_wnd = pcb->rcv_wnd;
+     return new_right_edge - pcb->rcv_ann_right_edge;
+diff --git a/third-party/lwip/lwip/src/include/lwip/tcp.h b/third-party/lwip/lwip/src/include/lwip/tcp.h
+index daf7599..5aa6a84 100644
+--- a/third-party/lwip/lwip/src/include/lwip/tcp.h
++++ b/third-party/lwip/lwip/src/include/lwip/tcp.h
+@@ -137,12 +137,14 @@ typedef err_t (*tcp_connected_fn)(void *arg, struct tcp_pcb *tpcb, err_t err);
+ #define RCV_WND_SCALE(pcb, wnd) (((wnd) >> (pcb)->rcv_scale))
+ #define SND_WND_SCALE(pcb, wnd) (((wnd) << (pcb)->snd_scale))
+ #define TCPWND16(x)             ((u16_t)LWIP_MIN((x), 0xFFFF))
+-#define TCP_WND_MAX(pcb)        ((tcpwnd_size_t)(((pcb)->flags & TF_WND_SCALE) ? TCP_WND : TCPWND16(TCP_WND)))
++#define TCP_WND_MAX(pcb)        ((tcpwnd_size_t)(((pcb)->flags & TF_WND_SCALE) ? \
++                                 (((pcb)->rcv_wnd_max > 0) ? (pcb)->rcv_wnd_max : TCP_WND) : \
++                                 TCPWND16(TCP_WND)))
+ #else
+ #define RCV_WND_SCALE(pcb, wnd) (wnd)
+ #define SND_WND_SCALE(pcb, wnd) (wnd)
+ #define TCPWND16(x)             (x)
+-#define TCP_WND_MAX(pcb)        TCP_WND
++#define TCP_WND_MAX(pcb)        ((tcpwnd_size_t)(((pcb)->rcv_wnd_max > 0) ? (pcb)->rcv_wnd_max : TCP_WND))
+ #endif
+ /* Increments a tcpwnd_size_t and holds at max value rather than rollover */
+ #define TCP_WND_INC(wnd, inc)   do { \
+@@ -283,6 +285,7 @@ struct tcp_pcb {
+   u32_t rcv_nxt;   /* next seqno expected */
+   tcpwnd_size_t rcv_wnd;   /* receiver window available */
+   tcpwnd_size_t rcv_ann_wnd; /* receiver window to announce */
++  tcpwnd_size_t rcv_wnd_max; /* per-PCB max receive window (0 = use compile-time TCP_WND) */
+   u32_t rcv_ann_right_edge; /* announced right edge of window */
+ 
+ #if LWIP_TCP_SACK_OUT
+diff --git a/trusttunnel/README.md b/trusttunnel/README.md
+index 5ca81cf..a0e886b 100644
+--- a/trusttunnel/README.md
++++ b/trusttunnel/README.md
+@@ -131,6 +131,8 @@ The configuration file uses TOML format. Below are all available settings.
+ | `included_routes` | array[string] | `["0.0.0.0/0", "2000::/3"]` | Routes in CIDR notation to set to the virtual interface |
+ | `excluded_routes` | array[string] | `["0.0.0.0/8", "10.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16", "224.0.0.0/3"]` | Routes in CIDR notation to exclude from VPN routing |
+ | `mtu_size` | int | `1280` | MTU size on the virtual interface |
++| `tcp_recv_buf_size` | int | `0` | TCP receive window size in bytes. 0 = optimized default (256 KB). Adjust only for constrained environments |
++| `tcp_send_buf_size` | int | `0` | TCP send buffer size in bytes. 0 = optimized default (256 KB). Adjust only for constrained environments |
+ | `change_system_dns` | bool | `true` | Allow changing system DNS servers |
+ | `device_name` | string | `""` | On Linux, the TUN interface name (empty = kernel-assigned). On Windows, the Wintun adapter name (empty = auto-generated from hostname). On macOS, request a specific `utun<N>` unit (empty = kernel-assigned). |
+ | `use_existing` | bool | `false` | Attach to a pre-existing TUN device named `device_name` instead of creating one. Requires `device_name`. Linux only. |
+@@ -203,6 +205,10 @@ bound_if = ""
+ included_routes = ["0.0.0.0/0", "2000::/3"]
+ excluded_routes = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+ mtu_size = 1280
++# Uncomment to tune TCP window size (bytes). Default 0 uses optimized values (256 KB).
++# It is recommended to leave defaults unless you have specific requirements.
++# tcp_recv_buf_size = 0
++# tcp_send_buf_size = 0
+ ```
+ 
+ ---
+diff --git a/trusttunnel/include/vpn/trusttunnel/config.h b/trusttunnel/include/vpn/trusttunnel/config.h
+index 30afae0..60305f7 100644
+--- a/trusttunnel/include/vpn/trusttunnel/config.h
++++ b/trusttunnel/include/vpn/trusttunnel/config.h
+@@ -45,6 +45,8 @@ struct TrustTunnelConfig {
+         std::vector<std::string> included_routes;
+         std::vector<std::string> excluded_routes;
+         uint32_t mtu_size = 0;
++        uint32_t tcp_recv_buf_size = 0; ///< TCP receive window size in bytes (0 = compile-time default)
++        uint32_t tcp_send_buf_size = 0; ///< TCP send buffer size in bytes (0 = compile-time default)
+         std::string bound_if;
+         bool change_system_dns = true;
+         bool use_existing = false;
+diff --git a/trusttunnel/setup_wizard/src/composer.rs b/trusttunnel/setup_wizard/src/composer.rs
+index b7574b9..f1b9e27 100644
+--- a/trusttunnel/setup_wizard/src/composer.rs
++++ b/trusttunnel/setup_wizard/src/composer.rs
+@@ -168,6 +168,8 @@ mod tests {
+                 included_routes: vec!["0.0.0.0/0".into()],
+                 excluded_routes: vec![],
+                 mtu_size: 1280,
++                tcp_recv_buf_size: 0,
++                tcp_send_buf_size: 0,
+                 change_system_dns: true,
+                 device_name: "".into(),
+                 use_existing: false,
+diff --git a/trusttunnel/setup_wizard/src/settings.rs b/trusttunnel/setup_wizard/src/settings.rs
+index 6f25e02..f978d33 100644
+--- a/trusttunnel/setup_wizard/src/settings.rs
++++ b/trusttunnel/setup_wizard/src/settings.rs
+@@ -152,6 +152,12 @@ On Windows, an interface index as shown by `route print`, written as a string, m
+         #{doc("MTU size on the interface")}
+         #[serde(default = "TunListener::default_mtu_size")]
+         pub mtu_size: usize,
++        #{doc("TCP receive window size in bytes. 0 uses optimized default (256 KB). Adjust only for constrained environments")}
++        #[serde(default = "TunListener::default_tcp_recv_buf_size")]
++        pub tcp_recv_buf_size: usize,
++        #{doc("TCP send buffer size in bytes. 0 uses optimized default (256 KB). Adjust only for constrained environments")}
++        #[serde(default = "TunListener::default_tcp_send_buf_size")]
++        pub tcp_send_buf_size: usize,
+         #{doc("Allow changing system DNS servers")}
+         #[serde(default = "TunListener::default_change_system_dns")]
+         pub change_system_dns: bool,
+@@ -242,6 +248,14 @@ impl TunListener {
+         1280
+     }
+ 
++    pub fn default_tcp_recv_buf_size() -> usize {
++        0
++    }
++
++    pub fn default_tcp_send_buf_size() -> usize {
++        0
++    }
++
+     pub fn default_change_system_dns() -> bool {
+         true
+     }
+@@ -613,6 +627,12 @@ fn build_listener(template: Option<&Listener>) -> Listener {
+                 mtu_size: opt_field!(template, mtu_size)
+                     .cloned()
+                     .unwrap_or_else(TunListener::default_mtu_size),
++                tcp_recv_buf_size: opt_field!(template, tcp_recv_buf_size)
++                    .cloned()
++                    .unwrap_or_else(TunListener::default_tcp_recv_buf_size),
++                tcp_send_buf_size: opt_field!(template, tcp_send_buf_size)
++                    .cloned()
++                    .unwrap_or_else(TunListener::default_tcp_send_buf_size),
+                 change_system_dns: ask_for_agreement_with_default(
+                     &format!("{}\n", TunListener::doc_change_system_dns()),
+                     opt_field!(template, change_system_dns)
+diff --git a/trusttunnel/setup_wizard/src/template_settings.rs b/trusttunnel/setup_wizard/src/template_settings.rs
+index f353e09..099d0f6 100644
+--- a/trusttunnel/setup_wizard/src/template_settings.rs
++++ b/trusttunnel/setup_wizard/src/template_settings.rs
+@@ -144,6 +144,10 @@ excluded_routes = [{}]
+ {}
+ mtu_size = {}
+ {}
++# tcp_recv_buf_size = 0
++{}
++# tcp_send_buf_size = 0
++{}
+ change_system_dns = {}
+ {}
+ device_name = "{}"
+@@ -166,6 +170,8 @@ use_existing = {}
+             .join(OS_LINE_ENDING),
+         TunListener::doc_mtu_size().to_toml_comment(),
+         TunListener::default_mtu_size(),
++        TunListener::doc_tcp_recv_buf_size().to_toml_comment(),
++        TunListener::doc_tcp_send_buf_size().to_toml_comment(),
+         TunListener::doc_change_system_dns().to_toml_comment(),
+         TunListener::default_change_system_dns(),
+         TunListener::doc_device_name().to_toml_comment(),
+diff --git a/trusttunnel/src/client.cpp b/trusttunnel/src/client.cpp
+index fbe1d9c..46f59a5 100644
+--- a/trusttunnel/src/client.cpp
++++ b/trusttunnel/src/client.cpp
+@@ -276,6 +276,8 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
+         VpnTunListenerConfig listener_config = {
+                 .fd = use_fd->fd.release(),
+                 .mtu_size = config.mtu_size,
++                .tcp_recv_buf_size = config.tcp_recv_buf_size,
++                .tcp_send_buf_size = config.tcp_send_buf_size,
+         };
+ 
+         return vpn_create_tun_listener(m_vpn, &listener_config);
+@@ -285,6 +287,8 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
+         VpnTunListenerConfig listener_config = {
+                 .fd = -1,
+                 .mtu_size = config.mtu_size,
++                .tcp_recv_buf_size = config.tcp_recv_buf_size,
++                .tcp_send_buf_size = config.tcp_send_buf_size,
+         };
+ 
+         return vpn_create_tun_listener(m_vpn, &listener_config);
+@@ -377,6 +381,8 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
+             .tunnel = m_tunnel.get(),
+ #endif
+             .mtu_size = config.mtu_size,
++            .tcp_recv_buf_size = config.tcp_recv_buf_size,
++            .tcp_send_buf_size = config.tcp_send_buf_size,
+     };
+ 
+     return vpn_create_tun_listener(m_vpn, &listener_config);
+diff --git a/trusttunnel/src/config.cpp b/trusttunnel/src/config.cpp
+index 5dd3d5b..b59582b 100644
+--- a/trusttunnel/src/config.cpp
++++ b/trusttunnel/src/config.cpp
+@@ -206,6 +206,8 @@ static std::optional<TrustTunnelConfig::TunListener> parse_tun_listener_config(c
+     TrustTunnelConfig::TunListener tun = {
+             .device_name = std::move(device_name),
+             .mtu_size = (*tun_config)["mtu_size"].value<uint32_t>().value_or(DEFAULT_MTU),
++            .tcp_recv_buf_size = (*tun_config)["tcp_recv_buf_size"].value<uint32_t>().value_or(0),
++            .tcp_send_buf_size = (*tun_config)["tcp_send_buf_size"].value<uint32_t>().value_or(0),
+             .bound_if = std::move(bound_if),
+             .change_system_dns = (*tun_config)["change_system_dns"].value_or<bool>(true),
+             .use_existing = use_existing,
+
+commit 10e2666ae178bbcd537293ebf4b5f63766672b7a
+Author: Bamboo <Bamboo>
+Date:   2026-05-04 12:27:58 +0000
+
+    skipci: Automatic version increment by Bamboo
+---
+ CHANGELOG.md                                       |  2 ++
+ conandata.yml                                      |  2 ++
+ platform/android/lib/build.gradle.kts              |  2 +-
+ platform/apple/TrustTunnelClient.podspec           |  2 +-
+ .../TrustTunnelClient.xcodeproj/project.pbxproj    | 32 +++++++++++-----------
+ platform/apple/VpnClient/CMakeLists.txt            |  2 +-
+ trusttunnel/include/vpn/trusttunnel/version.h      |  2 +-
+ trusttunnel/setup_wizard/resources/setup_wizard.rc |  8 +++---
+ trusttunnel/setup_wizard/src/version.rs            |  2 +-
+ trusttunnel/trusttunnel_client.rc                  |  8 +++---
+ 10 files changed, 33 insertions(+), 29 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index df77be5..e6cb650 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,7 @@
+ # CHANGELOG
+ 
++## 1.0.63
++
+ - [Feature] Add `tcp_recv_buf_size` and `tcp_send_buf_size` options to `[listener.tun]` section.
+             These allow tuning TCP window and send buffer sizes per connection.
+             Default (0) uses optimized compile-time values (256 KB each). Adjust only for
+diff --git a/conandata.yml b/conandata.yml
+index dc90266..3dc0dec 100644
+--- a/conandata.yml
++++ b/conandata.yml
+@@ -1405,3 +1405,5 @@ commit_hash:
+     hash: "e797de2a3c2839891aae2722a4af319197d82310"
+   "1.0.62":
+     hash: "2b017d829371aec7360933aff34d0c6c196f3985"
++  "1.0.63":
++    hash: "356ab493c7a522d129f160f1316ee962b9adb052"
+diff --git a/platform/android/lib/build.gradle.kts b/platform/android/lib/build.gradle.kts
+index 20a7dd4..ff79f64 100644
+--- a/platform/android/lib/build.gradle.kts
++++ b/platform/android/lib/build.gradle.kts
+@@ -5,7 +5,7 @@ plugins {
+     id("maven-publish")
+ }
+ 
+-version = "1.0.62"
++version = "1.0.63"
+ 
+ android {
+     namespace = "com.adguard.trusttunnel"
+diff --git a/platform/apple/TrustTunnelClient.podspec b/platform/apple/TrustTunnelClient.podspec
+index ab8512a..3cf3f91 100644
+--- a/platform/apple/TrustTunnelClient.podspec
++++ b/platform/apple/TrustTunnelClient.podspec
+@@ -2,7 +2,7 @@
+ Pod::Spec.new do |s|
+   s.name         = "TrustTunnelClient"
+   s.module_name  = "TrustTunnelClient"
+-  s.version      = "1.0.62"
++  s.version      = "1.0.63"
+   s.summary      = "TrustTunnelClient Apple adapter"
+   s.description  = <<-DESC
+                   TrustTunnelClient adapter for macOS and iOS
+diff --git a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+index 2c89dc0..d558fb3 100644
+--- a/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
++++ b/platform/apple/TrustTunnelClient.xcodeproj/project.pbxproj
+@@ -335,9 +335,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.62;
++				CURRENT_PROJECT_VERSION = 1.0.63;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.62;
++				DYLIB_CURRENT_VERSION = 1.0.63;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -353,7 +353,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.62;
++				MARKETING_VERSION = 1.0.63;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -380,9 +380,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.62;
++				CURRENT_PROJECT_VERSION = 1.0.63;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.62;
++				DYLIB_CURRENT_VERSION = 1.0.63;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -398,7 +398,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.62;
++				MARKETING_VERSION = 1.0.63;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -477,7 +477,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.62;
++				CURRENT_PROJECT_VERSION = 1.0.63;
+ 				DEBUG_INFORMATION_FORMAT = dwarf;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+ 				ENABLE_TESTABILITY = YES;
+@@ -498,7 +498,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.62;
++				MARKETING_VERSION = 1.0.63;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -544,7 +544,7 @@
+ 				CLANG_WARN_UNREACHABLE_CODE = YES;
+ 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+ 				COPY_PHASE_STRIP = NO;
+-				CURRENT_PROJECT_VERSION = 1.0.62;
++				CURRENT_PROJECT_VERSION = 1.0.63;
+ 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ 				ENABLE_NS_ASSERTIONS = NO;
+ 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+@@ -559,7 +559,7 @@
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+ 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+-				MARKETING_VERSION = 1.0.62;
++				MARKETING_VERSION = 1.0.63;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				PRODUCT_NAME = TrustTunnelClient;
+@@ -576,9 +576,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.62;
++				CURRENT_PROJECT_VERSION = 1.0.63;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.62;
++				DYLIB_CURRENT_VERSION = 1.0.63;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -594,7 +594,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.62;
++				MARKETING_VERSION = 1.0.63;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+@@ -620,9 +620,9 @@
+ 				ALLOW_TARGET_PLATFORM_SPECIALIZATION = YES;
+ 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+ 				CODE_SIGN_STYLE = Automatic;
+-				CURRENT_PROJECT_VERSION = 1.0.62;
++				CURRENT_PROJECT_VERSION = 1.0.63;
+ 				DYLIB_COMPATIBILITY_VERSION = 1;
+-				DYLIB_CURRENT_VERSION = 1.0.62;
++				DYLIB_CURRENT_VERSION = 1.0.63;
+ 				DYLIB_INSTALL_NAME_BASE = "@rpath";
+ 				ENABLE_MODULE_VERIFIER = YES;
+ 				GENERATE_INFOPLIST_FILE = YES;
+@@ -638,7 +638,7 @@
+ 					"@loader_path/Frameworks",
+ 				);
+ 				MACOSX_DEPLOYMENT_TARGET = 15.5;
+-				MARKETING_VERSION = 1.0.62;
++				MARKETING_VERSION = 1.0.63;
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+ 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+ 				OTHER_LDFLAGS = "$(inherited)";
+diff --git a/platform/apple/VpnClient/CMakeLists.txt b/platform/apple/VpnClient/CMakeLists.txt
+index 23d2fdf..32f1445 100644
+--- a/platform/apple/VpnClient/CMakeLists.txt
++++ b/platform/apple/VpnClient/CMakeLists.txt
+@@ -49,7 +49,7 @@ add_library(${PROJECT_NAME} SHARED
+ set_target_properties(${PROJECT_NAME} PROPERTIES
+     FRAMEWORK TRUE
+     FRAMEWORK_VERSION A
+-    VERSION 1.0.62
++    VERSION 1.0.63
+     PUBLIC_HEADER "VpnClient.h;DeepLink.h"
+     MACOSX_FRAMEWORK_INFO_PLIST "${INFOPLIST_FILE}"
+     MACOSX_FRAMEWORK_IDENTIFIER com.adguard.TrustTunnel.VpnClientFramework
+diff --git a/trusttunnel/include/vpn/trusttunnel/version.h b/trusttunnel/include/vpn/trusttunnel/version.h
+index 0ee55a3..ebe077f 100644
+--- a/trusttunnel/include/vpn/trusttunnel/version.h
++++ b/trusttunnel/include/vpn/trusttunnel/version.h
+@@ -1,3 +1,3 @@
+ #pragma once
+ 
+-#define TRUSTTUNNEL_VERSION "1.0.62"
++#define TRUSTTUNNEL_VERSION "1.0.63"
+diff --git a/trusttunnel/setup_wizard/resources/setup_wizard.rc b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+index 0c7cf47..46025a5 100644
+--- a/trusttunnel/setup_wizard/resources/setup_wizard.rc
++++ b/trusttunnel/setup_wizard/resources/setup_wizard.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,62,0
+-    PRODUCTVERSION 1,0,62,0
++    FILEVERSION 1,0,63,0
++    PRODUCTVERSION 1,0,63,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client setup wizard"
+-                        VALUE "FileVersion", "1.0.62"
+-                        VALUE "ProductVersion", "1.0.62"
++                        VALUE "FileVersion", "1.0.63"
++                        VALUE "ProductVersion", "1.0.63"
+                         VALUE "OriginalFilename", "setup_wizard.exe"
+                         VALUE "InternalName", "setup_wizard"
+                 END
+diff --git a/trusttunnel/setup_wizard/src/version.rs b/trusttunnel/setup_wizard/src/version.rs
+index 40f9acf..7e55f3c 100644
+--- a/trusttunnel/setup_wizard/src/version.rs
++++ b/trusttunnel/setup_wizard/src/version.rs
+@@ -1 +1 @@
+-pub const VERSION: &str = "1.0.62";
++pub const VERSION: &str = "1.0.63";
+diff --git a/trusttunnel/trusttunnel_client.rc b/trusttunnel/trusttunnel_client.rc
+index 1524a9f..79d11d2 100644
+--- a/trusttunnel/trusttunnel_client.rc
++++ b/trusttunnel/trusttunnel_client.rc
+@@ -1,6 +1,6 @@
+ ﻿1 VERSIONINFO
+-    FILEVERSION 1,0,62,0
+-    PRODUCTVERSION 1,0,62,0
++    FILEVERSION 1,0,63,0
++    PRODUCTVERSION 1,0,63,0
+     FILEFLAGSMASK 0x17L
+  FILEFLAGS 0x0L
+  FILEOS 0x4L
+@@ -15,8 +15,8 @@ BEGIN
+                         VALUE "LegalCopyright", "Copyright © Adguard Software Limited 2009-2026"
+                         VALUE "CompanyName", "Adguard Software Ltd"
+                         VALUE "ProductName", "TrustTunnel command-line client"
+-                        VALUE "FileVersion", "1.0.62"
+-                        VALUE "ProductVersion", "1.0.62"
++                        VALUE "FileVersion", "1.0.63"
++                        VALUE "ProductVersion", "1.0.63"
+                         VALUE "OriginalFilename", "trusttunnel_client.exe"
+                         VALUE "InternalName", "trusttunnel_client"
+                 END
